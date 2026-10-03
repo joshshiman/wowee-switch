@@ -122,6 +122,17 @@ titles that allocate images constantly, the trigger is something specific to
 this allocation rather than image allocation in general; the shadow atlas is a
 `D32_SFLOAT` depth image that is also sampled, which is the obvious suspect.
 
+Eden nightly gets past that, boots the client and renders the first frame -
+and then wedges: its shader recompiler rejects one Maxwell-only instruction
+(`CreateGraphicsPipeline: Instruction IMAD32I is not implemented`) while NVK's
+Maxwell output is what a real Switch GPU consumes natively, so this does not
+apply to hardware. The recompile happens on a worker thread and the pipeline
+call still returns success, so nothing is logged on the client side; the queue
+then never completes, `vkQueuePresentKHR` blocks, and Windows reports the
+emulator as not responding. `logs/boot.log` stops after
+`gpu: frame submit complete`, and the per-frame breadcrumbs since
+`main loop: frame N begin` name how far the frame got.
+
 Two more caveats seen in that setup, neither of them a client bug:
 
 * A launch can abort inside libnx before `main` when the loader's environment

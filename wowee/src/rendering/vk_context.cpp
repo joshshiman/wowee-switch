@@ -3772,6 +3772,9 @@ void VkContext::endFrame(VkCommandBuffer cmd, uint32_t imageIndex) {
         // immediately and the display has a known current image before the
         // one-frame pipeline begins. Also used permanently with two buffers.
         if (deferredPresentValid_) {
+            // The primed path's present had a marker; this one did not, which
+            // made a stall here look like a stall with no call in it.
+            if (bootTrace) platform::switchport::reportBootStage("gpu: retained present begin");
             result = flushDeferredPresent();
             presentedThisEnd = true;
         }
