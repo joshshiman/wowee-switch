@@ -160,21 +160,34 @@ bool Renderer::createPerFrameResources() {
     const auto shadowMemory =
         ChooseSwitchShadowMemoryType(shadowMemoryProperties);
     imgAllocCI.memoryTypeBits = shadowMemory.memoryTypeBits;
-    if (shadowMemory.policy == SwitchShadowMemoryPolicy::Unavailable) {
-        LOG_ERROR("Shadow atlas: the driver reported no usable memory types");
+    if (shadowMemory.policy == SwitchShadowMemoryPolicy::HostVisibleOnly) {
+        // Legal Vulkan, and it renders correctly, but on a host whose NVK
+        // emulation cannot allocate from a host-visible heap this takes the
+        // whole emulator down with an access violation before we get to report
+        // anything. Opt in, do not do it by default.
+        const char* allow = std::getenv("WOWEE_SWITCH_ALLOW_HOST_VISIBLE_MEMORY");
+        if (!allow || !*allow || std::strcmp(allow, "0") == 0) {
+            LOG_ERROR("Shadow atlas: the driver reports no device-local memory, only "
+                      "host-visible. Allocating there is valid but crashes NVK-based "
+                      "emulators; set WOWEE_SWITCH_ALLOW_HOST_VISIBLE_MEMORY=1 to try it.");
+            LogSwitchMemoryTypes(shadowMemoryProperties);
+            return false; // VMA interprets a zero mask as unrestricted, so fail closed.
+        }
+        LOG_WARNING("Shadow atlas: no device-local memory; allocating host-visible memory "
+                    "because WOWEE_SWITCH_ALLOW_HOST_VISIBLE_MEMORY is set.");
         LogSwitchMemoryTypes(shadowMemoryProperties);
-        return false; // VMA interprets a zero mask as unrestricted, so fail closed.
-    }
-    if (shadowMemory.policy != SwitchShadowMemoryPolicy::UncachedHostVisible) {
+    } else if (shadowMemory.policy == SwitchShadowMemoryPolicy::DeviceLocalOnly) {
         // No uncached host-visible heap. Depth inspection wants one, but it is a
         // WOWEE_PS4-only facility, so a narrower mask than the renderer needs
         // must not stop the client from starting.
-        LOG_WARNING("Shadow atlas: no uncached host-visible memory type; using the ",
-                    shadowMemory.policy == SwitchShadowMemoryPolicy::DeviceLocalOnly
-                        ? "device-local" : "host-visible",
-                    " types instead. CPU depth inspection is unavailable (and unused "
-                    "outside WOWEE_PS4).");
+        LOG_WARNING("Shadow atlas: no uncached host-visible memory type; using the "
+                    "device-local types instead. CPU depth inspection is unavailable "
+                    "(and unused outside WOWEE_PS4).");
         LogSwitchMemoryTypes(shadowMemoryProperties);
+    } else if (shadowMemory.policy == SwitchShadowMemoryPolicy::Unavailable) {
+        LOG_ERROR("Shadow atlas: the driver reported no usable memory types");
+        LogSwitchMemoryTypes(shadowMemoryProperties);
+        return false; // VMA interprets a zero mask as unrestricted, so fail closed.
     }
 #endif
     for (uint32_t i = 0; i < MAX_FRAMES; i++) {

@@ -235,6 +235,13 @@ void Logger::emitLineLocked(LogLevel level, const std::string& message) {
         // on its own still goes out immediately, because the interval has long
         // since elapsed by the time it arrives.
         bool shouldFlush = (level >= kLogLevelError);
+#ifdef WOWEE_SWITCH
+        // The host can take the whole process away mid-frame - an emulator
+        // crash discards our buffers without running a flush - and the log file
+        // is then the only account of what happened. One write syscall per line
+        // is cheap next to the frame it interrupts.
+        shouldFlush = true;
+#endif
         if (!shouldFlush) {
             auto nowSteady = std::chrono::steady_clock::now();
             auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(nowSteady - lastFlushTime_).count();
