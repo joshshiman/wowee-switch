@@ -137,6 +137,11 @@ static void selectMacUserDataPath() {
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 #ifdef WOWEE_SWITCH
+    // Before anything resolves an asset: the bundled resources are looked for
+    // beside the .nro, and argv[0] is the only thing that says where that is.
+    wowee::platform::switchport::setLaunchPath(argc > 0 ? argv[0] : nullptr);
+#endif
+#ifdef WOWEE_SWITCH
     // Lives outside the try block: error dialogs in the catch clauses still
     // need the user/system services that this guard tears down.
     struct SwitchSystemGuard {
@@ -179,6 +184,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     // missing bundled asset must not prevent the client from starting.
     if (!wowee::core::enterResourceRoot()) {
 #ifdef WOWEE_SWITCH
+        // The fatal applet is invisible on an emulator, so say where the
+        // assets were looked for on stdout too - that is the only output an
+        // emulator run leaves behind.
+        std::fprintf(stderr,
+                     "[wowee/switch] FATAL: bundled resources are missing. The client "
+                     "expects them in the data/ directory beside this .nro (looked in "
+                     "%s). Copy build-switch/wowee-data there as data.\n",
+                     wowee::platform::switchport::appRoot().c_str());
         wowee::platform::switchport::showStartupError(
             "Required bundled resources are missing or unreadable. Check the boot log for the exact paths.");
 #endif

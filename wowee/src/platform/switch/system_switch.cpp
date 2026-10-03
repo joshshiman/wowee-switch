@@ -29,6 +29,7 @@
 #include <cerrno>
 #include <fstream>
 #include <string>
+#include <vector>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -49,13 +50,17 @@ constexpr const char* kDataRoot = "sdmc:/wowps";
 constexpr const char* kWritableRoot = "sdmc:/wowps/wowps";
 // Runtime assets are staged beside the .nro rather than embedded: the launch
 // directory is sdmc:/switch/wowee, and the assets live in its data/ subdir.
-// WOWEE_RESOURCE_ROOT overrides it (used by tests and by anyone relocating).
+// Only used when the launch path does not lead to them - see appRoot().
 constexpr const char* kAppRoot = "sdmc:/switch/wowee/data";
 
 bool g_initialised = false;
 bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
 bool g_exitRequested = false;
+// argv[0] as the launcher passed it, and the resource root resolved from it.
+std::string g_launchPath;
+std::string g_appRoot;
+std::string g_appRootReported;
 // The boot log, opened once so the crash-signal path only ever writes to a
 // known descriptor (see reportCrashSignal).
 volatile std::sig_atomic_t g_bootFd = -1;
@@ -213,9 +218,97 @@ std::string dataRoot() {
     return (configured && *configured) ? configured : kDataRoot;
 }
 std::string writableRoot() { return kWritableRoot; }
+
+void setLaunchPath(const char* argv0) {
+    g_launchPath = (argv0 && *argv0) ? argv0 : "";
+    g_appRoot.clear();
+    g_appRootReported.clear();
+    if (!g_launchPath.empty()) klog("launch path: %s", g_launchPath.c_str());
+}
+
+namespace {
+
+// The directory part of a path, without the trailing separator. Empty when the
+// path has no directory component.
+std::string parentDirectory(const std::string& path) {
+    const size_t slash = path.find_last_of('/');
+    if (slash == std::string::npos) return std::string();
+    if (slash == 0) return "/";
+    return path.substr(0, slash);
+}
+
+// File name without its extension, for the bare-filename launch case.
+std::string stemOf(const std::string& path) {
+    const size_t slash = path.find_last_of('/');
+    const std::string name =
+        (slash == std::string::npos) ? path : path.substr(slash + 1);
+    const size_t dot = name.find_last_of('.');
+    return (dot == std::string::npos || dot == 0) ? name : name.substr(0, dot);
+}
+
+bool isDirectory(const std::string& path) {
+    struct stat info {};
+    return ::stat(path.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
+}
+
+// A candidate root only counts when it actually carries the assets: the marker
+// is the first shader the renderer cannot start without.
+bool holdsAssets(const std::string& root) {
+    return !root.empty() && isDirectory(root + "/assets/shaders");
+}
+
+}  // namespace
+
 std::string appRoot() {
+    if (!g_appRoot.empty()) {
+        return g_appRoot;
+    }
+
+    // In order: an explicit override, then the directory the .nro was launched
+    // from (homebrew layout on a console, "games" folder under an emulator),
+    // then the installed location. An asset root beside the binary is what a
+    // user who copies the whole build tree expects, and it is the only one of
+    // these an emulator run can satisfy without hand-placing files.
+    std::vector<std::string> candidates;
     const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
-    return (configured && *configured) ? configured : kAppRoot;
+    if (configured && *configured) {
+        candidates.emplace_back(configured);
+    }
+    if (!g_launchPath.empty()) {
+        const std::string dir = parentDirectory(g_launchPath);
+        if (!dir.empty()) {
+            candidates.push_back(dir + "/data");
+            candidates.push_back(dir);
+        }
+        // Some launchers pass only the file name, with no directory at all.
+        const std::string stem = stemOf(g_launchPath);
+        if (!stem.empty()) {
+            candidates.push_back("sdmc:/switch/" + stem + "/data");
+        }
+    }
+    candidates.emplace_back(kAppRoot);
+
+    for (const std::string& candidate : candidates) {
+        if (holdsAssets(candidate)) {
+            g_appRoot = candidate;
+            break;
+        }
+    }
+    if (g_appRoot.empty()) {
+        // Nothing verified. Keep the override (or the default) so the caller's
+        // own check reports the exact path it failed on rather than a guess.
+        g_appRoot = candidates.front();
+    }
+
+    if (g_appRootReported != g_appRoot) {
+        g_appRootReported = g_appRoot;
+        klog("resource root: %s%s", g_appRoot.c_str(),
+             holdsAssets(g_appRoot) ? "" : " (no assets/shaders here)");
+        for (const std::string& candidate : candidates) {
+            if (&candidate != &g_appRoot) klog("  not used: %s", candidate.c_str());
+        }
+    }
+    return g_appRoot;
 }
 
 uint32_t resolveIPv4(const std::string& host) {

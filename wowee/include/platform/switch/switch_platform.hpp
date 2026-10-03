@@ -66,9 +66,15 @@ std::string dataRoot();
 /// Writable directory for settings, logs, caches and saved variables:
 /// sdmc:/wowps/wowps (created by initSystem).
 std::string writableRoot();
-/// Directory the bundled assets were staged into: sdmc:/switch/wowee/data,
-/// beside the .nro. WOWEE_RESOURCE_ROOT overrides it.
+/// Directory the bundled assets were staged into: the data/ directory beside
+/// the .nro. Discovered from the launch path (argv[0]); WOWEE_RESOURCE_ROOT
+/// overrides it. Falls back to sdmc:/switch/wowee/data.
 std::string appRoot();
+
+/// Record argv[0] so appRoot() can look for the data directory beside the
+/// .nro. Call before anything resolves an asset. Homebrew launchers pass the
+/// full path; some pass a bare filename, which is handled as well.
+void setLaunchPath(const char* argv0);
 
 /// Resolve a host name through libnx's bsd service (getaddrinfo). Returns the
 /// IPv4 address in network byte order, or 0.
