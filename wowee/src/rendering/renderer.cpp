@@ -161,16 +161,19 @@ bool Renderer::createPerFrameResources() {
         ChooseSwitchShadowMemoryType(shadowMemoryProperties);
     imgAllocCI.memoryTypeBits = shadowMemory.memoryTypeBits;
     if (shadowMemory.policy == SwitchShadowMemoryPolicy::Unavailable) {
-        LOG_ERROR("Shadow atlas: the device reports no device-local memory");
+        LOG_ERROR("Shadow atlas: the driver reported no usable memory types");
         LogSwitchMemoryTypes(shadowMemoryProperties);
         return false; // VMA interprets a zero mask as unrestricted, so fail closed.
     }
-    if (shadowMemory.policy == SwitchShadowMemoryPolicy::DeviceLocalOnly) {
+    if (shadowMemory.policy != SwitchShadowMemoryPolicy::UncachedHostVisible) {
         // No uncached host-visible heap. Depth inspection wants one, but it is a
         // WOWEE_PS4-only facility, so a narrower mask than the renderer needs
         // must not stop the client from starting.
-        LOG_WARNING("Shadow atlas: no uncached host-visible memory type; using device-local "
-                    "memory. CPU depth inspection is unavailable (and unused outside WOWEE_PS4).");
+        LOG_WARNING("Shadow atlas: no uncached host-visible memory type; using the ",
+                    shadowMemory.policy == SwitchShadowMemoryPolicy::DeviceLocalOnly
+                        ? "device-local" : "host-visible",
+                    " types instead. CPU depth inspection is unavailable (and unused "
+                    "outside WOWEE_PS4).");
         LogSwitchMemoryTypes(shadowMemoryProperties);
     }
 #endif

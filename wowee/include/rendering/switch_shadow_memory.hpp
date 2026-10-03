@@ -16,7 +16,11 @@ enum class SwitchShadowMemoryPolicy {
     /// then unavailable - it is a WOWEE_PS4-only facility, so nothing that runs
     /// here needs it, and refusing to boot over it is the wrong trade.
     DeviceLocalOnly,
-    /// No device-local memory at all: nothing to fall back to.
+    /// No DEVICE_LOCAL type at all, only host-visible system memory. Images
+    /// are legal there and render correctly; they are simply not cached by the
+    /// GPU's texture units, which costs bandwidth.
+    HostVisibleOnly,
+    /// The driver reported no memory types whatsoever.
     Unavailable,
 };
 
@@ -37,40 +41,40 @@ inline SwitchShadowMemoryChoice ChooseSwitchShadowMemoryType(
         const bool uncached =
             deviceLocal && (flags & uncachedHostVisible) == uncachedHostVisible &&
             !(flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
-        const bool cached = deviceLocal && (flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
         const uint32_t bit = 1u << i;
         if (uncached) {
             // Best kind: keep the mask to the uncached types so a cached one can
             // never be chosen for the atlas.
             choice.memoryTypeBits |= bit;
             choice.policy = SwitchShadowMemoryPolicy::UncachedHostVisible;
-        } else if (cached && choice.policy == SwitchShadowMemoryPolicy::Unavailable) {
-            // Remembered as a fallback, but a later uncached type still wins.
+        } else if (deviceLocal && choice.policy == SwitchShadowMemoryPolicy::Unavailable) {
+            // Remembered as a fallback; a later uncached type still wins.
             choice.memoryTypeBits |= bit;
             choice.policy = SwitchShadowMemoryPolicy::DeviceLocalOnly;
         }
     }
-    // Only DEVICE_LOCAL, uncached-ness irrelevant: what a host without an
-    // uncached system heap (an emulator, for one) can offer.
     if (choice.memoryTypeBits == 0) {
         for (uint32_t i = 0; i < props.memoryTypeCount && i < 32; ++i) {
-            if (props.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+            const auto flags = props.memoryTypes[i].propertyFlags;
+            if ((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ||
+                (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
                 choice.memoryTypeBits |= 1u << i;
+                choice.policy = SwitchShadowMemoryPolicy::HostVisibleOnly;
             }
-        }
-        if (choice.memoryTypeBits != 0) {
-            choice.policy = SwitchShadowMemoryPolicy::DeviceLocalOnly;
         }
     }
     return choice;
 }
 
-/// One line naming every memory type and its flags, for the boot log when the
-/// preference cannot be met.
+/// One line per memory type with its flags. WARN, not INFO: this is only called
+/// when the preference could not be met, and the caller's log level may well
+/// be hiding INFO.
 inline void LogSwitchMemoryTypes(const VkPhysicalDeviceMemoryProperties& props) {
+    LOG_WARNING("switch memory: ", props.memoryTypeCount, " type(s) in ",
+             props.memoryHeapCount, " heap(s)");
     for (uint32_t i = 0; i < props.memoryTypeCount; ++i) {
         const auto f = props.memoryTypes[i].propertyFlags;
-        LOG_INFO("switch memory type ", i, " heap=", props.memoryTypes[i].heapIndex,
+        LOG_WARNING("switch memory type ", i, " heap=", props.memoryTypes[i].heapIndex,
                  " flags=0x", static_cast<uint32_t>(f),
                  " (deviceLocal=", (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? 1 : 0,
                  " hostVisible=", (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ? 1 : 0,
