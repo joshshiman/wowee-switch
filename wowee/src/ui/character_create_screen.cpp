@@ -14,7 +14,7 @@
 #include <random>
 #ifdef WOWEE_SWITCH
 #include "platform/switch/input_switch.hpp"
-#include <orbis/Pad.h>
+#include "platform/switch/switch_pad_buttons.h"
 #endif
 
 namespace wowee {

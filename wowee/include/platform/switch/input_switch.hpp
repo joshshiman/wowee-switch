@@ -12,7 +12,7 @@
 #include "platform/switch/switch_platform.hpp"
 #include "platform/switch/sdl_scancode_compat.h"
 
-#include <orbis/Pad.h>
+#include "platform/switch/switch_pad_buttons.h"
 
 #include <cstdint>
 #include <functional>

@@ -1,16 +1,16 @@
-// audio_backend_switch.cpp - miniaudio custom backend on sceAudioOut.
+// audio_backend_switch.cpp - miniaudio custom backend on libnx audout.
 //
-// One playback device: the system main audio port, 48 kHz
-// stereo float, 256-frame grains. miniaudio's default audio thread calls
-// onDeviceWrite() with one period (256 frames) at a time; sceAudioOutOutput
-// blocks until the previous grain has been consumed, which paces the thread.
+// One playback device: the system main audio output, 48 kHz stereo s16,
+// 256-frame grains. miniaudio's default audio thread calls onDeviceWrite()
+// with one period at a time; audoutPlayBuffer blocks until the grain has
+// been consumed, which paces the thread. Buffers for audout must be
+// 0x1000-aligned in address and size, hence the aligned staging.
 #include "platform/switch/audio_backend_switch.hpp"
 #include "platform/switch/switch_platform.hpp"
 
 #include "core/logger.hpp"
 
-#include <orbis/AudioOut.h>
-#include <orbis/UserService.h>
+#include <switch/services/audout.h>
 
 #include <cstring>
 #include <cstdio>
@@ -21,33 +21,31 @@ namespace {
 
 constexpr ma_uint32 kSampleRate = 48000;
 constexpr ma_uint32 kChannels = 2;
-constexpr ma_uint32 kGrainFrames = 256;
+constexpr ma_uint32 kGrainFrames = 1024;
 
 struct PortState {
-    int32_t handle = -1;
+    bool opened = false;
     bool started = false;
+    alignas(0x1000) uint8_t grain[kGrainFrames * kChannels * sizeof(int16_t)];
 };
 PortState g_port;   // one device per process
 
-std::string resultCode(int32_t result) {
-    char text[16];
-    std::snprintf(text, sizeof(text), "0x%08x", static_cast<uint32_t>(result));
-    return text;
-}
+constexpr size_t kGrainBytes = kGrainFrames * kChannels * sizeof(int16_t);
 
 ma_result ctxInit(ma_context* pContext, const ma_context_config*, ma_backend_callbacks* pCallbacks) {
     (void)pContext;
-    int rc = sceAudioOutInit();
-    // Already-initialised is not an error (the platform layer may have called it).
-    if (rc < 0 && rc != (int)0x8026000C /* SCE_AUDIO_OUT_ERROR_ALREADY_INIT */) {
-        LOG_ERROR("sceAudioOutInit failed: ", resultCode(rc), " (", rc, ")");
+    if (R_FAILED(audoutInitialize())) {
+        LOG_ERROR("audoutInitialize failed");
         return MA_FAILED_TO_INIT_BACKEND;
     }
     wowee::platform::switchport::miniaudioBackendCallbacks(*pCallbacks);
     return MA_SUCCESS;
 }
 
-ma_result ctxUninit(ma_context*) { return MA_SUCCESS; }
+ma_result ctxUninit(ma_context*) {
+    audoutExit();
+    return MA_SUCCESS;
+}
 
 ma_result ctxEnumerateDevices(ma_context* pContext, ma_enum_devices_callback_proc callback, void* pUserData) {
     ma_device_info info;
@@ -64,7 +62,7 @@ ma_result ctxGetDeviceInfo(ma_context*, ma_device_type deviceType, const ma_devi
     std::strncpy(pDeviceInfo->name, "switch main audio output", sizeof(pDeviceInfo->name) - 1);
     pDeviceInfo->isDefault = MA_TRUE;
     pDeviceInfo->nativeDataFormatCount = 1;
-    pDeviceInfo->nativeDataFormats[0].format = ma_format_f32;
+    pDeviceInfo->nativeDataFormats[0].format = ma_format_s16;
     pDeviceInfo->nativeDataFormats[0].channels = kChannels;
     pDeviceInfo->nativeDataFormats[0].sampleRate = kSampleRate;
     pDeviceInfo->nativeDataFormats[0].flags = 0;
@@ -78,25 +76,22 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
         return MA_DEVICE_TYPE_NOT_SUPPORTED;
     }
     (void)pDescriptorCapture;
-    if (g_port.handle >= 0) return MA_ALREADY_EXISTS;
+    if (g_port.opened) return MA_ALREADY_EXISTS;
 
-    // The application's MAIN output is the SYSTEM port, as in OpenOrbis'
-    // samples/audio-wav/audio-wav/main.cpp. The B2 boot log returned
-    // 0x809b0001 when a logged-in profile ID was used here. That profile is
-    // still used for pad/IME input; it must not select the system mixer.
-    constexpr auto userId = ORBIS_USER_SERVICE_USER_ID_SYSTEM;
-    LOG_INFO("switch audio: opening SYSTEM main output, user=", userId,
-             " rate=", kSampleRate, " frames=", kGrainFrames,
-             " format=", static_cast<unsigned>(ORBIS_AUDIO_OUT_PARAM_FORMAT_FLOAT_STEREO));
-    int32_t h = sceAudioOutOpen(userId, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0, kGrainFrames, kSampleRate,
-                                ORBIS_AUDIO_OUT_PARAM_FORMAT_FLOAT_STEREO);
-    if (h < 0) {
-        LOG_ERROR("sceAudioOutOpen SYSTEM failed: ", resultCode(h), " (", h, ")");
+    u32 rateOut = 0, channelsOut = 0;
+    PcmFormat format = PcmFormat_Invalid;
+    AudioOutState state = AudioOutState_Stopped;
+    if (R_FAILED(audoutOpenAudioOut(nullptr, nullptr, kSampleRate, kChannels, &rateOut, &channelsOut, &format, &state))) {
+        LOG_ERROR("audoutOpenAudioOut failed");
         return MA_FAILED_TO_OPEN_BACKEND_DEVICE;
     }
-    g_port.handle = h;
+    if (format != PcmFormat_Int16) {
+        LOG_ERROR("audoutOpenAudioOut returned unexpected format");
+        return MA_FAILED_TO_OPEN_BACKEND_DEVICE;
+    }
+    g_port.opened = true;
 
-    pDescriptorPlayback->format = ma_format_f32;
+    pDescriptorPlayback->format = ma_format_s16;
     pDescriptorPlayback->channels = kChannels;
     pDescriptorPlayback->sampleRate = kSampleRate;
     ma_channel_map_init_standard(ma_standard_channel_map_default, pDescriptorPlayback->channelMap,
@@ -104,36 +99,40 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
     pDescriptorPlayback->periodSizeInFrames = kGrainFrames;
     pDescriptorPlayback->periodSizeInMilliseconds = 0;
     pDescriptorPlayback->periodCount = 2;
-    LOG_INFO("switch audio: SYSTEM sceAudioOut port ", h, " opened (48 kHz stereo float, 256-frame grains)");
+    LOG_INFO("switch audio: audout opened (48 kHz stereo s16, 256-frame grains)");
     return MA_SUCCESS;
 }
 
 ma_result devUninit(ma_device*) {
-    if (g_port.handle >= 0) {
-        sceAudioOutClose(g_port.handle);
-        g_port.handle = -1;
+    if (g_port.opened) {
+        audoutStopAudioOut();
+        g_port.opened = false;
     }
     g_port.started = false;
     return MA_SUCCESS;
 }
 
-ma_result devStart(ma_device*) { g_port.started = true; return MA_SUCCESS; }
+ma_result devStart(ma_device*) {
+    if (R_FAILED(audoutStartAudioOut())) return MA_ERROR;
+    g_port.started = true;
+    return MA_SUCCESS;
+}
 
 ma_result devStop(ma_device*) {
     g_port.started = false;
-    if (g_port.handle >= 0) sceAudioOutOutput(g_port.handle, nullptr);   // drain: NULL waits for the last grain
+    AudioOutBuffer* released = nullptr;
+    u32 releasedCount = 0;
+    audoutWaitPlayFinish(&released, &releasedCount, 1000000000ULL);
+    audoutStopAudioOut();
     return MA_SUCCESS;
 }
 
 ma_result devWrite(ma_device* pDevice, const void* pFrames, ma_uint32 frameCount, ma_uint32* pFramesWritten) {
     (void)pDevice;
     if (pFramesWritten) *pFramesWritten = 0;
-    if (g_port.handle < 0) return MA_DEVICE_NOT_INITIALIZED;
-    const float* src = static_cast<const float*>(pFrames);
+    if (!g_port.opened) return MA_DEVICE_NOT_INITIALIZED;
+    const char* src = static_cast<const char*>(pFrames);
     ma_uint32 done = 0;
-    alignas(16) float grain[kGrainFrames * kChannels];
-    // First write from the device thread, once: the boot log then shows the
-    // audio thread reached the hardware before a crash elsewhere.
     static bool firstWriteReported = false;
     if (!firstWriteReported) {
         firstWriteReported = true;
@@ -143,12 +142,17 @@ ma_result devWrite(ma_device* pDevice, const void* pFrames, ma_uint32 frameCount
     while (done < frameCount) {
         ma_uint32 n = frameCount - done;
         if (n > kGrainFrames) n = kGrainFrames;
-        // sceAudioOutOutput consumes whole grains: pad a short tail with silence.
-        std::memcpy(grain, src + (size_t)done * kChannels, (size_t)n * kChannels * sizeof(float));
-        if (n < kGrainFrames) std::memset(grain + (size_t)n * kChannels, 0, (size_t)(kGrainFrames - n) * kChannels * sizeof(float));
-        int rc = sceAudioOutOutput(g_port.handle, grain);
-        if (rc < 0) {
-            LOG_ERROR("sceAudioOutOutput failed: ", resultCode(rc), " (", rc, "), port=", g_port.handle);
+        std::memcpy(g_port.grain, src + (size_t)done * kChannels * sizeof(int16_t), (size_t)n * kChannels * sizeof(int16_t));
+        if (n < kGrainFrames) {
+            std::memset(g_port.grain + (size_t)n * kChannels * sizeof(int16_t), 0, (size_t)(kGrainFrames - n) * kChannels * sizeof(int16_t));
+        }
+        AudioOutBuffer buf{};
+        buf.buffer = g_port.grain;
+        buf.buffer_size = (u64)kGrainBytes;
+        buf.data_size = (u64)kGrainBytes;
+        AudioOutBuffer* released = nullptr;
+        if (R_FAILED(audoutPlayBuffer(&buf, &released))) {
+            LOG_ERROR("audoutPlayBuffer failed");
             return MA_ERROR;
         }
         done += n;
@@ -176,6 +180,6 @@ void miniaudioBackendCallbacks(ma_backend_callbacks& out) {
     out.onDeviceWrite = devWrite;
 }
 
-} // namespace switch
-} // namespace platform
-} // namespace wowee
+}  // namespace switchport
+}  // namespace platform
+}  // namespace wowee

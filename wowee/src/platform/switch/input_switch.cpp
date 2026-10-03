@@ -29,13 +29,10 @@
 #include "platform/switch/sdl_scancode_compat.h"
 #include "core/logger.hpp"
 
-#include <orbis/Pad.h>
-#include <orbis/UserService.h>
+#include "platform/switch/switch_pad_buttons.h"
 #include "ui/controller_text_keyboard.hpp"
 #include <imgui.h>
-#include <orbis/CommonDialog.h>
-#include <orbis/libkernel.h>
-
+#include <switch.h>\r\n
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -89,9 +86,6 @@ constexpr uint32_t kDoubleClickMs = 500;
 // pad. Ignore the buttons for this long so it does not become a click.
 constexpr uint32_t kDialogGraceMs = 200;
 
-// DualShock 4 touchpad, used when scePadGetControllerInformation has no answer.
-constexpr uint16_t kDefaultTouchResX = 1920;
-constexpr uint16_t kDefaultTouchResY = 942;
 
 
 // The pad mapping - Layer, Action, PadBinding, kBindings and padLayerFor - is
@@ -113,11 +107,8 @@ constexpr SDL_Scancode kStickRight   = SDL_SCANCODE_E;
 using Clock = std::chrono::steady_clock;
 
 bool s_initialised = false;
-int32_t s_pad = -1;
 int32_t s_userId = -1;
 bool s_padConnected = false;      // a handle was opened
-uint16_t s_touchResX = kDefaultTouchResX;
-uint16_t s_touchResY = kDefaultTouchResY;
 
 PadState s_padState;
 uint32_t s_prevButtons = 0;
@@ -198,11 +189,12 @@ std::string hex(int32_t rc) {
 
 float clampf(float v, float lo, float hi) { return std::max(lo, std::min(hi, v)); }
 
-// Raw stick byte -> -1..1 with the radial dead zone removed and the rest
-// rescaled so the smallest deflection past it is small.
-void stickToFloat(uint8_t rawX, uint8_t rawY, float& x, float& y) {
-    float fx = (static_cast<float>(rawX) - 128.0f) / 127.0f;
-    float fy = (static_cast<float>(rawY) - 128.0f) / 127.0f;
+// Switch stick (centered at 0, roughly +/-32767) -> -1..1 with the radial
+// dead zone removed and the rest rescaled so the smallest deflection past it
+// is small.
+void stickToFloatRaw(s32 rawX, s32 rawY, float& x, float& y) {
+    const float fx = static_cast<float>(rawX) / 32767.0f;
+    const float fy = static_cast<float>(rawY) / 32767.0f;
     const float mag = std::sqrt(fx * fx + fy * fy);
     if (mag < kStickDeadzone || mag <= 0.0f) {
         x = y = 0.0f;
@@ -212,6 +204,7 @@ void stickToFloat(uint8_t rawX, uint8_t rawY, float& x, float& y) {
     x = clampf(fx / mag * scaled, -1.0f, 1.0f);
     y = clampf(fy / mag * scaled, -1.0f, 1.0f);
 }
+
 
 // The hysteresis of the movement keys: takes hold past the threshold, lets
 // go a little inside it.
@@ -408,34 +401,45 @@ void readPad(float dt) {
     (void)dt;
     PadState st;
     st.connected = false;
-    if (s_pad >= 0) {
-        OrbisPadData data;
-        std::memset(&data, 0, sizeof(data));
-        const int32_t rc = scePadReadState(s_pad, &data);
-        if (rc == 0 && data.connected) {
+    {
+        HidNpadCommonState handheld{};
+        HidNpadCommonState fullkey{};
+        const size_t haveHandheld = hidGetNpadStatesHandheld(HidNpadIdType_Handheld, &handheld, 1);
+        const size_t haveFullKey = hidGetNpadStatesFullKey(HidNpadIdType_No1, &fullkey, 1);
+        const HidNpadCommonState* src = nullptr;
+        if (haveHandheld > 0 && (handheld.buttons != 0 || handheld.analog_stick_l.x != 0 || handheld.analog_stick_l.y != 0 || handheld.analog_stick_r.x != 0 || handheld.analog_stick_r.y != 0)) {
+            src = &handheld;
+        } else if (haveFullKey > 0) {
+            src = &fullkey;
+        } else if (haveHandheld > 0) {
+            src = &handheld;
+        }
+        if (src) {
             st.connected = true;
-            st.buttons = data.buttons;
-            stickToFloat(data.leftStick.x, data.leftStick.y, st.lx, st.ly);
-            stickToFloat(data.rightStick.x, data.rightStick.y, st.rx, st.ry);
-            st.l2 = static_cast<float>(data.analogButtons.l2) / 255.0f;
-            st.r2 = static_cast<float>(data.analogButtons.r2) / 255.0f;
+            st.buttons = static_cast<uint32_t>(src->buttons);
+            stickToFloatRaw(src->analog_stick_l.x, src->analog_stick_l.y, st.lx, st.ly);
+            stickToFloatRaw(src->analog_stick_r.x, src->analog_stick_r.y, st.rx, st.ry);
+            st.l2 = (st.buttons & ORBIS_PAD_BUTTON_L2) ? 1.0f : 0.0f;
+            st.r2 = (st.buttons & ORBIS_PAD_BUTTON_R2) ? 1.0f : 0.0f;
+        }
 
-            // Touchpad: the first finger is the cursor, absolutely.
-            if (data.touch.fingers > 0) {
-                const OrbisPadTouch& t = data.touch.touch[0];
-                const float nx = static_cast<float>(t.x) / static_cast<float>(std::max<int>(s_touchResX, 1));
-                const float ny = static_cast<float>(t.y) / static_cast<float>(std::max<int>(s_touchResY, 1));
-                const float px = clampf(nx, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayW - 1, 0));
-                const float py = clampf(ny, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayH - 1, 0));
-                if (!s_lookEngaged) {
-                    int xrel = 0, yrel = 0;
-                    moveCursor(px - s_cursorX, py - s_cursorY, xrel, yrel);
-                    if (xrel != 0 || yrel != 0 || !s_touchWasDown) pushMouseMotion(xrel, yrel);
-                }
-                s_touchWasDown = true;
-            } else {
-                s_touchWasDown = false;
+        // Touchscreen: the first finger is the cursor, absolutely. The touch
+        // surface is 1280x720 for the default NWindow.
+        HidTouchScreenState ts{};
+        if (hidGetTouchScreenStates(&ts, 1) > 0 && ts.count > 0) {
+            const HidTouchState& t = ts.touches[0];
+            const float nx = static_cast<float>(t.x) / 1280.0f;
+            const float ny = static_cast<float>(t.y) / 720.0f;
+            const float px = clampf(nx, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayW - 1, 0));
+            const float py = clampf(ny, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayH - 1, 0));
+            if (!s_lookEngaged) {
+                int xrel = 0, yrel = 0;
+                moveCursor(px - s_cursorX, py - s_cursorY, xrel, yrel);
+                if (xrel != 0 || yrel != 0 || !s_touchWasDown) pushMouseMotion(xrel, yrel);
             }
+            s_touchWasDown = true;
+        } else {
+            s_touchWasDown = false;
         }
     }
 
@@ -587,53 +591,14 @@ bool initInput() {
     s_cursorX = static_cast<float>(s_displayW) * 0.5f;
     s_cursorY = static_cast<float>(s_displayH) * 0.5f;
 
-    // The dialogs (on-screen keyboard) sit on libSceCommonDialog. Initialising
-    // twice answers an error, which is fine: the first one stands.
-    {
-        const int32_t rc = sceCommonDialogInitialize();
-        if (rc != 0) LOG_DEBUG("sceCommonDialogInitialize: ", hex(rc), " (already initialised?)");
-    }
-
-    int32_t rc = scePadInit();
-    if (rc != 0) {
-        LOG_ERROR("scePadInit failed: ", hex(rc));
-        return false;
-    }
-
-    // initSystem brought the user service up; the initial user owns the pad
-    // and the keyboard.
-    rc = sceUserServiceGetInitialUser(&s_userId);
-    if (rc != 0) {
-        // Not up yet (initInput before initSystem): bring it up ourselves.
-        OrbisUserServiceInitializeParams param;
-        param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
-        sceUserServiceInitialize(&param);
-        rc = sceUserServiceGetInitialUser(&s_userId);
-    }
-    if (rc != 0) {
-        LOG_ERROR("sceUserServiceGetInitialUser failed: ", hex(rc));
-        s_userId = -1;
-        return false;
-    }
-
-    s_pad = scePadOpen(s_userId, ORBIS_PAD_PORT_TYPE_STANDARD, 0, nullptr);
-    if (s_pad < 0) {
-        LOG_ERROR("scePadOpen failed: ", hex(s_pad));
-        s_pad = -1;
-        return false;
-    }
+    hidInitialize();
+    hidInitializeNpad();
+    hidInitializeTouchScreen();
+    static const HidNpadIdType kIds[] = {HidNpadIdType_No1, HidNpadIdType_Handheld};
+    hidSetSupportedNpadIdType(kIds, 2);
+    hidSetSupportedNpadStyleSet(HidNpadStyleSet_NpadFullCtrl);
     s_padConnected = true;
-
-    OrbisPadInformation info;
-    std::memset(&info, 0, sizeof(info));
-    if (scePadGetControllerInformation(s_pad, &info) == 0) {
-        if (info.touchResolutionX > 0) s_touchResX = info.touchResolutionX;
-        if (info.touchResolutionY > 0) s_touchResY = info.touchResolutionY;
-        LOG_INFO("Pad opened for user ", s_userId, ": touchpad ", s_touchResX, "x", s_touchResY,
-                 ", connected=", info.connected, ", class=", info.deviceClass);
-    } else {
-        LOG_INFO("Pad opened for user ", s_userId);
-    }
+    LOG_INFO("Switch pads initialised (No1 + handheld, full key style)");
     return true;
 }
 
@@ -641,10 +606,6 @@ void shutdownInput() {
     if (!s_initialised) return;
     if (s_keyboard.open) {
         finishKeyboard(false, std::string());
-    }
-    if (s_pad >= 0) {
-        scePadClose(s_pad);
-        s_pad = -1;
     }
     s_padConnected = false;
     s_held.fill(0);
@@ -782,7 +743,7 @@ void showKeyboardEx(const KeyboardOptions& options,
         if (done) done(std::string(), false);
         return;
     }
-    if (!s_initialised || s_userId < 0) {
+    if (!s_initialised) {
         LOG_WARNING("showKeyboard: no user (initInput failed?)");
         if (done) done(std::string(), false);
         return;
@@ -991,7 +952,7 @@ int SDL_PushEvent(SDL_Event* event) {
 
 Uint32 SDL_GetTicks(void) { return wowee::platform::switchport::nowMs(); }
 
-void SDL_Delay(Uint32 ms) { sceKernelUsleep(ms * 1000u); }
+void SDL_Delay(Uint32 ms) { svcSleepThread((s64)ms * 1000000LL); }
 
 const Uint8* SDL_GetKeyboardState(int* numkeys) {
     if (numkeys) *numkeys = SDL_NUM_SCANCODES;

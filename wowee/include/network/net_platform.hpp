@@ -93,23 +93,14 @@ inline bool setNonBlocking(socket_t s) {
 #endif
 }
 
-// Local realms use UDP only. Per-call nonblocking I/O avoids the socket
-// FIONBIO ioctl rejected with EACCES on the tested switch runtime. Do not pass
-// musl's Linux MSG_DONTWAIT (0x40): that means MSG_WAITALL to the BSD kernel.
+// Local realms use UDP only. Sockets are made nonblocking with fcntl, so
+// no per-call datagram flags are needed on the console either.
 inline constexpr int datagramFlags() {
-#ifdef WOWEE_SWITCH
-    return 0x80; // BSD MSG_DONTWAIT
-#else
     return 0;
-#endif
 }
 
 inline bool configureDatagramNonBlocking(socket_t s) {
-#ifdef WOWEE_SWITCH
-    return s != INVALID_SOCK; // Both sendto and recvfrom must use datagramFlags().
-#else
     return setNonBlocking(s);
-#endif
 }
 
 inline int lastError() {
@@ -173,7 +164,10 @@ inline const char* errorString(int err) {
 // Portable send - Windows recv/send take char*, not void*.
 inline ssize_t portableSend(socket_t s, const uint8_t* data, size_t len) {
 #if defined(WOWEE_SWITCH)
-    constexpr int flags = 0x80; // BSD MSG_DONTWAIT; not musl's Linux value
+    // Nonblocking newlib sockets on Horizon do not raise SIGPIPE, so no
+    // MSG_NOSIGNAL equivalent is needed here. Sockets are set nonblocking
+    // with fcntl by setNonBlocking/setSocketNonBlocking.
+    constexpr int flags = 0;
 #elif defined(MSG_NOSIGNAL)
     constexpr int flags = MSG_NOSIGNAL;
 #else
@@ -184,7 +178,7 @@ inline ssize_t portableSend(socket_t s, const uint8_t* data, size_t len) {
 
 inline ssize_t portableRecv(socket_t s, uint8_t* buf, size_t len) {
 #ifdef WOWEE_SWITCH
-    constexpr int flags = 0x80; // BSD MSG_DONTWAIT
+    constexpr int flags = 0;
 #else
     constexpr int flags = 0;
 #endif
@@ -287,54 +281,31 @@ inline socket_t openResolvedSocket(const std::string& host, uint16_t port,
     }
     if (!setNonBlocking(fd)) {
         const int error = lastError();
-#ifdef WOWEE_SWITCH
-        LOG_ERROR("TCP setsockopt(SO_NBIO) failed: fd=", fd,
-#else
         LOG_ERROR("Failed to make TCP socket nonblocking: fd=", fd,
-#endif
                   " errno=", error, " (", errorString(error), ")");
         closeSocket(fd);
         return INVALID_SOCK;
     }
 
-#ifdef WOWEE_SWITCH
-    LOG_DEBUG("TCP nonblocking mode enabled with SO_NBIO: fd=", fd);
-#endif
+    {
+        // DNS comes through libnx's bsd service getaddrinfo.
+        struct addrinfo hints{};
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        struct addrinfo* res = nullptr;
+        if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || res == nullptr) {
+            LOG_ERROR("Failed to resolve host: ", host);
+            closeSocket(fd);
+            return INVALID_SOCK;
+        }
 
-#ifdef WOWEE_SWITCH
-    // The console's libc has no DNS behind getaddrinfo; the system resolver
-    // (sceNetResolver) does the lookup. Same failure handling as below.
-    const uint32_t ip = wowee::platform::switchport::resolveIPv4(host);
-    if (ip == 0) {
-        LOG_ERROR("Failed to resolve host: ", host);
-        closeSocket(fd);
-        return INVALID_SOCK;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr = reinterpret_cast<struct sockaddr_in*>(res->ai_addr)->sin_addr;
+        addr.sin_port = htons(port);
+        freeaddrinfo(res);
+        return fd;
     }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_len = sizeof(addr);
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = ip;
-    addr.sin_port = htons(port);
-    return fd;
-#else
-    struct addrinfo hints{};
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    struct addrinfo* res = nullptr;
-    if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || res == nullptr) {
-        LOG_ERROR("Failed to resolve host: ", host);
-        closeSocket(fd);
-        return INVALID_SOCK;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr = reinterpret_cast<struct sockaddr_in*>(res->ai_addr)->sin_addr;
-    addr.sin_port = htons(port);
-    freeaddrinfo(res);
-    return fd;
-#endif
 }
 
 } // namespace net

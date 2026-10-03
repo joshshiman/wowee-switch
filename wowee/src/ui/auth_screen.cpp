@@ -17,7 +17,7 @@
 #ifdef WOWEE_SWITCH
 #include "platform/switch/switch_platform.hpp"
 #include "platform/switch/input_switch.hpp"
-#include <orbis/Pad.h>
+#include "platform/switch/switch_pad_buttons.h"
 #endif
 #include "audio/audio_coordinator.hpp"
 #include "audio/music_manager.hpp"

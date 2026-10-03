@@ -10,7 +10,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>   // GetActiveID: which text field has the focus
 
-#include <orbis/Pad.h>
+#include "platform/switch/switch_pad_buttons.h"
 
 #include <chrono>
 #include <cstdio>

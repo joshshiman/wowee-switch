@@ -6,7 +6,7 @@
 #include "core/logger.hpp"
 #include <vector>
 #ifdef WOWEE_SWITCH
-#include <orbis/Pad.h>
+#include "platform/switch/switch_pad_buttons.h"
 #endif
 #include "ui/keybinding_manager.hpp"
 #include "ui/framexml_pad_navigation.hpp"
