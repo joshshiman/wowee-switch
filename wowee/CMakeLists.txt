@@ -904,13 +904,20 @@ endif()
 
 # Runtime files and installable switch package.
 if(WOWEE_SWITCH)
+    # The ps4_* shaders belong to the ICD's vendor-extension debug paths. That
+    # target is gone, so nothing on Switch loads them; staging them anyway ships
+    # dead weight and gives a stale binary somewhere to be blamed for.
     file(GLOB WOWEE_SWITCH_SPV_FILES ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/*.spv)
+    list(FILTER WOWEE_SWITCH_SPV_FILES EXCLUDE REGEX "/ps4_")
     # Runtime assets live in a data directory beside the .nro rather than an
     # embedded romfs: this devkitPro elf2nro cannot read a romfs on this
     # platform (it mmaps the directory, which fails), and a side-by-side
     # directory also lets a user refresh shaders without a full rebuild.
     set(WOWEE_SWITCH_DATA_DIR ${CMAKE_BINARY_DIR}/wowee-data)
     set(WOWEE_SWITCH_RUNTIME_COMMANDS
+        # Cleared first: a copy-only stage leaves a removed or renamed shader
+        # sitting in the data directory forever, where it looks current.
+        COMMAND ${CMAKE_COMMAND} -E rm -rf ${WOWEE_SWITCH_DATA_DIR}/assets/shaders
         COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_DATA_DIR}/assets/shaders
         COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_DATA_DIR}/Data/expansions
         # The local realm is read through resolveRelativeAssetPath(), i.e.
