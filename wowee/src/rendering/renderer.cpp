@@ -1701,6 +1701,14 @@ void Renderer::endFrame() {
 #endif
     vkCtx->endFrame(currentCmd, currentImageIndex);
 #ifdef WOWEE_SWITCH
+    // Through the logger rather than the boot log's raw descriptor: a run that
+    // stops between the submit and this line has stopped inside VkContext, and
+    // two independent channels are what tell that apart from a stalled write.
+    static int endFrameTrace = 0;
+    if (endFrameTrace < 3) {
+        ++endFrameTrace;
+        LOG_WARNING("[RENDERER] VkContext::endFrame returned");
+    }
     shadowDepthReceiptReady_[submittedShadowSlot] = shadowDepthRecorded_ &&
         !vkCtx->isDeviceLost() && vkCtx->getDiscardedFrameCount() == discardedBefore;
     shadowDepthRecorded_ = false;

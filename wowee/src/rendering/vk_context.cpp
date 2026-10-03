@@ -3730,6 +3730,13 @@ void VkContext::endFrame(VkCommandBuffer cmd, uint32_t imageIndex) {
     }
     consecutiveRecordingFailures_ = 0;
     retainedFrameImage_ = false;
+#ifdef WOWEE_SWITCH
+    // Brackets the gap between the submit returning and the present path being
+    // chosen. Nothing in between blocks, so when a run stops after
+    // "gpu: frame submit complete" this line not appearing means the stall is
+    // in whatever the submit left behind rather than in the present.
+    if (bootTrace) platform::switchport::reportBootStage("gpu: submit returned; choosing present path");
+#endif
 
     VkResult result = VK_SUCCESS;
 #if defined(WOWEE_SWITCH)
