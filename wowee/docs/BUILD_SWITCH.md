@@ -101,8 +101,11 @@ Rejected candidates are logged, so `logs/boot.log` records what was tried.
 
 NVK needs Horizon's memory model, which an emulator has to fake. Measured under
 Eden 0.2.1 (Intel Arc A770, Vulkan 1.4.356), `vkGetPhysicalDeviceMemoryProperties`
-reports **one memory type in one heap, host-visible and host-cached, with no
-device-local type at all** - guest VRAM is host memory there.
+reports **one heap containing one memory type, `flags=14 (0xe)` =
+`HOST_VISIBLE | HOST_COHERENT | HOST_CACHED`, with no device-local type at
+all** - guest VRAM is host memory there. (`HOST_CACHED` is `0x8` and
+`LAZILY_ALLOCATED` is `0x10`; a `flags=0x` prefix followed by a decimal value
+is a formatting trap worth avoiding in any log that gets read under pressure.)
 
 The renderer copes with that: with no uncached host-visible type it uses the
 device-local types when they exist, and otherwise leaves VMA's memory-type mask
@@ -111,14 +114,21 @@ Images are legal in host-visible memory and render correctly, without GPU
 texture caching. `logs/wowps.log` records the whole memory table whenever the
 preference cannot be met.
 
-Two caveats seen in that setup, neither of them a client bug:
+Known Eden caveat: allocating the first guest image crashed the emulator
+outright, reproducibly - an access violation inside `eden.exe` (`0xc0000005` at
+the same fault offset twice) during `nvhost` GPU setup, whether the type mask
+named the host-visible type or was left unrestricted. Since Eden runs retail
+titles that allocate images constantly, the trigger is something specific to
+this allocation rather than image allocation in general; the shadow atlas is a
+`D32_SFLOAT` depth image that is also sampled, which is the obvious suspect.
 
-* Allocating the first guest image crashed the emulator outright - an access
-  violation inside `eden.exe` (`0xc0000005`) during `nvhost` GPU setup. If that
-  happens, it is the emulator's NVK allocation path, not the allocation flags.
+Two more caveats seen in that setup, neither of them a client bug:
+
 * A launch can abort inside libnx before `main` when the loader's environment
   block carries no main-thread handle (see *Diagnosing a launch*). Fully
   exiting the emulator between runs clears it.
+* An emulator's `sdmc:/` view can lag files copied in while it was running:
+  assets that a probe reads fine may be invisible until it is restarted.
 
 ## Diagnosing a launch that does not get going
 
