@@ -75,22 +75,22 @@ AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
     if (gpuAttachment) {
         const VkPhysicalDeviceMemoryProperties* properties = nullptr;
         vmaGetMemoryProperties(allocator, &properties);
-        const uint32_t preferred = properties ? ps4AttachmentMemoryTypeBits(usage, *properties) : 0;
+        const uint32_t preferred = properties ? SwitchAttachmentMemoryTypeBits(usage, *properties) : 0;
         VmaAllocationInfo actual{};
-        const auto allocated = allocatePs4Attachment(preferred, [&](uint32_t bits) {
+        const auto allocated = allocateSwitchAttachment(preferred, [&](uint32_t bits) {
             allocInfo.memoryTypeBits = bits;
             return vmaCreateImage(allocator, &imgInfo, &allocInfo,
                 &result.image, &result.allocation, &actual);
         });
         imageResult = allocated.result;
         if (allocated.fallback) {
-            LOG_WARNING("[PS4_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback",
+            LOG_WARNING("[SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback",
                 " preferredMask=", preferred, " preferredResult=", static_cast<int>(allocated.preferredResult),
                 " result=", static_cast<int>(imageResult), " extent=", width, "x", height);
         }
         static std::atomic_uint allocationReports{0};
         if (imageResult == VK_SUCCESS && allocationReports.fetch_add(1, std::memory_order_relaxed) < 64u) {
-            LOG_INFO("[PS4_ATTACHMENT_MEMORY] extent=", width, "x", height,
+            LOG_INFO("[SWITCH_ATTACHMENT_MEMORY] extent=", width, "x", height,
                 " usage=", usage, " actualType=", actual.memoryType,
                 " bytes=", actual.size, " preferredMask=", preferred,
                 " fallback=", allocated.fallback, " source=", where.file_name(), ":", where.line());

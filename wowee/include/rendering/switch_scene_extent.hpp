@@ -15,7 +15,7 @@ namespace wowee::rendering {
 //
 // Bounded, predictable sizes only. An invalid or missing value selects the
 // performance default; "native" keeps whatever output size VideoOut supplied.
-inline uint32_t parsePs4SceneHeight(const char* value) noexcept {
+inline uint32_t parseSwitchSceneHeight(const char* value) noexcept {
     if (value && (std::strcmp(value, "native") == 0 || std::strcmp(value, "1080") == 0))
         return 0;
     if (value && std::strcmp(value, "900") == 0) return 900;
@@ -35,26 +35,26 @@ inline uint32_t parsePs4SceneHeight(const char* value) noexcept {
 // The environment variable still seeds the initial value, so every existing
 // launch script and note keeps working.
 namespace detail {
-inline std::atomic<uint32_t>& ps4SceneHeightCell() noexcept {
+inline std::atomic<uint32_t>& SwitchSceneHeightCell() noexcept {
     static std::atomic<uint32_t> height{
-        parsePs4SceneHeight(std::getenv("WOWEE_SWITCH_SCENE_HEIGHT"))};
+        parseSwitchSceneHeight(std::getenv("WOWEE_SWITCH_SCENE_HEIGHT"))};
     return height;
 }
 } // namespace detail
 
-inline uint32_t configuredPs4SceneHeight() noexcept {
-    return detail::ps4SceneHeightCell().load(std::memory_order_relaxed);
+inline uint32_t configuredSwitchSceneHeight() noexcept {
+    return detail::SwitchSceneHeightCell().load(std::memory_order_relaxed);
 }
 
 // 0 means native. Any other value is clamped into the supported range rather
 // than trusted: this is reached from the interface, and an out-of-range height
 // would allocate a scene target the console cannot afford.
-inline void setPs4SceneHeight(uint32_t height) noexcept {
+inline void setSwitchSceneHeight(uint32_t height) noexcept {
     if (height != 0) height = std::clamp(height, 480u, 2160u);
-    detail::ps4SceneHeightCell().store(height, std::memory_order_relaxed);
+    detail::SwitchSceneHeightCell().store(height, std::memory_order_relaxed);
 }
 
-inline VkExtent2D fitPs4SceneExtent(VkExtent2D output, uint32_t heightLimit) noexcept {
+inline VkExtent2D fitSwitchSceneExtent(VkExtent2D output, uint32_t heightLimit) noexcept {
     if (!output.width || !output.height || !heightLimit || output.height <= heightLimit)
         return output;
     const uint32_t width = static_cast<uint32_t>(

@@ -28,7 +28,7 @@ void PostProcessPipeline::initialize(VkContext* ctx) {
     vkCtx_ = ctx;
 #ifdef WOWEE_SWITCH
     const auto output = ctx ? ctx->getSwapchainExtent() : VkExtent2D{};
-    const auto scene = fitPs4SceneExtent(output, configuredPs4SceneHeight());
+    const auto scene = fitSwitchSceneExtent(output, configuredSwitchSceneHeight());
     LOG_INFO("switch scene profile: world=", scene.width, "x", scene.height,
              " output/UI=", output.width, "x", output.height,
              "; menu stays native; WOWEE_SWITCH_SCENE_HEIGHT=720/900/native");
@@ -52,7 +52,7 @@ VkExtent2D PostProcessPipeline::desiredSceneExtent() const {
     // Keep that path native; the normal console profile is single sampled.
     if (worldRendering_ && !fxaaAllocationFailed_ &&
         vkCtx_->getMsaaSamples() == VK_SAMPLE_COUNT_1_BIT)
-        return fitPs4SceneExtent(output, configuredPs4SceneHeight());
+        return fitSwitchSceneExtent(output, configuredSwitchSceneHeight());
 #endif
     return output;
 }

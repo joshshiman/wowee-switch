@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace wowee::rendering::ps4budget {
+namespace wowee::rendering::switchbudget {
 // A fixed world working set for the console's flexible CPU heap. Camera
 // rotation never changes residency; only travel crosses these tile rings.
 inline constexpr float kDefaultViewDistance = 420.0f;
@@ -32,4 +32,4 @@ inline bool tileInRange(int tileX, int tileY, float cameraX, float cameraY,
     return tileDistanceSquared(tileX, tileY, cameraX, cameraY) <= radius * radius;
 }
 inline constexpr unsigned kMaxLocalLights = 8;
-} // namespace wowee::rendering::ps4budget
+} // namespace wowee::rendering::switchbudget

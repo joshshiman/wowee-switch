@@ -71,8 +71,8 @@ constexpr GraphicsPresetValues kGraphicsPresets[] = {
     // can multiply pixel work by eight. Saved manual choices remain valid.
     /* Low    */ {400.0f, true, 100.0f, 0, false, false, 0.6f, false, 0, 25},
     /* Medium */ {500.0f, true, 160.0f, 0, true,  true,  0.6f, false, 0, 60},
-    /* High   */ {rendering::ps4budget::kMaxViewDistance, true, 240.0f, 0, true, true, 0.8f, true, 0, 100},
-    /* Ultra  */ {rendering::ps4budget::kMaxViewDistance, true, 300.0f, 0, true, true, 1.2f, true, 1, 150},
+    /* High   */ {rendering::switchbudget::kMaxViewDistance, true, 240.0f, 0, true, true, 0.8f, true, 0, 100},
+    /* Ultra  */ {rendering::switchbudget::kMaxViewDistance, true, 300.0f, 0, true, true, 1.2f, true, 1, 150},
 #else
     /* Low    */ { .viewDistance = 600.0f, .shadows = true,  .shadowDistance = 100.0f, .antiAliasing = 0, .fxaa = false, .normalMapping = false, .normalMapStrength = 0.6f, .parallax = false, .parallaxQuality = 0,  .groundClutter = 25},
     /* Medium */ {.viewDistance = 1000.0f, .shadows = true,  .shadowDistance = 200.0f, .antiAliasing = 1, .fxaa = false, .normalMapping = true,  .normalMapStrength = 0.6f, .parallax = true,  .parallaxQuality = 0,  .groundClutter = 60},

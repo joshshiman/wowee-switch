@@ -4,7 +4,7 @@
 namespace wowee::rendering {
 // GPU-written attachment images only. Sampled assets and CPU-visible buffers
 // retain their existing policy. Do not use this fallback for shadow readback.
-inline uint32_t ps4AttachmentMemoryTypeBits(
+inline uint32_t SwitchAttachmentMemoryTypeBits(
     VkImageUsageFlags usage, const VkPhysicalDeviceMemoryProperties& props) {
     if (!(usage & (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))) return 0;
@@ -16,7 +16,7 @@ inline uint32_t ps4AttachmentMemoryTypeBits(
     }
     return bits;
 }
-struct Ps4AttachmentAllocationResult {
+struct SwitchAttachmentAllocationResult {
     VkResult result;
     VkResult preferredResult;
     bool fallback;
@@ -26,7 +26,7 @@ struct Ps4AttachmentAllocationResult {
 // interprets zero as unrestricted). Retry only allocation/type exhaustion;
 // device-loss/initialization errors must not be disguised by a second attempt.
 template<class Allocate>
-Ps4AttachmentAllocationResult allocatePs4Attachment(uint32_t preferred, Allocate allocate) {
+SwitchAttachmentAllocationResult allocateSwitchAttachment(uint32_t preferred, Allocate allocate) {
     if (!preferred) return {allocate(0), VK_ERROR_FEATURE_NOT_PRESENT, true};
     const VkResult result = allocate(preferred);
     if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY || result == VK_ERROR_OUT_OF_HOST_MEMORY ||

@@ -4912,7 +4912,7 @@ constexpr CVarRange kCVarRanges[] = {
     // Renderer::setViewDistance clamps to, so the control now covers exactly
     // what the client can do and nothing it cannot.
 #ifdef WOWEE_SWITCH
-    {"farclip", rendering::ps4budget::kMinViewDistance, rendering::ps4budget::kMaxViewDistance},
+    {"farclip", rendering::switchbudget::kMinViewDistance, rendering::switchbudget::kMaxViewDistance},
 #else
     {"farclip", 400.0f, 2400.0f},
 #endif

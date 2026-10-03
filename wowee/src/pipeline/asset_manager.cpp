@@ -151,7 +151,7 @@ void AssetManager::setupFileCacheBudget() {
 #ifdef WOWEE_SWITCH
     // The console does not size this cache once and keep it. Its budget is a
     // function of measured flexible headroom, re-taken on the read path, so
-    // this only seeds a first value - see refreshPs4CacheBudget.
+    // this only seeds a first value - see refreshSwitchCacheBudget.
     //
     // The clamp this replaced was the reason the measurement could not shrink
     // anything: a 32 MiB minimum against a getRecommendedCacheBudget that is
@@ -208,7 +208,7 @@ void AssetManager::setupFileCacheBudget() {
 }
 
 #ifdef WOWEE_SWITCH
-AssetManager::Ps4Headroom AssetManager::refreshPs4CacheBudget() const {
+AssetManager::SwitchHeadroom AssetManager::refreshSwitchCacheBudget() const {
     // sceKernelAvailableFlexibleMemorySize on every read is what the pressure
     // check used to cost: the shipped session made 38,634 of them, each one a
     // kernel call from a streaming worker, and each answer was then thrown
@@ -218,18 +218,18 @@ AssetManager::Ps4Headroom AssetManager::refreshPs4CacheBudget() const {
     const uint64_t now = static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count());
-    const uint64_t last = ps4HeadroomSampledAtMs_.load(std::memory_order_relaxed);
+    const uint64_t last = SwitchHeadroomSampledAtMs_.load(std::memory_order_relaxed);
     if (last != 0 && now - last < kSampleIntervalMs) {
-        return {ps4HeadroomBytes_.load(std::memory_order_relaxed),
-                ps4HeadroomMeasured_.load(std::memory_order_relaxed)};
+        return {SwitchHeadroomBytes_.load(std::memory_order_relaxed),
+                SwitchHeadroomMeasured_.load(std::memory_order_relaxed)};
     }
     // A racing worker may take the same sample. That is one redundant kernel
     // call, not a correctness problem, and it is cheaper than a lock here.
-    ps4HeadroomSampledAtMs_.store(now, std::memory_order_relaxed);
+    SwitchHeadroomSampledAtMs_.store(now, std::memory_order_relaxed);
 
     const auto available = platform::switchport::queryAvailableCpuMemory();
-    ps4HeadroomBytes_.store(available.bytes, std::memory_order_relaxed);
-    ps4HeadroomMeasured_.store(available.measured, std::memory_order_relaxed);
+    SwitchHeadroomBytes_.store(available.bytes, std::memory_order_relaxed);
+    SwitchHeadroomMeasured_.store(available.measured, std::memory_order_relaxed);
 
     // WOWEE_FILE_CACHE_MB is an explicit instruction, not a recommendation.
     // Read once: this runs on the asset path from several worker threads, and
@@ -838,7 +838,7 @@ std::vector<uint8_t> AssetManager::readFileBounded(const std::string& path, size
     // it, and cached nothing - 34,722 misses against 3,912 hits, and 0 MB
     // held, with each miss re-reading and re-decompressing bytes the client
     // had already had.
-    refreshPs4CacheBudget();
+    refreshSwitchCacheBudget();
 #endif
     std::string normalized = normalizePath(path);
 
@@ -980,11 +980,11 @@ std::vector<uint8_t> AssetManager::readFileOptional(const std::string& path) con
     // and a WMO are read with readFile, which still tries and now fails
     // gracefully if it cannot.
     {
-        const auto headroom = refreshPs4CacheBudget();
-        const bool holding = ps4StreamHolding_.load(std::memory_order_relaxed);
+        const auto headroom = refreshSwitchCacheBudget();
+        const bool holding = SwitchStreamHolding_.load(std::memory_order_relaxed);
         const auto admission = platform::switchport::worldStreamAdmissionFor(
             headroom.freeBytes, headroom.measured, holding);
-        ps4StreamHolding_.store(admission != platform::switchport::WorldStreamAdmission::Admit,
+        SwitchStreamHolding_.store(admission != platform::switchport::WorldStreamAdmission::Admit,
                                 std::memory_order_relaxed);
         if (!platform::switchport::admitsOptionalDetail(admission)) {
             const size_t declined = optionalReadsDeclined_.fetch_add(

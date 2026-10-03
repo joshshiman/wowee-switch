@@ -523,7 +523,7 @@ void SettingsPanel::renderSettingsWindow(ChatPanel& chatPanel,
                         // The console output is fixed at 1080p; what this
                         // selects is the size the world is rendered at before
                         // it is sampled up to it. Takes effect next frame.
-                        rendering::setPs4SceneHeight(static_cast<uint32_t>(
+                        rendering::setSwitchSceneHeight(static_cast<uint32_t>(
                             displayResolutionSceneHeight(pendingResIndex)));
 #endif
                         window->applyResolution(pendingResolutionWidth, pendingResolutionHeight);

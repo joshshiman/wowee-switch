@@ -277,7 +277,7 @@ private:
     void applySceneDiagOverrides();
     // The console samples a white 1x1 colour texture through the comparison
     // sampler where the desktop binds a depth image.
-    std::unique_ptr<VkTexture> ps4ShadowPlaceholder_;
+    std::unique_ptr<VkTexture> SwitchShadowPlaceholder_;
 
     // Cached info from loadCharacter() for later recompositing.
     game::Race race_ = game::Race::HUMAN;

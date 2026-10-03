@@ -5,7 +5,7 @@ namespace wowee::rendering {
 // switch Onion and Garlic both advertise DEVICE_LOCAL. Legacy GPU_ONLY therefore
 // selects cached Onion first. The retired depth reader requires uncached Garlic.
 // Restrict only the shadow atlas; do not change general VMA or heap policy.
-inline uint32_t ps4ShadowMemoryTypeBits(const VkPhysicalDeviceMemoryProperties& props) {
+inline uint32_t SwitchShadowMemoryTypeBits(const VkPhysicalDeviceMemoryProperties& props) {
     uint32_t bits = 0;
     for (uint32_t i = 0; i < props.memoryTypeCount && i < 32; ++i) {
         const auto flags = props.memoryTypes[i].propertyFlags;

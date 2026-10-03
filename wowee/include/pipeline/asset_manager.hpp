@@ -275,12 +275,12 @@ private:
     //
     // Returns the free bytes the decision was taken on, so a caller that also
     // wants the streaming admission does not measure a second time.
-    struct Ps4Headroom { size_t freeBytes = 0; bool measured = false; };
-    Ps4Headroom refreshPs4CacheBudget() const;
-    mutable std::atomic<uint64_t> ps4HeadroomSampledAtMs_{0};
-    mutable std::atomic<size_t> ps4HeadroomBytes_{0};
-    mutable std::atomic<bool> ps4HeadroomMeasured_{false};
-    mutable std::atomic<bool> ps4StreamHolding_{false};
+    struct SwitchHeadroom { size_t freeBytes = 0; bool measured = false; };
+    SwitchHeadroom refreshSwitchCacheBudget() const;
+    mutable std::atomic<uint64_t> SwitchHeadroomSampledAtMs_{0};
+    mutable std::atomic<size_t> SwitchHeadroomBytes_{0};
+    mutable std::atomic<bool> SwitchHeadroomMeasured_{false};
+    mutable std::atomic<bool> SwitchStreamHolding_{false};
 #endif
 
     /**

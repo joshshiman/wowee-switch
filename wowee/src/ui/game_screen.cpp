@@ -240,7 +240,7 @@ int GameScreen::getResolutionIndex() const {
     // change because there was nothing to change - the dropdown was reporting
     // the wrong row, not failing to apply the right one.
     return displayResolutionIndexForSceneHeight(
-        static_cast<int>(rendering::configuredPs4SceneHeight()));
+        static_cast<int>(rendering::configuredSwitchSceneHeight()));
 #else
     if (!services_.window) return settingsPanel_.pendingResIndex;
     return displayResolutionIndexFor(services_.window->getWidth(),
@@ -262,7 +262,7 @@ void GameScreen::setResolutionIndex(int index) {
     // sampled up to that fixed output. PostProcessPipeline re-reads this every
     // frame and prepares the new extent before the next frame is recorded, so
     // the change is visible immediately instead of at the next launch.
-    rendering::setPs4SceneHeight(
+    rendering::setSwitchSceneHeight(
         static_cast<uint32_t>(displayResolutionSceneHeight(index)));
     if (services_.window) {
         // Still recorded so the settings file and the FrameXML panel agree on

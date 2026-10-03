@@ -413,12 +413,12 @@ bool CharacterPreview::createFBO() {
     // 2. The console's shadow placeholder: a white 1x1 colour texture read
     //    through the comparison sampler. A sampled depth image is a path the
     //    nxvk ICD has not proven, and this preview never shadows.
-    ps4ShadowPlaceholder_ = std::make_unique<VkTexture>();
+    SwitchShadowPlaceholder_ = std::make_unique<VkTexture>();
     {
         const uint8_t white[4] = {255, 255, 255, 255};
-        if (!ps4ShadowPlaceholder_->upload(*vkCtx_, white, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, false)) {
+        if (!SwitchShadowPlaceholder_->upload(*vkCtx_, white, 1, 1, VK_FORMAT_R8G8B8A8_UNORM, false)) {
             LOG_ERROR("CharacterPreview: shadow placeholder texture failed");
-            ps4ShadowPlaceholder_.reset();
+            SwitchShadowPlaceholder_.reset();
             return false;
         }
     }
@@ -487,7 +487,7 @@ bool CharacterPreview::createFBO() {
         // immutable samplers (see Renderer::createPerFrameResources) and
         // needs the real handle written into every descriptor set explicitly.
 #ifdef WOWEE_SWITCH
-        shadowImg.imageView = ps4ShadowPlaceholder_ ? ps4ShadowPlaceholder_->descriptorInfo().imageView
+        shadowImg.imageView = SwitchShadowPlaceholder_ ? SwitchShadowPlaceholder_->descriptorInfo().imageView
                                                     : VK_NULL_HANDLE;
 #else
         shadowImg.imageView = dummyShadowView_;
@@ -526,7 +526,7 @@ bool CharacterPreview::createFBO() {
 }
 
 void CharacterPreview::destroyFBO() {
-    ps4ShadowPlaceholder_.reset();
+    SwitchShadowPlaceholder_.reset();
     if (!vkCtx_) return;
     VkDevice device = vkCtx_->getDevice();
     VmaAllocator allocator = vkCtx_->getAllocator();

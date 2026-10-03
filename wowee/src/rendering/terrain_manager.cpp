@@ -188,7 +188,7 @@ bool TerrainManager::initialize(pipeline::AssetManager* assets, TerrainRenderer*
     LOG_INFO("  Workers: ", workerCount);
 #ifdef WOWEE_SWITCH
     LOG_INFO("  CPU tile preparation: 1 total preparing/ready/finalizing payload; low-headroom probe interval=1000ms");
-    LOG_INFO("  Resident tile cap: ", ps4budget::kMaxResidentTiles,
+    LOG_INFO("  Resident tile cap: ", switchbudget::kMaxResidentTiles,
              "; shared WMO lifetimes; world uploads: 2 chunks/1 model per step, 4ms scheduling budget");
 #endif
 
@@ -2205,7 +2205,7 @@ bool TerrainManager::makeResidentRoom(const TileCoord& incoming) {
     }
     streamHolding_ = holdingNow;
     const unsigned residentCap = platform::switchport::residentTileCapFor(
-        admission, ps4budget::kMaxResidentTiles, loadRadius);
+        admission, switchbudget::kMaxResidentTiles, loadRadius);
     if (loadedTiles.count(incoming) || loadedTiles.size() < residentCap) return true;
     if (currentTile.x < 0 || currentTile.y < 0) return false;
 
@@ -2602,7 +2602,7 @@ TileCoord TerrainManager::worldToTile(float glX, float glY) const {
 bool TerrainManager::retainStreamTile(const TileCoord& coord) const {
 #ifdef WOWEE_SWITCH
     if (!stationaryPreload_.load() && currentTile.x >= 0 && currentTile.y >= 0)
-        return ps4budget::tileInRange(coord.x, coord.y, streamPosition_.x, streamPosition_.y,
+        return switchbudget::tileInRange(coord.x, coord.y, streamPosition_.x, streamPosition_.y,
                                       streamViewDistance_, true);
 #endif
     const int dx = coord.x - currentTile.x, dy = coord.y - currentTile.y;
@@ -3387,9 +3387,9 @@ void TerrainManager::streamTiles() {
 
                 if (tileX < 0 || tileX > 63 || tileY < 0 || tileY > 63) continue;
 #ifdef WOWEE_SWITCH
-                if (!ps4budget::neededTile(dx, dy)) continue;
+                if (!switchbudget::neededTile(dx, dy)) continue;
                 if (!stationaryPreload_.load() &&
-                    !ps4budget::tileInRange(tileX, tileY, streamPosition_.x, streamPosition_.y,
+                    !switchbudget::tileInRange(tileX, tileY, streamPosition_.x, streamPosition_.y,
                                             streamViewDistance_, false)) continue;
 #else
                 if (dx*dx + dy*dy > loadRadius*loadRadius) continue;

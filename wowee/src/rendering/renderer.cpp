@@ -157,7 +157,7 @@ bool Renderer::createPerFrameResources() {
 #ifdef WOWEE_SWITCH
     VkPhysicalDeviceMemoryProperties shadowMemoryProperties{};
     vkGetPhysicalDeviceMemoryProperties(vkCtx->getPhysicalDevice(), &shadowMemoryProperties);
-    imgAllocCI.memoryTypeBits = ps4ShadowMemoryTypeBits(shadowMemoryProperties);
+    imgAllocCI.memoryTypeBits = SwitchShadowMemoryTypeBits(shadowMemoryProperties);
     if (!imgAllocCI.memoryTypeBits) {
         LOG_ERROR("Shadow atlas: no uncached GPU-local memory type available");
         return false; // VMA interprets a zero mask as unrestricted, so fail closed.
@@ -594,7 +594,7 @@ void Renderer::updatePerFrameUBO() {
     // Keep the nearest eight; global zone/directional lighting is unaffected.
     localLightCount = nearestLocalLights(camera->getPosition(),
         currentFrameData.localLightPosRadius, currentFrameData.localLightColorIntensity,
-        localLightCount, ps4budget::kMaxLocalLights);
+        localLightCount, switchbudget::kMaxLocalLights);
 #endif
     currentFrameData.localLightMeta = glm::ivec4(static_cast<int32_t>(localLightCount), 0, 0, 0);
 
@@ -3988,8 +3988,8 @@ void Renderer::setViewDistance(float distance) {
 #ifdef WOWEE_SWITCH
     // Old saved desktop settings must not expand the console working set.
     viewDistance_ = std::isfinite(distance)
-        ? glm::clamp(distance, ps4budget::kMinViewDistance, ps4budget::kMaxViewDistance)
-        : ps4budget::kDefaultViewDistance;
+        ? glm::clamp(distance, switchbudget::kMinViewDistance, switchbudget::kMaxViewDistance)
+        : switchbudget::kDefaultViewDistance;
 #else
     viewDistance_ = glm::clamp(distance, 400.0f, 2400.0f);
 #endif
@@ -4005,7 +4005,7 @@ void Renderer::setViewDistance(float distance) {
 
 int Renderer::getTerrainLoadRadius() const {
 #ifdef WOWEE_SWITCH
-    return ps4budget::kLoadRadius;
+    return switchbudget::kLoadRadius;
 #else
     constexpr float kAdtTileSize = core::coords::TILE_SIZE;
     return glm::clamp(static_cast<int>(std::ceil(viewDistance_ / kAdtTileSize)) + 1, 2, 6);

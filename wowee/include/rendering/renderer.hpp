@@ -352,7 +352,7 @@ private:
     float shadowDistance_ = 300.0f;
 #endif
 #ifdef WOWEE_SWITCH
-    float viewDistance_ = ps4budget::kDefaultViewDistance;
+    float viewDistance_ = switchbudget::kDefaultViewDistance;
 #else
     float viewDistance_ = 1200.0f;
 #endif
@@ -400,7 +400,7 @@ public:
     int getTerrainLoadRadius() const;
     int getTerrainUnloadRadius() const {
 #ifdef WOWEE_SWITCH
-        return ps4budget::kUnloadRadius;
+        return switchbudget::kUnloadRadius;
 #else
         return getTerrainLoadRadius() + 3;
 #endif

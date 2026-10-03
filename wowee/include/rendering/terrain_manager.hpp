@@ -294,14 +294,14 @@ public:
      */
     void setLoadRadius(int radius) {
 #ifdef WOWEE_SWITCH
-        loadRadius = glm::clamp(radius, 1, ps4budget::kLoadRadius);
+        loadRadius = glm::clamp(radius, 1, switchbudget::kLoadRadius);
 #else
         loadRadius = radius;
 #endif
     }
     void setUnloadRadius(int radius) {
 #ifdef WOWEE_SWITCH
-        unloadRadius = glm::clamp(radius, loadRadius + 1, ps4budget::kUnloadRadius);
+        unloadRadius = glm::clamp(radius, loadRadius + 1, switchbudget::kUnloadRadius);
 #else
         unloadRadius = radius;
 #endif
@@ -545,12 +545,12 @@ private:
     // Streaming parameters
     bool streamingEnabled = true;
 #ifdef WOWEE_SWITCH
-    int loadRadius = ps4budget::kLoadRadius;
+    int loadRadius = switchbudget::kLoadRadius;
     /// Whether streaming is currently held back for memory. Kept so the
     /// admission decision has hysteresis: without it the cap would flap
     /// between two values every time a tile was freed and immediately refilled.
     bool streamHolding_ = false;
-    int unloadRadius = ps4budget::kUnloadRadius;
+    int unloadRadius = switchbudget::kUnloadRadius;
 #else
     int loadRadius = 6;      // Load tiles within this radius (13x13 grid = 169 tiles)
     int unloadRadius = 9;    // Unload tiles beyond this radius
