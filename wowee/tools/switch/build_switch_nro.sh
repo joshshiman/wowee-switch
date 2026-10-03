@@ -30,7 +30,8 @@ Requires the nxvk (Mesa NVK) devkitPro portlib:
   https://github.com/PalindromicBreadLoaf/nxvk  (make image && make && sudo make install)
 
 Output:
-  <build-dir>/bin/wowee.nro
+  <build-dir>/wowee.nro
+  <build-dir>/wowee-data/              (runtime assets read from the SD card)
   <stage-dir>/switch/wowee/wowee.nro   (copy the stage dir to the SD card root)
 USAGE
 }
@@ -77,8 +78,12 @@ for f in devkitA64/bin/aarch64-none-elf-gcc libnx/switch.specs libnx/include/swi
     [ -e "$DEVKITPRO/$f" ] || die "devkitPro install is missing $f"
 done
 PKGCFG="${PKG_CONFIG_PATH:-$DEVKITPRO/portlibs/switch/lib/pkgconfig}"
-[ -f "$PKGCFG/nxvk.pc" ] || \
-    die "the nxvk portlib is not installed (expected $PKGCFG/nxvk.pc); see README.md"
+# The driver can be installed either as a built portlib (nvxk.pc) or as a
+# prebuilt libvulkan.a dropped into portlibs/switch; cmake/switch/nxvk.cmake
+# detects both.
+if [ ! -f "$PKGCFG/nxvk.pc" ] && [ ! -f "$DEVKITPRO/portlibs/switch/lib/libvulkan.a" ]; then
+    die "the nxvk driver is not installed (expected $PKGCFG/nxvk.pc or portlibs/switch/lib/libvulkan.a); see README.md"
+fi
 
 if [ "$CLEAN" -eq 1 ] && [ -d "$BUILD_DIR" ]; then
     printf '==> removing %s\n' "$BUILD_DIR"
@@ -95,8 +100,9 @@ cmake -S "$REPO_DIR" -B "$BUILD_DIR" -G Ninja \
 printf '==> build (%s jobs)\n' "$JOBS"
 cmake --build "$BUILD_DIR" --parallel "$JOBS"
 
-NRO="$BUILD_DIR/bin/wowee.nro"
+NRO="$BUILD_DIR/wowee.nro"
 [ -s "$NRO" ] || die "build did not produce $NRO"
+[ -d "$BUILD_DIR/wowee-data" ] || die "build did not stage $BUILD_DIR/wowee-data"
 
 printf '==> stage\n'
 "$REPO_DIR/tools/switch/package.sh" "$BUILD_DIR" "$STAGE_DIR"

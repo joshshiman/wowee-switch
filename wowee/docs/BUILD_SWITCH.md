@@ -29,7 +29,19 @@ Vulkan headers by `tools/switch/gen_nxvk_loader.py`.
   tools/switch/fetch-nxvk.sh            # clones PalindromicBreadLoaf/nxvk
   # in that clone: make image && make && sudo make install
   ```
+  If you cannot build Mesa, drop a prebuilt release into
+  `/opt/devkitpro/portlibs/switch` instead: `libvulkan.a` from the
+  `nvk-switch-mesa-*` archive plus its matching `vk_video` headers.
+  `cmake/switch/nxvk.cmake` detects both layouts.
 * `cmake >= 3.20`, `ninja`, `python3 >= 3.10`
+
+If `dkp-pacman` cannot reach the devkitPro servers (they return `403` from some
+networks), the same toolchain can be unpacked from the published container image:
+
+```
+podman pull devkitpro/devkita64:latest
+# copy /opt/devkitpro out of the image and point DEVKITPRO at it
+```
 
 Blizzard client data (MPQs, DBCs) is **not** in this repository. Copy your own
 WotLK `Data` directory to `sdmc:/wowps/Data` on the console.
@@ -41,9 +53,11 @@ export DEVKITPRO=/opt/devkitpro        # or C:/devkitPro
 tools/switch/build_switch_nro.sh --config Release
 ```
 
-The build produces `build-switch/bin/wowee.nro` and stages an SD-card layout
-under `out/switch/` (copy that to the SD card root, so the title ends up at
-`sdmc:/switch/wowee/wowee.nro`). Launch it from your homebrew menu.
+The build produces `build-switch/wowee.nro`, stages the runtime assets in
+`build-switch/wowee-data/`, and `cmake --build build-switch --target switchpkg`
+assembles an SD-card layout under `out/switch/` (copy that to the SD card root,
+so the title ends up at `sdmc:/switch/wowee/wowee.nro` next to `sdmc:/switch/wowee/data/`).
+Launch it from your homebrew menu.
 
 `tools/switch/build_switch_nro.sh --help` documents the options; the CMake
 commands it wraps are:
@@ -53,16 +67,22 @@ cmake -S . -B build-switch -G Ninja \
       -DCMAKE_TOOLCHAIN_FILE=cmake/switch.toolchain.cmake \
       -DCMAKE_BUILD_TYPE=Release
 cmake --build build-switch --parallel
+cmake --build build-switch --target switchpkg
 ```
 
 ## Runtime layout
 
 | Path | Contents |
 |------|----------|
-| `romfs:/` (inside the .nro) | `assets/shaders/*.spv`, UI images, `Data/expansions`, `Data/opcodes` |
+| `sdmc:/switch/wowee/data` | `assets/shaders/*.spv`, UI images, `Data/expansions`, `Data/opcodes` (override the root with `WOWEE_RESOURCE_ROOT`) |
 | `sdmc:/wowps/Data` | your own WotLK client `Data` (MPQs, locale subdirectories) |
 | `sdmc:/wowps/assets/local_realm` | bundled local-realm data (copied at build time) |
 | `sdmc:/wowps/wowps/` | writable tree: `logs/`, `cache/`, `saves/`, `config/`, `tmp/` |
+
+The assets are staged beside the `.nro` instead of embedded in an NRO romfs:
+this devkitPro `elf2nro` mmaps the romfs directory and fails with
+`Failed to open input romfs!`, and a side-by-side directory means shaders can be
+refreshed by copying a file rather than rebuilding the binary.
 
 `WOW_DATA_PATH` defaults to `sdmc:/wowps`; `WOWEE_LOG_LEVEL`, `WOWEE_RESOURCE_ROOT`
 and the other `WOWEE_*` knobs work as on desktop.
@@ -87,6 +107,14 @@ now fed by HID instead of a DualShock 4.
 
 ## Known gaps
 
+* Untested on hardware: the port compiles, links and packages, but no console is
+  attached, so presentation, audio, HID and the login path have not been run.
+* Blizzard Warden cannot run its native modules on Horizon: the kernel will not
+  hand out anonymous RWX mappings, so `warden_module.cpp` loads the module
+  read/write and refuses to call into it. Realms that issue a Warden challenge
+  will not work; local and private servers do.
+* `elf2nro` here cannot embed a romfs (see *Runtime layout*), so assets are read
+  from the SD card rather than from the title itself.
 * No `deko3d`/GLES2 path: rendering is Vulkan 1.x through nxvk, which is what the
   renderer already spoke on the PS4.
 * GPU timestamps stay uncalibrated (as on the PS4 port) until the nxvk backend

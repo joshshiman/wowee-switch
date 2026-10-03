@@ -43,19 +43,31 @@ See [wowee/docs/BUILD_SWITCH.md](wowee/docs/BUILD_SWITCH.md). Short version:
 ```sh
 export DEVKITPRO=/opt/devkitpro
 tools/switch/fetch-nxvk.sh          # builds/installs Mesa NVK as a portlib
-tools/switch/build_switch_nro.sh     # -> build-switch/bin/wowee.nro + out/switch/
+tools/switch/build_switch_nro.sh    # -> build-switch/wowee.nro + wowee-data/
+cmake --build build-switch --target switchpkg   # -> out/switch/switch/wowee/
 ```
+
+The runtime assets are staged in `build-switch/wowee-data/` and shipped beside
+the `.nro` (the homebrew reads them from `sdmc:/switch/wowee/data`, overridable
+with `WOWEE_RESOURCE_ROOT`). They are not embedded in an NRO romfs because the
+devkitPro `elf2nro` build here cannot read one.
 
 Then copy your own WotLK `Data` directory to `sdmc:/wowps/Data` on the console.
 
 ## Status
 
-Ported and wired end to end, but **not yet compiled on hardware**: this machine
-has no devkitPro install, so the work so far is source-level (plus a generated
-Vulkan loader verified against the real headers). The first build on a machine
-with `devkitA64` is where link-time surprises will surface - most likely the
-nvvk archives' link order, and the exact libnx entry points this port settled on
-from the headers.
+The port compiles, links and packages: `wowee.elf` and a 38 MB `wowee.nro` are
+produced by devkitA64 GCC 15.2 with statically linked Mesa NVK, and
+`cmake --build build-switch --target switchpkg` stages a complete SD-card tree.
+The resulting ELF has no unresolved symbols, exports the driver's
+`vk_icdGetInstanceProcAddr`, and keeps the generated loader's
+`vkCreateInstance`/`vkCreateDevice` trampolines internal.
+
+**Not yet run on hardware.** There is no console or Atmosphère here, so display,
+audio, input, controller mapping and the WotLK login path are unverified at
+runtime. Blizzard's Warden cannot execute its native modules on Horizon (no
+anonymous RWX mappings), which rules out realms that issue Warden challenges;
+private and local servers remain the working target.
 
 Blizzard data is not included, and this project is not affiliated with or
 endorsed by Blizzard Entertainment. Linking the statically-linked Mesa driver
