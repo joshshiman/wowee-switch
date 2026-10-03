@@ -4,26 +4,20 @@
 // portable logic (what to extract, where, when it is stale) is
 // tools/asset_extract/first_launch.cpp, shared with the Linux test in
 // switch/tests/extract_smoke; this file adds the console paths, the thread
-// budget and the sceMsgDialog progress bar.
+// budget and the progress reporting.
 //
-// Paths (see system_switch.cpp and docs/switch.md):
-//   /data/wow_ps/Data                       the user's archives (input)
-//   /data/wow_ps/expansions/<expansion>/    manifest.json + extracted files (output)
-//   /app0/Data                              the package's expansion metadata,
-//                                           mirrored into /data/wow_ps
+// Paths (see system_switch.cpp):
+//   sdmc:/wowps/Data                        the user's archives (input)
+//   sdmc:/wowps/expansions/<expansion>/     manifest.json + extracted files
 //
-// The dialog is a system overlay: it needs the MsgDialog module (loaded by
-// initSystem) and sceCommonDialogInitialize, not a renderer, and it is
-// driven from the main thread while the extraction runs on a worker.
+// The progress is logged and boot-staged; it is driven from the main thread
+// while the extraction runs on a worker.
 
 #include "platform/switch/extract_switch.hpp"
 #include "platform/switch/switch_platform.hpp"
 #include "first_launch.hpp"
 #include "core/logger.hpp"
 #include "core/config_paths.hpp"
-
-#include <orbis/CommonDialog.h>
-#include <orbis/MsgDialog.h>
 
 #include <unistd.h>
 #include <atomic>
@@ -49,16 +43,8 @@ namespace {
 constexpr int kDefaultThreads = 2;
 
 // The progress bar's target id (SCE_MSG_DIALOG_PROGRESSBAR_TARGET_BAR_DEFAULT).
-constexpr OrbisMsgDialogProgressBarTarget kProgressBarDefault = 0;
-
 // How often the main thread refreshes the dialog and drains the system queue.
 constexpr unsigned kPollMicros = 100 * 1000;
-
-std::string hex(int32_t rc) {
-    char buf[16];
-    std::snprintf(buf, sizeof(buf), "0x%08x", static_cast<uint32_t>(rc));
-    return buf;
-}
 
 tools::FirstLaunchPlan makePlan() {
     return tools::planFirstLaunch(dataRoot(), dataRoot() + "/Data");
@@ -91,69 +77,31 @@ void mirrorBundledData() {
 class ProgressDialog {
 public:
     bool open(const std::string& message) {
-        reportBootStage("assets: native progress dialog opening");
-        // Initialising the common dialog twice answers an error, which is
-        // fine: input_switch's initInput may have done it already.
-        sceCommonDialogInitialize();
-        int32_t rc = sceMsgDialogInitialize();
-        if (rc < 0) {
-            LOG_WARNING("sceMsgDialogInitialize failed: ", hex(rc), " - extracting without a progress dialog");
-            return false;
-        }
-        message_ = message;
-
-        std::memset(&param_, 0, sizeof(param_));
-        param_.baseParam.size = sizeof(OrbisCommonDialogBaseParam);
-        param_.baseParam.magic = static_cast<uint32_t>(
-            ORBIS_COMMON_DIALOG_MAGIC_NUMBER + reinterpret_cast<uint64_t>(&param_.baseParam));
-        param_.size = sizeof(OrbisMsgDialogParam);
-        param_.mode = ORBIS_MSG_DIALOG_MODE_PROGRESS_BAR;
-        std::memset(&bar_, 0, sizeof(bar_));
-        bar_.barType = ORBIS_MSG_DIALOG_PROGRESSBAR_TYPE_PERCENTAGE;
-        bar_.msg = message_.c_str();
-        param_.progBarParam = &bar_;
-
-        rc = sceMsgDialogOpen(&param_);
-        if (rc < 0) {
-            LOG_WARNING("sceMsgDialogOpen failed: ", hex(rc), " - extracting without a progress dialog");
-            sceMsgDialogTerminate();
-            return false;
-        }
+        reportBootStage("assets: extraction progress opening");
         open_ = true;
-        reportBootStage("assets: native progress dialog ready");
-        // The overlay is ready; do not expose a blank video buffer merely
-        // because the swapchain was created earlier.
+        LOG_INFO(message);
         hideSplashScreen();
         return true;
     }
 
-    // Main thread, once per poll. Text and value only go to the dialog when
-    // they changed.
+    // Main thread, once per poll. Text and value only change the log when
+    // they actually changed.
     void update(const std::string& stage, float progress) {
         if (!open_) return;
-        if (sceMsgDialogUpdateStatus() == ORBIS_COMMON_DIALOG_STATUS_FINISHED) {
-            // Closed under us (a system event); stop touching it.
-            finish();
-            return;
-        }
         const uint32_t pct = static_cast<uint32_t>(std::lround(std::fmin(std::fmax(progress, 0.0f), 1.0f) * 100.0f));
         if (pct != lastPct_) {
             lastPct_ = pct;
-            sceMsgDialogProgressBarSetValue(kProgressBarDefault, pct);
+            if (pct % 10 == 0) LOG_INFO("extract ", pct, "% ", stage);
         }
         if (stage != lastStage_) {
             lastStage_ = stage;
-            message_ = "wow_ps is preparing your game data.\n" + stage + "...";
-            sceMsgDialogProgressBarSetMsg(kProgressBarDefault, message_.c_str());
+            LOG_INFO("extract: ", stage);
         }
     }
 
     void close() {
         if (!open_) return;
-        sceMsgDialogClose();
-        // Let the overlay animate out; bounded so a stuck dialog cannot hold
-        // startup.
-        for (int i = 0; i < 30 && sceMsgDialogUpdateStatus() != ORBIS_COMMON_DIALOG_STATUS_FINISHED; ++i) {
+        for (int i = 0; i < 3; ++i) {
             pumpSystemEvents();
             ::usleep(kPollMicros);
         }
@@ -163,15 +111,8 @@ public:
     ~ProgressDialog() { close(); }
 
 private:
-    void finish() {
-        if (!open_) return;
-        open_ = false;
-        sceMsgDialogTerminate();
-    }
+    void finish() { open_ = false; }
 
-    OrbisMsgDialogParam param_{};
-    OrbisMsgDialogProgressBarParam bar_{};
-    std::string message_;
     std::string lastStage_;
     uint32_t lastPct_ = ~0u;
     bool open_ = false;

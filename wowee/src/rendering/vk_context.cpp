@@ -1,7 +1,9 @@
 #if defined(WOWEE_SWITCH)
-// nxvk (the ICD) is Vulkan 1.0 only. Keep VMA from importing 1.1-1.3
-// entry points that can never be advertised on this backend.
+// nxvk reports Vulkan 1.4, but the renderer's device setup only asks for
+// 1.0-era entry points here; keep VMA from importing 1.1-1.3 entry points
+// the client never requests on this backend.
 #define VMA_VULKAN_VERSION 1000000
+#include <switch.h>
 #endif
 #define VMA_IMPLEMENTATION
 #include <set>
@@ -19,7 +21,6 @@
 #include "core/logger.hpp"
 #include "pipeline/blp_loader.hpp"
 #if defined(WOWEE_SWITCH)
-#include "vk_switch.h"
 #include "platform/switch/switch_platform.hpp"
 #endif
 #if !defined(WOWEE_SWITCH)
@@ -112,10 +113,16 @@ bool VkContext::initialize(SDL_Window* window) {
 
     int w, h;
 #if defined(WOWEE_SWITCH)
-    // VideoOut targets a fixed 1920x1080 scanout; nxvk owns
-    // presentation directly, there is no surface to query an extent from.
-    w = 1920;
-    h = 1080;
+    // The VI surface is the NWindow the title was given; ask it for the
+    // scanout extent rather than assuming 1080p.
+    w = 1280;
+    h = 720;
+    VkSurfaceCapabilitiesKHR surfaceCaps{};
+    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps) == VK_SUCCESS &&
+        surfaceCaps.currentExtent.width != 0 && surfaceCaps.currentExtent.height != 0) {
+        w = static_cast<int>(surfaceCaps.currentExtent.width);
+        h = static_cast<int>(surfaceCaps.currentExtent.height);
+    }
 #else
     SDL_Vulkan_GetDrawableSize(window, &w, &h);
 #endif
@@ -315,12 +322,7 @@ void VkContext::shutdown() {
 
     LOG_DEBUG("VkContext::shutdown - vkDestroyDevice...");
     if (device) { vkDestroyDevice(device, nullptr); device = VK_NULL_HANDLE; }
-#if !defined(WOWEE_SWITCH)
     if (surface) { vkDestroySurfaceKHR(instance, surface, nullptr); surface = VK_NULL_HANDLE; }
-#else
-    // VideoOut owns the switch presentation target; there is no WSI surface.
-    surface = VK_NULL_HANDLE;
-#endif
 
     if (debugMessenger) {
         auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
@@ -422,29 +424,38 @@ VkSampler VkContext::getOrCreateSampler(const VkSamplerCreateInfo& info) {
 bool VkContext::createInstance(SDL_Window* window) {
 #if defined(WOWEE_SWITCH)
     // nxvk is a direct ICD, not a loader with installable layers/
-    // extensions to discover - a plain Vulkan 1.0 instance is all it exposes.
+    // extensions to discover - a plain Vulkan instance is all it exposes.
+    // Presentation goes through libnx's NWindow, so VK_KHR_surface plus
+    // nxvk's own VK_NN_vi_surface are the two instance extensions needed.
     (void)window;
     VkApplicationInfo applicationInfo{};
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    applicationInfo.pApplicationName = "WoWPS";
+    applicationInfo.pApplicationName = "WoWee";
     applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    applicationInfo.pEngineName = "WoWPS";
+    applicationInfo.pEngineName = "WoWee";
     applicationInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    applicationInfo.apiVersion = VK_API_VERSION_1_0;
+    applicationInfo.apiVersion = VK_API_VERSION_1_1;
+
+    static constexpr const char* kInstanceExtensions[] = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_NN_VI_SURFACE_EXTENSION_NAME,
+    };
 
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &applicationInfo;
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(std::size(kInstanceExtensions));
+    createInfo.ppEnabledExtensionNames = kInstanceExtensions;
 
     if (const VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
         result != VK_SUCCESS || instance == VK_NULL_HANDLE) {
         LOG_ERROR("switch Vulkan instance creation failed: VkResult=", static_cast<int>(result));
         return false;
     }
-    instanceApiVersion_ = VK_API_VERSION_1_0;
+    instanceApiVersion_ = VK_API_VERSION_1_1;
     validationActive_ = false;
     debugMessenger = VK_NULL_HANDLE;
-    LOG_INFO("switch Vulkan instance created: API 1.0, direct ICD path");
+    LOG_INFO("switch Vulkan instance created (nxvk, VK_NN_vi_surface)");
     return true;
 #else
     // Get required SDL extensions
@@ -518,10 +529,25 @@ bool VkContext::createInstance(SDL_Window* window) {
 bool VkContext::createSurface(SDL_Window* window) {
 #if defined(WOWEE_SWITCH)
     (void)window;
-    // nxvk owns VideoOut in vkCreateSwapchainKHR and explicitly accepts
-    // VK_NULL_HANDLE here. There is no SDL/native-window surface on OpenOrbis.
-    surface = VK_NULL_HANDLE;
-    LOG_INFO("switch Vulkan surface stage complete: VideoOut is swapchain-owned");
+    // Presentation on Switch is nxvk's VK_NN_vi_surface over the default
+    // libnx NWindow. nxvk's swapchain images scan out zero-copy from that
+    // window, so the surface must exist for vkCreateSwapchainKHR below.
+    auto createViSurface = reinterpret_cast<PFN_vkCreateViSurfaceNN>(
+        vkGetInstanceProcAddr(instance, "vkCreateViSurfaceNN"));
+    if (createViSurface == nullptr) {
+        LOG_ERROR("switch Vulkan: vkCreateViSurfaceNN did not resolve; "
+                  "VK_NN_vi_surface was not enabled");
+        return false;
+    }
+    VkViSurfaceCreateInfoNN viInfo{};
+    viInfo.sType = VK_STRUCTURE_TYPE_VI_SURFACE_CREATE_INFO_NN;
+    viInfo.window = nwindowGetDefault();
+    const VkResult result = createViSurface(instance, &viInfo, nullptr, &surface);
+    if (result != VK_SUCCESS) {
+        LOG_ERROR("switch vkCreateViSurfaceNN failed: VkResult=", static_cast<int>(result));
+        return false;
+    }
+    LOG_INFO("switch Vulkan surface created over the default NWindow");
     return true;
 #else
     if (!SDL_Vulkan_CreateSurface(window, instance, &surface)) {
@@ -561,15 +587,11 @@ void VkContext::reportUnsuitableDevices() const {
         bool present = false;
         for (uint32_t i = 0; i < familyCount; ++i) {
             if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) graphics = true;
-#if defined(WOWEE_SWITCH)
-            // No WSI surface to query on switch; VideoOut presents on the same
-            // queue that draws.
-            if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) present = true;
-#else
             VkBool32 supported = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supported);
-            if (supported) present = true;
-#endif
+            if (vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &supported) == VK_SUCCESS &&
+                supported == VK_TRUE) {
+                present = true;
+            }
         }
 
         LOG_ERROR("    ", props.deviceName,
@@ -1287,25 +1309,46 @@ bool VkContext::createSwapchain(int width, int height) {
     }
     if (swapchain != VK_NULL_HANDLE) destroySwapchain();
 
+    VkSurfaceCapabilitiesKHR caps{};
+    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps) != VK_SUCCESS) {
+        LOG_ERROR("switch vi-surface capabilities query failed");
+        return false;
+    }
+
+    uint32_t formatCount = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+    std::vector<VkSurfaceFormatKHR> formats(formatCount);
+    if (formatCount > 0) {
+        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, formats.data());
+    }
+    VkSurfaceFormatKHR chosen{};
+    bool haveFormat = false;
+    for (const auto& candidate : formats) {
+        if (candidate.format == VK_FORMAT_B8G8R8A8_UNORM || candidate.format == VK_FORMAT_B8G8R8A8_SRGB) {
+            chosen = candidate;
+            haveFormat = true;
+            break;
+        }
+    }
+    if (!haveFormat && formatCount > 0) chosen = formats[0];
+    if (!haveFormat && formatCount == 0) {
+        LOG_ERROR("switch vi-surface reports no formats");
+        return false;
+    }
+
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = VK_NULL_HANDLE;
-    // Keep a free scanout image while VideoOut switches from the displayed
-    // image to the just-rendered one. With only two images the next acquire
-    // blocks on that switch even though GPU rendering has already finished.
-    // This does not add a GPU frame in flight or relax any completion wait.
+    createInfo.surface = surface;
     createInfo.minImageCount = 3;
-    // Native VideoOut is registered as A8B8G8R8: little-endian RGBA bytes.
-    // BGRA here swapped red/blue across the entire screen, including UI text.
-    createInfo.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
-    createInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    createInfo.imageFormat = chosen.format;
+    createInfo.imageColorSpace = chosen.colorSpace;
     createInfo.imageExtent = {
         static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    createInfo.preTransform = caps.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
     createInfo.clipped = VK_TRUE;
@@ -1313,9 +1356,6 @@ bool VkContext::createSwapchain(int width, int height) {
     VkResult result = vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain);
     if ((result != VK_SUCCESS || swapchain == VK_NULL_HANDLE) &&
         result != VK_ERROR_DEVICE_LOST) {
-        // VideoOut allocation/registration may not accommodate the extra
-        // buffer. The ICD cleans failed creations before returning; output
-        // handles from failed Vulkan calls must not be used or destroyed.
         LOG_WARNING("switch three-buffer swapchain unavailable: VkResult=", result,
                     "; retrying two scanout buffers at ", width, "x", height);
         swapchain = VK_NULL_HANDLE;
@@ -1323,7 +1363,7 @@ bool VkContext::createSwapchain(int width, int height) {
         result = vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain);
     }
     if (result != VK_SUCCESS || swapchain == VK_NULL_HANDLE) {
-        LOG_ERROR("switch VideoOut swapchain creation failed: VkResult=", result,
+        LOG_ERROR("switch VI swapchain creation failed: VkResult=", result,
                   " extent=", width, "x", height);
         swapchain = VK_NULL_HANDLE;
         return false;
@@ -1376,8 +1416,9 @@ bool VkContext::createSwapchain(int width, int height) {
     deferredPresentValid_ = false;
     deferredPresentSemaphore_ = VK_NULL_HANDLE;
     deferredPresentSwapchain_ = VK_NULL_HANDLE;
-    LOG_INFO("switch VideoOut swapchain created: ", width, "x", height,
-             " images=", imageCount, " surface=none deferredPresent=",
+    LOG_INFO("switch VI swapchain created: ", width, "x", height,
+             " images=", imageCount, " format=", static_cast<int>(createInfo.imageFormat),
+             " deferredPresent=",
              (ps4DeferredPresentEnabled() && imageCount >= 3 ? "enabled" : "disabled"));
     return true;
 #else
@@ -3250,6 +3291,11 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
 
 #if defined(WOWEE_SWITCH)
 void VkContext::ps4DebugComputeDispatch(VkCommandBuffer cmd, uint32_t imageIndex) {
+    // This debug path aliases the swapchain image's backing storage through
+    // the PS4 ICD's vendor extensions (vkPs4GetAcquiredScanoutInfo /
+    // vkPs4GetSwapchainImageMemory). nxvk has no equivalent, so the whole
+    // probe compiles only for the PS4 backend.
+#if defined(WOWEE_PS4)
     auto& dc = ps4DebugCompute_;
 
     if (!dc.setupAttempted) {
@@ -3423,6 +3469,10 @@ void VkContext::ps4DebugComputeDispatch(VkCommandBuffer cmd, uint32_t imageIndex
     const uint32_t groupsX = (pc.width + 7) / 8;
     const uint32_t groupsY = (pc.height + 7) / 8;
     vkCmdDispatch(cmd, groupsX, groupsY, 1);
+#else
+    (void)cmd;
+    (void)imageIndex;
+#endif // defined(WOWEE_PS4)
 }
 
 void VkContext::ps4DebugSolidDraw(VkCommandBuffer cmd) {

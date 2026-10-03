@@ -3,7 +3,6 @@
 #include "platform/switch/heap_growth.hpp"
 #include "platform/switch/cpu_memory.hpp"
 #include <cstdio>
-#include <vk_switch.h>
 #include "rendering/switch_shadow_memory.hpp"
 #endif
 #include "rendering/sun_direction.hpp"
@@ -1334,8 +1333,11 @@ void Renderer::beginFrame() {
 
 #ifdef WOWEE_SWITCH
     markBeginStage(1); // image acquire, slot fence, command reset
+#if defined(WOWEE_PS4)
     // beginFrame has retired this slot's fence. Inspect its previous shadow
     // writes now, before any new pass can write the image. Never wait here.
+    // This reads the retired depth image back through the PS4 ICD's vendor
+    // probe; nxvk has no equivalent, so it is PS4-only.
     const uint32_t receiptFrame = vkCtx->getCurrentFrame();
     if (shadowDepthReceiptReady_[receiptFrame]) {
         shadowDepthReceiptReady_[receiptFrame] = false;
@@ -1366,6 +1368,7 @@ void Renderer::beginFrame() {
             }
         }
     }
+#endif // WOWEE_PS4
 #endif
 
 #ifdef WOWEE_SWITCH

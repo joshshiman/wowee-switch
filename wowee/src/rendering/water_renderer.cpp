@@ -21,7 +21,6 @@
 #include <array>
 #include <unordered_map>
 #ifdef WOWEE_SWITCH
-#include <vk_switch.h>
 #endif
 
 namespace wowee {
@@ -1324,11 +1323,10 @@ void WaterRenderer::captureSceneHistory(VkCommandBuffer cmd,
 
     VkImage historyColor = sh.colorImage;
 #ifdef WOWEE_SWITCH
+    // nxvk images are bindable as sampled images directly; there is no
+    // tiled-color fallback (the PS4 ICD needed one because the block-linear
+    // swapchain layout could not be sampled).
     VkImageView historyView = sh.colorView;
-    if (!vkPs4ImageHasLinearStorage(srcColorImage)) {
-        historyColor = sh.tiledColorImage;
-        historyView = sh.tiledColorView;
-    }
     if (!historyColor || !historyView) return;
     VkDescriptorImageInfo colorInfo{sceneColorSampler, historyView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};

@@ -12,9 +12,6 @@
 #include "core/local_time.hpp"
 #include "core/snapshot_writer.hpp"
 #include <ctime>
-#ifdef WOWEE_SWITCH
-#include <orbis/Rtc.h>
-#endif
 #include "game/local_services.hpp"
 #include "game/local_talents.hpp"
 #include "game/local_stat_auras.hpp"
@@ -45,33 +42,16 @@ double steadySeconds() {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 bool readLocalClockHours(float& hours) {
-#ifdef WOWEE_SWITCH
-    // Use console LOCAL RTC on every poll, including user timezone/DST edits.
-    // libc can expose an uptime/1970 epoch here. Preserve the previous clock
-    // on RTC failure rather than falling back to that unrelated time source.
-    // The SDK subsecond field is undersized: reserve trailing native storage.
-    struct alignas(8) ClockStorage { TimeTable value; uint8_t tail[32]; } rtc{};
-    if (sceRtcGetCurrentClockLocalTime(&rtc.value) != 0 ||
-        rtc.value.hour >= 24 || rtc.value.minute >= 60 || rtc.value.second >= 60) return false;
-    hours = float(rtc.value.hour) + float(rtc.value.minute)/60 + float(rtc.value.second)/3600;
-#else
     const auto raw = std::time(nullptr);
     if (raw == std::time_t(-1)) return false;
     const auto local = core::localTime(raw);
     hours = float(local.tm_hour) + float(local.tm_min)/60 + float(local.tm_sec)/3600;
-#endif
     return std::isfinite(hours) && hours >= 0 && hours < 24;
 }
 bool readLocalCalendar(LocalCalendarTime& value) {
-#ifdef WOWEE_SWITCH
-    struct alignas(8) CalendarStorage { TimeTable value; uint8_t tail[32]; } rtc{};
-    if(sceRtcGetCurrentClockLocalTime(&rtc.value)!=0)return false;
-    value={int(rtc.value.year),unsigned(rtc.value.month),unsigned(rtc.value.day),unsigned(rtc.value.hour),unsigned(rtc.value.minute),unsigned(rtc.value.second)};
-#else
     const auto raw=std::time(nullptr);if(raw==std::time_t(-1))return false;
     const auto local=core::localTime(raw);
     value={local.tm_year+1900,unsigned(local.tm_mon+1),unsigned(local.tm_mday),unsigned(local.tm_hour),unsigned(local.tm_min),unsigned(local.tm_sec)};
-#endif
     return validLocalCalendarTime(value);
 }
 constexpr uint32_t WireMagic = 0x57504c52; // WPLR

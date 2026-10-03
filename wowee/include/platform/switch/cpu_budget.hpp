@@ -1,7 +1,7 @@
 // cpu_budget.hpp - what the console's measured CPU headroom buys, as arithmetic.
 //
 // Split out of cpu_memory.hpp, which cannot be included anywhere but the
-// console: it opens with <orbis/libkernel.h>. The numbers below are the whole
+// console: it cannot be included off-console. The numbers below are the whole
 // of the policy and none of the measurement, so they compile and can be tested
 // on the host, which is the only place this project can execute anything.
 //

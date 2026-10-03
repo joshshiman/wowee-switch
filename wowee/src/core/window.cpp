@@ -63,22 +63,21 @@ bool Window::initialize() {
     LOG_INFO("Initializing window: ", config.title);
 
 #ifdef WOWEE_SWITCH
-    // No piglet, no EGL: nxvk is a real Vulkan 1.0 ICD over GNM/VideoOut
-    // (see docs/switch.md and switch/third_party/nxvk/NOTICE.md), so
-    // VkContext::initialize() below does the entire "window" setup itself
-    // (instance/device/swapchain) - there is nothing to bootstrap first, at
-    // the fixed 1080p VideoOut owns.
-    width = 1920;
-    height = 1080;
+    // No SDL window: presentation is libnx's default NWindow, and VkContext
+    // owns the surface (VK_NN_vi_surface over that window). So the "window"
+    // setup here is only the client-side size, which VkContext then resolves
+    // from the surface capabilities.
+    width = 1280;
+    height = 720;
     windowedWidth = width;
     windowedHeight = height;
     fullscreen = true;
 
-    // The pad, before the UI manager asks padConnected() to advertise a
+    // The pads, before the UI manager asks padConnected() to advertise a
     // gamepad to ImGui. Not fatal: without it the client draws and the
     // on-screen keyboard reports the missing user.
     if (!platform::switchport::initInput()) {
-        LOG_WARNING("switch pad not opened; the client has no input");
+        LOG_WARNING("Switch pads not initialised; the client has no input");
     }
 
     vkContext = std::make_unique<rendering::VkContext>();
@@ -90,7 +89,7 @@ bool Window::initialize() {
 
     // Keep the splash until VkContext successfully presents the first frame.
     // Renderer setup and first-run extraction below can take substantial time.
-    LOG_INFO("Window initialized successfully (switch Vulkan/GNM, ", width, "x", height, ")");
+    LOG_INFO("Window initialized successfully (Switch VI surface, ", width, "x", height, ")");
     return true;
 #else
 #ifdef __APPLE__

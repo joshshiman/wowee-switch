@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <orbis/libkernel.h>
 
 // The budgets, and the decisions taken from them. They moved into their own
 // header because this one cannot be compiled anywhere but the console - the
@@ -21,25 +20,23 @@ struct AvailableCpuMemory {
     bool measured = false;
 };
 
-inline AvailableCpuMemory queryAvailableCpuMemory() {
-    static_assert(sizeof(size_t) == sizeof(void*) && sizeof(size_t) == 8,
-                  "switch flexible-memory output is a 64-bit size/pointer");
-    // OpenOrbis declares the argument as size_t, but it contains the address of
-    // a uint64_t output, not a requested size. The pointer-output ABI is also
-    // implemented by shadPS4's src/core/libraries/kernel/memory.cpp; see the
-    // retained source reference in validation/b10-flexible-memory-abi-source.json.
-    // Pass its bits through the SDK declaration, avoiding a mismatched function
-    // pointer cast. The sentinel detects a successful call that did not write.
-    size_t available = static_cast<size_t>(-1);
-    const int32_t status = sceKernelAvailableFlexibleMemorySize(
-        reinterpret_cast<size_t>(&available));
-    if (status != 0 || available > 8ull * 1024 * 1024 * 1024) {
-        return {0, status, false};
+// The Switch has no flexible-memory ABI like the PS4 to query. Ask by
+// mapping: probe with a descending ladder of blocks, writing both ends of
+// each so the number is backed by real pages and a compiler cannot delete
+// the probe. This tracks the residency of the title heap (~3 GiB) versus
+// what's already committed by Lua, assets and gameplay paths.
+inline std::size_t probeLargestHeapBlock(const std::size_t* sizes, std::size_t count) noexcept {
+    for (std::size_t i = 0; i < count; ++i) {
+        if (sizes[i] == 0) continue;
+        void* block = std::malloc(sizes[i]);
+        if (!block) continue;
+        volatile unsigned char* bytes = static_cast<volatile unsigned char*>(block);
+        bytes[0] = 0;
+        bytes[sizes[i] - 1] = 0;
+        std::free(block);
+        return sizes[i];
     }
-    // This measures currently unmapped flexible pages. Reusable blocks held
-    // inside libc's malloc arenas are not added: this is conservative headroom.
-    return {available < kCpuMemoryBudgetLimit ? available : kCpuMemoryBudgetLimit,
-            status, true};
+    return 0;
 }
 
 /// The largest of `sizes` the C++ heap will actually hand back right now.
@@ -62,18 +59,14 @@ inline AvailableCpuMemory queryAvailableCpuMemory() {
 /// backed; the writes cost two page faults and remove any question of a lazy
 /// mapping answering yes on memory that is not there. They are volatile
 /// because an untouched malloc/free pair is a thing a compiler may delete.
-inline std::size_t probeLargestHeapBlock(const std::size_t* sizes, std::size_t count) noexcept {
-    for (std::size_t i = 0; i < count; ++i) {
-        if (sizes[i] == 0) continue;
-        void* block = std::malloc(sizes[i]);
-        if (!block) continue;
-        volatile unsigned char* bytes = static_cast<volatile unsigned char*>(block);
-        bytes[0] = 0;
-        bytes[sizes[i] - 1] = 0;
-        std::free(block);
-        return sizes[i];
-    }
-    return 0;
+inline AvailableCpuMemory queryAvailableCpuMemory() {
+    const std::size_t ladder[] = {
+        512u * 1024u * 1024u, 256u * 1024u * 1024u, 128u * 1024u * 1024u,
+        64u * 1024u * 1024u, 32u * 1024u * 1024u, 16u * 1024u * 1024u,
+        8u * 1024u * 1024u, 4u * 1024u * 1024u
+    };
+    const std::size_t largest = probeLargestHeapBlock(ladder, sizeof(ladder) / sizeof(ladder[0]));
+    return {largest < kCpuMemoryBudgetLimit ? largest : kCpuMemoryBudgetLimit, 0, largest != 0};
 }
 
 /// What a character skin composite may cost right now.

@@ -29,6 +29,7 @@
 #include <fstream>
 #include <string>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "addons/framexml_recovery.hpp"
@@ -36,6 +37,10 @@
 namespace wowee {
 namespace platform {
 namespace switchport {
+
+// From src/platform/switch/vk_nxvk_loader.cpp: NVK's documented bring-up
+// requirement before any Vulkan call.
+extern "C" void vk_nxvk_loader_init(void);
 
 namespace {
 
@@ -111,6 +116,7 @@ bool initSystem() {
 
     createDirectories();
     applyEnvironment();
+    vk_nxvk_loader_init();
     g_initialised = true;
     reportBootStage("initSystem");
     return true;
