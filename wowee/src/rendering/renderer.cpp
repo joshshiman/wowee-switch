@@ -161,21 +161,16 @@ bool Renderer::createPerFrameResources() {
         ChooseSwitchShadowMemoryType(shadowMemoryProperties);
     imgAllocCI.memoryTypeBits = shadowMemory.memoryTypeBits;
     if (shadowMemory.policy == SwitchShadowMemoryPolicy::HostVisibleOnly) {
-        // Legal Vulkan, and it renders correctly, but on a host whose NVK
-        // emulation cannot allocate from a host-visible heap this takes the
-        // whole emulator down with an access violation before we get to report
-        // anything. Opt in, do not do it by default.
-        const char* allow = std::getenv("WOWEE_SWITCH_ALLOW_HOST_VISIBLE_MEMORY");
-        if (!allow || !*allow || std::strcmp(allow, "0") == 0) {
-            LOG_ERROR("Shadow atlas: the driver reports no device-local memory, only "
-                      "host-visible. Allocating there is valid but crashes NVK-based "
-                      "emulators; set WOWEE_SWITCH_ALLOW_HOST_VISIBLE_MEMORY=1 to try it.");
-            LogSwitchMemoryTypes(shadowMemoryProperties);
-            return false; // VMA interprets a zero mask as unrestricted, so fail closed.
-        }
-        LOG_WARNING("Shadow atlas: no device-local memory; allocating host-visible memory "
-                    "because WOWEE_SWITCH_ALLOW_HOST_VISIBLE_MEMORY is set.");
+        // No device-local heap at all - which is what an NVK-based emulator
+        // reports, since guest VRAM is host memory there. Images are legal in
+        // host-visible memory, so leave the mask unrestricted and let VMA pick,
+        // exactly as the attachment path already does. Slower (no texture
+        // caching) but correct, and the only option there is.
+        LOG_WARNING("Shadow atlas: the driver reports no device-local memory; letting VMA "
+                    "choose from the host-visible types. Depth inspection is unavailable "
+                    "(and unused outside WOWEE_PS4).");
         LogSwitchMemoryTypes(shadowMemoryProperties);
+        imgAllocCI.memoryTypeBits = 0;
     } else if (shadowMemory.policy == SwitchShadowMemoryPolicy::DeviceLocalOnly) {
         // No uncached host-visible heap. Depth inspection wants one, but it is a
         // WOWEE_PS4-only facility, so a narrower mask than the renderer needs

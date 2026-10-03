@@ -97,6 +97,29 @@ directory also means shaders can be refreshed by copying a file.
 
 Rejected candidates are logged, so `logs/boot.log` records what was tried.
 
+## Running under an emulator
+
+NVK needs Horizon's memory model, which an emulator has to fake. Measured under
+Eden 0.2.1 (Intel Arc A770, Vulkan 1.4.356), `vkGetPhysicalDeviceMemoryProperties`
+reports **one memory type in one heap, host-visible and host-cached, with no
+device-local type at all** - guest VRAM is host memory there.
+
+The renderer copes with that: with no uncached host-visible type it uses the
+device-local types when they exist, and otherwise leaves VMA's memory-type mask
+unrestricted, which is what the attachment path in `vk_utils.cpp` does anyway.
+Images are legal in host-visible memory and render correctly, without GPU
+texture caching. `logs/wowps.log` records the whole memory table whenever the
+preference cannot be met.
+
+Two caveats seen in that setup, neither of them a client bug:
+
+* Allocating the first guest image crashed the emulator outright - an access
+  violation inside `eden.exe` (`0xc0000005`) during `nvhost` GPU setup. If that
+  happens, it is the emulator's NVK allocation path, not the allocation flags.
+* A launch can abort inside libnx before `main` when the loader's environment
+  block carries no main-thread handle (see *Diagnosing a launch*). Fully
+  exiting the emulator between runs clears it.
+
 ## Diagnosing a launch that does not get going
 
 `sdmc:/wowps/wowps/logs/boot.log` is the only diagnostic channel: a homebrew

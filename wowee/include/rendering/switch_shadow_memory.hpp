@@ -1,4 +1,6 @@
 #pragma once
+#include <ios>
+
 #include <vulkan/vulkan.h>
 
 #include "core/logger.hpp"
@@ -66,20 +68,28 @@ inline SwitchShadowMemoryChoice ChooseSwitchShadowMemoryType(
     return choice;
 }
 
-/// One line per memory type with its flags. WARN, not INFO: this is only called
-/// when the preference could not be met, and the caller's log level may well
-/// be hiding INFO.
+/// One line per memory type with its flags. WARNING, not INFO: this is only
+/// called when the preference could not be met, and the caller's log level may
+/// well be hiding INFO.
 inline void LogSwitchMemoryTypes(const VkPhysicalDeviceMemoryProperties& props) {
     LOG_WARNING("switch memory: ", props.memoryTypeCount, " type(s) in ",
-             props.memoryHeapCount, " heap(s)");
+                props.memoryHeapCount, " heap(s)");
     for (uint32_t i = 0; i < props.memoryTypeCount; ++i) {
+        const auto raw = static_cast<uint32_t>(props.memoryTypes[i].propertyFlags);
         const auto f = props.memoryTypes[i].propertyFlags;
+        // Both forms: the decimal value is what a reader can compare against
+        // VkMemoryPropertyFlags, and the hex is what belongs in a bug report.
         LOG_WARNING("switch memory type ", i, " heap=", props.memoryTypes[i].heapIndex,
-                 " flags=0x", static_cast<uint32_t>(f),
-                 " (deviceLocal=", (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? 1 : 0,
-                 " hostVisible=", (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ? 1 : 0,
-                 " hostCached=", (f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) ? 1 : 0,
-                 " hostCoherent=", (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) ? 1 : 0, ")");
+                    " flags=", raw, " (0x", std::hex, raw, std::dec,
+                    ") deviceLocal=", (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? 1 : 0,
+                    " hostVisible=", (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ? 1 : 0,
+                    " hostCoherent=", (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) ? 1 : 0,
+                    " hostCached=", (f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) ? 1 : 0,
+                    " lazilyAllocated=", (f & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT) ? 1 : 0);
+    }
+    for (uint32_t i = 0; i < props.memoryHeapCount; ++i) {
+        LOG_WARNING("switch memory heap ", i, " size=", props.memoryHeaps[i].size,
+                    " flags=", static_cast<uint32_t>(props.memoryHeaps[i].flags));
     }
 }
 
