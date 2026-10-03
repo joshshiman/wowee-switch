@@ -376,7 +376,9 @@ std::string appRoot() {
         klog("resource root: %s%s", g_appRoot.c_str(),
              holdsAssets(g_appRoot) ? "" : " (no assets/shaders here)");
         for (const std::string& candidate : candidates) {
-            if (&candidate != &g_appRoot) klog("  not used: %s", candidate.c_str());
+            // Compared by value: g_appRoot holds a copy, so comparing
+            // addresses would report the chosen root as unused.
+            if (candidate != g_appRoot) klog("  not used: %s", candidate.c_str());
         }
     }
     return g_appRoot;
