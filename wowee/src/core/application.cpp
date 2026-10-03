@@ -1280,6 +1280,26 @@ bool Application::initialize() {
     } else {
         LOG_WARNING("Failed to initialize asset manager - asset loading will be unavailable");
         LOG_WARNING("Set WOW_DATA_PATH environment variable to your WoW Data directory");
+#ifdef WOWEE_SWITCH
+        // Continuing from here produces a client with no world, no textures and
+        // no fonts, which reads as "broken" rather than "needs your game data".
+        // Saying what is missing, and both ways to point at it, costs one
+        // screen and saves the usual hour of guessing.
+        {
+            const char* dataPathEnv = std::getenv("WOW_DATA_PATH");
+            const std::string dataRoot = dataPathEnv ? dataPathEnv : "(unset)";
+            std::string message = "Your game data was not found.\n\n"
+                "Expected the WotLK client Data directory at:\n  " + dataRoot +
+                "/Data\n\nPut your own client's Data directory there, or point"
+                " somewhere else by creating this file:\n  " +
+                platform::switchport::writableRoot() + "/config/paths.cfg\n\n"
+                "containing:\n  data_path=<folder holding Data>\n\n"
+                "Then start WoWee again.";
+            LOG_ERROR("No game data: looked in ", dataRoot, "/Data");
+            platform::switchport::showStartupError(message.c_str());
+            return false;
+        }
+#endif
     }
 
     // If the archives never opened, the fonts were not tried at all. Loose

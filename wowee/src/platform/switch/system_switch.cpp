@@ -122,12 +122,68 @@ bool createDirectories() {
     return ok;
 }
 
+// Read `data_path` out of <writable>/config/paths.cfg.
+//
+// A console user cannot set an environment variable, and the SD card is FAT:
+// no symlinks, so relocating a 20 GB client means either copying it or being
+// told where it is. This is the only way to say "my Data lives here".
+//
+//   # sdmc:/wowps/wowps/config/paths.cfg
+//   data_path=sdmc:/wotlk
+//
+// Blank lines and '#' comments are ignored; the first data_path wins.
+std::string dataPathFromConfig() {
+    const std::string path = std::string(kWritableRoot) + "/config/paths.cfg";
+    std::FILE* file = std::fopen(path.c_str(), "r");
+    if (!file) return std::string();
+    std::string value;
+    char line[512];
+    while (std::fgets(line, sizeof line, file)) {
+        std::string text(line);
+        const size_t hash = text.find('#');
+        if (hash != std::string::npos) text.erase(hash);
+        while (!text.empty() && (text.back() == '\r' || text.back() == '\n' ||
+                                  text.back() == ' ' || text.back() == '\t')) {
+            text.pop_back();
+        }
+        size_t start = 0;
+        while (start < text.size() && (text[start] == ' ' || text[start] == '\t')) ++start;
+        text.erase(0, start);
+        static const char kKey[] = "data_path";
+        if (text.rfind(kKey, 0) != 0) continue;
+        text.erase(0, sizeof(kKey) - 1);
+        size_t valueStart = 0;
+        while (valueStart < text.size() && (text[valueStart] == ' ' || text[valueStart] == '\t')) {
+            ++valueStart;
+        }
+        // "data_path=<value>": the separator is part of the line, not the path.
+        if (valueStart < text.size() && text[valueStart] == '=') ++valueStart;
+        while (valueStart < text.size() && (text[valueStart] == ' ' || text[valueStart] == '\t')) {
+            ++valueStart;
+        }
+        value = text.substr(valueStart);
+        if (!value.empty()) break;
+    }
+    std::fclose(file);
+    return value;
+}
+
 // Set the process environment the rest of the client reads, in the same
 // shape as the desktop build: WOW_DATA_PATH points at the user's game
 // assets, HOME and TMPDIR at the writable tree.
 void applyEnvironment() {
     if (!std::getenv("WOW_DATA_PATH")) {
-        setenv("WOW_DATA_PATH", kDataRoot, 0);
+        const std::string configured = dataPathFromConfig();
+        if (!configured.empty()) {
+            // Normalised to the form libnx wants, and reported: a data path
+            // that silently does not resolve looks exactly like missing assets.
+            std::string value = configured;
+            if (value.back() == '/') value.pop_back();
+            klog("WOW_DATA_PATH from paths.cfg: %s", value.c_str());
+            setenv("WOW_DATA_PATH", value.c_str(), 1);
+        } else {
+            setenv("WOW_DATA_PATH", kDataRoot, 0);
+        }
     }
     if (!std::getenv("HOME")) {
         setenv("HOME", kWritableRoot, 0);
