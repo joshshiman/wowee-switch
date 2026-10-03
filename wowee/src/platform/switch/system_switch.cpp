@@ -15,6 +15,7 @@
 
 #include <switch.h>
 #include <switch/runtime/devices/fs_dev.h>
+#include <switch/runtime/devices/romfs_dev.h>
 #include <switch/runtime/devices/socket.h>
 #include <switch/services/fatal.h>
 
@@ -53,11 +54,15 @@ constexpr const char* kWritableRoot = "sdmc:/wowps/wowps";
 // directory is sdmc:/switch/wowee, and the assets live in its data/ subdir.
 // Only used when the launch path does not lead to them - see appRoot().
 constexpr const char* kAppRoot = "sdmc:/switch/wowee/data";
+// Used when the .nro carries the assets itself and nothing on the SD card
+// overrides them.
+constexpr const char* kEmbeddedRoot = "romfs:/";
 
 bool g_initialised = false;
 bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
 bool g_exitRequested = false;
+bool g_romfsMounted = false;
 // argv[0] as the launcher passed it, and the resource root resolved from it.
 std::string g_launchPath;
 std::string g_appRoot;
@@ -203,7 +208,6 @@ bool initSystem() {
         klog("fsdevMountSdmc failed; sdmc:/ assets are unavailable");
     }
     appletInitialize();
-
     if (R_FAILED(socketInitializeDefault())) {
         klog("socketInitializeDefault failed");
     }
@@ -220,8 +224,53 @@ bool initSystem() {
         klog("could not open %s: errno %d (%s)", bootLog.c_str(), errno,
              std::strerror(errno));
     }
-    if (!directoriesOk) {
+if (!directoriesOk) {
         reportBootStage("some directories under sdmc:/wowps could not be created");
+    }
+    // The assets are embedded in the .nro as a romfs, so a title is one file
+    // with no data directory beside it. libnx finds it through argv[0]: it opens
+    // the .nro itself and reads the romfs offset and size out of the header. A
+    // launcher that passes no argv - an emulator, typically - leaves the romfs
+    // unreachable, so a data directory beside the .nro is kept as a fallback.
+    //
+    // After the boot log is open, because a mount failure is worth recording and
+    // romfsInit has no need to run early.
+    if (R_SUCCEEDED(romfsInit())) {
+        g_romfsMounted = true;
+        klog("romfs: mounted the assets embedded in this .nro");
+        // What the mount actually contains, once: build_romfs may nest the
+        // directory it was given, and guessing wrong here would silently send
+        // every asset lookup to the SD card.
+        if (DIR* dir = ::opendir(kEmbeddedRoot)) {
+            int listed = 0;
+            while (struct dirent* entry = ::readdir(dir)) {
+                const std::string name = entry->d_name;
+                if (name == "." || name == "..") continue;
+                klog("romfs: contains %s", name.c_str());
+                if (++listed >= 8) break;
+            }
+            ::closedir(dir);
+        }
+        // Whether the paths the client actually opens are visible, and whether
+        // a file can be read - the difference between "mounted" and "usable".
+        for (const char* probe : {"romfs:/assets", "romfs:/assets/shaders",
+                                  "romfs:/Data/expansions"}) {
+            struct stat info {};
+            const int rc = ::stat(probe, &info);
+            klog("romfs probe %s rc=%d errno=%d isdir=%d", probe, rc, errno,
+                 (rc == 0 && S_ISDIR(info.st_mode)) ? 1 : 0);
+        }
+        {
+            const char* file = "romfs:/assets/shaders/m2.vert.spv";
+            std::FILE* handle = std::fopen(file, "rb");
+            klog("romfs probe %s opened=%d errno=%d", file, handle ? 1 : 0, errno);
+            if (handle) std::fclose(handle);
+        }
+    } else {
+        klog("romfs: not mounted; %s",
+             g_launchPath.empty()
+                 ? "this launcher passed no path to the .nro"
+                 : "the loader could not reopen it from argv[0]");
     }
     applyEnvironment();
     vk_nxvk_loader_init();
@@ -349,10 +398,19 @@ bool isDirectory(const std::string& path) {
     return ::stat(path.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
 }
 
+// A candidate root with a trailing slash turns every path built from it into
+// "root//path", which devfs does not resolve: "romfs:/" is the case that bit,
+// and it is why the embedded assets were mounted, listed, read successfully, and
+// then not used.
+std::string withoutTrailingSlash(std::string root) {
+    while (root.size() > 1 && root.back() == '/') root.pop_back();
+    return root;
+}
+
 // A candidate root only counts when it actually carries the assets: the marker
 // is the first shader the renderer cannot start without.
 bool holdsAssets(const std::string& root) {
-    return !root.empty() && isDirectory(root + "/assets/shaders");
+    return !root.empty() && isDirectory(withoutTrailingSlash(root) + "/assets/shaders");
 }
 
 // A "<dir>/data" whose shaders are present, found by listing one folder level.
@@ -396,7 +454,7 @@ std::string appRoot() {
     std::vector<std::string> candidates;
     const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
     if (configured && *configured) {
-        candidates.emplace_back(configured);
+        candidates.push_back(withoutTrailingSlash(configured));
     }
     if (!g_launchPath.empty()) {
         const std::string dir = parentDirectory(g_launchPath);
@@ -409,6 +467,9 @@ std::string appRoot() {
         if (!stem.empty()) {
             candidates.push_back("sdmc:/switch/" + stem + "/data");
         }
+    }
+    if (g_romfsMounted) {
+        candidates.emplace_back(kEmbeddedRoot);
     }
     candidates.emplace_back(kAppRoot);
 
@@ -424,7 +485,7 @@ std::string appRoot() {
     if (g_appRoot.empty()) {
         // Nothing verified. Keep the override (or the default) so the caller's
         // own check reports the exact path it failed on rather than a guess.
-        g_appRoot = candidates.front();
+        g_appRoot = withoutTrailingSlash(candidates.front());
     }
 
     if (g_appRootReported != g_appRoot) {

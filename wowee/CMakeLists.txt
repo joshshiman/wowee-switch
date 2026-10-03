@@ -965,14 +965,32 @@ if(WOWEE_SWITCH)
             ${WOWEE_SWITCH_TOOLS_DIR}/nacptool
             --create "WoWee" "WoWee contributors" "2.12.0"
             ${CMAKE_BINARY_DIR}/wowee.nacp
+        # The runtime assets go *inside* the .nro as a romfs, so a title is one
+        # file and there is no data directory to keep beside it.
+        #
+        # elf2nro takes the image but does not record it - it concatenates and
+        # leaves the header's romfs fields zeroed - so the header is patched
+        # afterwards. libnx reads those fields from the file named by argv[0],
+        # at offset 0x70, as {u64 offset, u64 size}; see the script.
+        #
+        # A romfs *directory* cannot be passed to this elf2nro at all: it
+        # mmaps the directory and fails. A prebuilt image appends correctly.
+        COMMAND ${CMAKE_COMMAND} -E env DEVKITPRO=${DEVKITPRO}
+            ${WOWEE_SWITCH_TOOLS_DIR}/build_romfs
+            ${WOWEE_SWITCH_DATA_DIR} ${CMAKE_BINARY_DIR}/wowee-romfs.bin
         COMMAND ${CMAKE_COMMAND} -E env DEVKITPRO=${DEVKITPRO}
             ${WOWEE_SWITCH_TOOLS_DIR}/elf2nro
             $<TARGET_FILE:wowee>
             ${CMAKE_BINARY_DIR}/wowee.nro
             --nacp=${CMAKE_BINARY_DIR}/wowee.nacp
             --icon=${DEVKITPRO}/libnx/default_icon.jpg
+            --romfs=${CMAKE_BINARY_DIR}/wowee-romfs.bin
+        COMMAND ${CMAKE_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/switch/patch_nro_romfs.py
+            ${CMAKE_BINARY_DIR}/wowee.nro ${CMAKE_BINARY_DIR}/wowee-romfs.bin
         BYPRODUCTS ${CMAKE_BINARY_DIR}/wowee.nro ${CMAKE_BINARY_DIR}/wowee.nacp
-        COMMENT "elf2nro: $<TARGET_FILE_NAME:wowee> -> wowee.nro"
+            ${CMAKE_BINARY_DIR}/wowee-romfs.bin
+        COMMENT "elf2nro: $<TARGET_FILE_NAME:wowee> -> wowee.nro (assets in a romfs)"
         VERBATIM)
     set(WOWEE_SWITCH_BASH bash)
     add_custom_target(switchpkg
