@@ -436,6 +436,7 @@ set(WOWEE_SOURCES
     src/rendering/vk_shader.cpp
     src/rendering/vk_texture.cpp
     src/rendering/vk_buffer.cpp
+    src/rendering/pipeline_stub.cpp
     src/rendering/vk_pipeline.cpp
     src/rendering/vk_render_target.cpp
 

@@ -1,5 +1,6 @@
 #include "rendering/vk_pipeline.hpp"
 #include "rendering/vk_shader.hpp"
+#include "rendering/pipeline_stub.hpp"
 #include "core/logger.hpp"
 
 #include <mutex>
@@ -186,27 +187,6 @@ VkPipeline PipelineBuilder::build(VkDevice device, VkPipelineCache cache) const 
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates_.size());
     dynamicState.pDynamicStates = dynamicStates_.data();
 
-    // Create pipeline
-    VkGraphicsPipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = static_cast<uint32_t>(shaderStages_.size());
-    pipelineInfo.pStages = shaderStages_.data();
-    pipelineInfo.pVertexInputState = &vertexInput;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = &depthStencil;
-    pipelineInfo.pColorBlendState = colorBlendAttachments_.empty() ? nullptr : &colorBlending;
-    pipelineInfo.pDynamicState = dynamicStates_.empty() ? nullptr : &dynamicState;
-    pipelineInfo.layout = pipelineLayout_;
-    pipelineInfo.flags = flags_;
-    pipelineInfo.basePipelineHandle = basePipelineHandle_;
-    pipelineInfo.basePipelineIndex = -1;
-    pipelineInfo.renderPass = renderPass_;
-    pipelineInfo.subpass = subpass_;
-
-    VkPipeline pipeline = VK_NULL_HANDLE;
     // Which .spv this pipeline is built from, once per distinct combination.
     // A driver that refuses a shader names a stage and stops there; the last
     // line before a stall is then the shader that stalled it. Deduplicated
@@ -225,6 +205,55 @@ VkPipeline PipelineBuilder::build(VkDevice device, VkPipelineCache cache) const 
             LOG_WARNING("[PIPELINE] ", stageList);
         }
     }
+
+    // Create pipeline
+    std::vector<VkPipelineShaderStageCreateInfo> stageOverride;
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+#ifdef WOWEE_SWITCH
+    // A pipeline whose shader is on the skip list is built from the stub
+    // modules instead: it stays a valid pipeline, so every draw call and every
+    // null check downstream keeps working, and it simply contributes nothing to
+    // the frame. Handing back a null handle instead would be undefined
+    // behaviour at the next vkCmdBindPipeline.
+if (PipelineSkipList::Matches(stageList.c_str())) {
+        const ::VkShaderModule vertexStub = StubVertexModule(device);
+        const ::VkShaderModule fragmentStub = StubFragmentModule(device);
+        if (vertexStub != VK_NULL_HANDLE && fragmentStub != VK_NULL_HANDLE) {
+            stageOverride = shaderStages_;
+            for (VkPipelineShaderStageCreateInfo& stage : stageOverride) {
+                if (stage.stage == VK_SHADER_STAGE_VERTEX_BIT) {
+                    stage.module = vertexStub;
+                } else if (stage.stage == VK_SHADER_STAGE_FRAGMENT_BIT) {
+                    stage.module = fragmentStub;
+                }
+            }
+            LOG_WARNING("[PIPELINE] STUBBED: ", stageList);
+        } else {
+            LOG_ERROR("[PIPELINE] cannot stub ", stageList, ": stub modules unavailable");
+        }
+    }
+#endif
+    const bool useOverride = !stageOverride.empty();
+    pipelineInfo.stageCount =
+        static_cast<uint32_t>(useOverride ? stageOverride.size() : shaderStages_.size());
+    pipelineInfo.pStages = useOverride ? stageOverride.data() : shaderStages_.data();
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = colorBlendAttachments_.empty() ? nullptr : &colorBlending;
+    pipelineInfo.pDynamicState = dynamicStates_.empty() ? nullptr : &dynamicState;
+    pipelineInfo.layout = pipelineLayout_;
+    pipelineInfo.flags = flags_;
+    pipelineInfo.basePipelineHandle = basePipelineHandle_;
+    pipelineInfo.basePipelineIndex = -1;
+    pipelineInfo.renderPass = renderPass_;
+    pipelineInfo.subpass = subpass_;
+
+    VkPipeline pipeline = VK_NULL_HANDLE;
 
     const VkResult createResult =
         vkCreateGraphicsPipelines(device, cache, 1, &pipelineInfo, nullptr, &pipeline);
