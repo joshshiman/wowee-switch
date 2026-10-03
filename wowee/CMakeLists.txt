@@ -774,12 +774,11 @@ if(WOWEE_SWITCH)
         OUTPUT_NAME wowee
         SUFFIX .elf
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-    target_link_options(wowee PRIVATE --wrap=clock_gettime)
-    target_link_options(wowee PRIVATE --wrap=realloc)
-    target_link_options(wowee PRIVATE --wrap=__expand_heap)
-    target_link_options(wowee PRIVATE
-        --wrap=_ZNSt3__118condition_variable15__do_timed_waitERNS_11unique_lockINS_5mutexEEENS_6chrono10time_pointINS5_12system_clockENS5_8durationIxNS_5ratioILl1ELl1000000000EEEEEEE)
-endif()
+    # No --wrap interposers here: the PS4 build wrapped clock_gettime, realloc,
+    # __expand_heap and libc++'s condition-variable timed wait because of
+    # musl/libkernel quirks. devkitA64 + newlib need none of them - the audio
+    # engine sets its own miniaudio thread stack size (audio_engine.cpp), and
+    # newlib's realloc and condvar are already correct.\nendif()
 if(TARGET opcodes-generate)
     add_dependencies(wowee opcodes-generate)
 endif()

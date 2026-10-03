@@ -695,6 +695,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDevices(VkInstance instance, u
     return fn(instance, pPhysicalDeviceCount, pPhysicalDevices);
 }
 
+VKAPI_ATTR VkResult VKAPI_CALL vkFlushMappedMemoryRanges(VkDevice device, uint32_t memoryRangeCount, const VkMappedMemoryRange* pMemoryRanges) {
+    static PFN_vkFlushMappedMemoryRanges fn = nullptr;
+    if (!fn) {
+        fn = reinterpret_cast<PFN_vkFlushMappedMemoryRanges>(vk_nxvkLoadDeviceProc(device, "vkFlushMappedMemoryRanges"));
+    }
+    if (!fn) vk_nxvkMissingEntryPoint("vkFlushMappedMemoryRanges");
+    return fn(device, memoryRangeCount, pMemoryRanges);
+}
+
 VKAPI_ATTR void VKAPI_CALL vkFreeCommandBuffers(VkDevice device, VkCommandPool commandPool, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers) {
     static PFN_vkFreeCommandBuffers fn = nullptr;
     if (!fn) {
@@ -839,6 +848,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDe
     return fn(physicalDevice, surface, pSurfaceFormatCount, pSurfaceFormats);
 }
 
+VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, uint32_t* pPresentModeCount, VkPresentModeKHR* pPresentModes) {
+    static PFN_vkGetPhysicalDeviceSurfacePresentModesKHR fn = nullptr;
+    if (!fn) {
+        fn = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfacePresentModesKHR>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceSurfacePresentModesKHR"));
+    }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceSurfacePresentModesKHR");
+    return fn(physicalDevice, surface, pPresentModeCount, pPresentModes);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, VkSurfaceKHR surface, VkBool32* pSupported) {
     static PFN_vkGetPhysicalDeviceSurfaceSupportKHR fn = nullptr;
     if (!fn) {
@@ -875,6 +893,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainImagesKHR(VkDevice device, VkSwapch
     return fn(device, swapchain, pSwapchainImageCount, pSwapchainImages);
 }
 
+VKAPI_ATTR VkResult VKAPI_CALL vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t memoryRangeCount, const VkMappedMemoryRange* pMemoryRanges) {
+    static PFN_vkInvalidateMappedMemoryRanges fn = nullptr;
+    if (!fn) {
+        fn = reinterpret_cast<PFN_vkInvalidateMappedMemoryRanges>(vk_nxvkLoadDeviceProc(device, "vkInvalidateMappedMemoryRanges"));
+    }
+    if (!fn) vk_nxvkMissingEntryPoint("vkInvalidateMappedMemoryRanges");
+    return fn(device, memoryRangeCount, pMemoryRanges);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** ppData) {
     static PFN_vkMapMemory fn = nullptr;
     if (!fn) {
@@ -902,6 +929,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit(VkQueue queue, uint32_t submitCount
     return fn(queue, submitCount, pSubmits, fence);
 }
 
+VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle(VkQueue queue) {
+    static PFN_vkQueueWaitIdle fn = nullptr;
+    if (!fn) {
+        fn = reinterpret_cast<PFN_vkQueueWaitIdle>(vk_nxvkLoadInstanceProc("vkQueueWaitIdle"));
+    }
+    if (!fn) vk_nxvkMissingEntryPoint("vkQueueWaitIdle");
+    return fn(queue);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags flags) {
     static PFN_vkResetCommandBuffer fn = nullptr;
     if (!fn) {
@@ -909,6 +945,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandBuffer(VkCommandBuffer commandBuffe
     }
     if (!fn) vk_nxvkMissingEntryPoint("vkResetCommandBuffer");
     return fn(commandBuffer, flags);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandPool(VkDevice device, VkCommandPool commandPool, VkCommandPoolResetFlags flags) {
+    static PFN_vkResetCommandPool fn = nullptr;
+    if (!fn) {
+        fn = reinterpret_cast<PFN_vkResetCommandPool>(vk_nxvkLoadDeviceProc(device, "vkResetCommandPool"));
+    }
+    if (!fn) vk_nxvkMissingEntryPoint("vkResetCommandPool");
+    return fn(device, commandPool, flags);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL vkResetDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorPoolResetFlags flags) {
