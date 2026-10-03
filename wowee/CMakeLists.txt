@@ -1050,6 +1050,21 @@ if(WOWEE_SWITCH)
         COMMENT "Staging the Switch homebrew into out/switch"
         VERBATIM USES_TERMINAL)
     add_dependencies(switchpkg wowee copy_bundled_addons)
+else()
+    # main.cpp chdir()s to the executable's directory before anything resolves an
+    # asset, so a desktop run reads assets/ and Data/ from beside the binary -
+    # the same staging the console does beside the .nro. Addons are already
+    # copied there by copy_bundled_addons below.
+    #
+    # POST_BUILD rather than PRE_LINK: this is not an input to the link, and a
+    # failed copy should not be reported as a link failure.
+    add_custom_command(TARGET wowee POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:wowee>/assets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/Data $<TARGET_FILE_DIR:wowee>/Data
+        COMMENT "desktop: staging runtime assets beside the executable"
+        VERBATIM)
 endif()
 
 # Bundled addons.
