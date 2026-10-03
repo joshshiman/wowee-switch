@@ -15,6 +15,7 @@
 
 #include <switch.h>
 #include <switch/runtime/devices/fs_dev.h>
+#include <switch/runtime/devices/romfs_dev.h>
 #include <switch/runtime/devices/socket.h>
 #include <switch/services/fatal.h>
 
@@ -30,6 +31,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <dirent.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -52,11 +54,15 @@ constexpr const char* kWritableRoot = "sdmc:/wowps/wowps";
 // directory is sdmc:/switch/wowee, and the assets live in its data/ subdir.
 // Only used when the launch path does not lead to them - see appRoot().
 constexpr const char* kAppRoot = "sdmc:/switch/wowee/data";
+// Used when the .nro carries the assets itself (romfs) and nothing on the SD
+// card overrides them.
+constexpr const char* kEmbeddedRoot = "romfs:/";
 
 bool g_initialised = false;
 bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
 bool g_exitRequested = false;
+bool g_romfsMounted = false;
 // argv[0] as the launcher passed it, and the resource root resolved from it.
 std::string g_launchPath;
 std::string g_appRoot;
@@ -119,6 +125,16 @@ bool initSystem() {
         klog("fsdevMountSdmc failed; sdmc:/ assets are unavailable");
     }
     appletInitialize();
+    // The assets are embedded in the .nro (elf2nro appended a romfs image
+    // built by build_romfs), so a bare .nro is a complete title. The SD copy
+    // beside the .nro stays authoritative when it is there - see appRoot() -
+    // because it lets shaders be refreshed without a rebuild.
+    if (R_SUCCEEDED(romfsInit())) {
+        g_romfsMounted = true;
+        klog("romfs: mounted the embedded asset romfs");
+    } else {
+        klog("romfs: no embedded romfs; falling back to the SD card");
+    }
 
     if (R_FAILED(socketInitializeDefault())) {
         klog("socketInitializeDefault failed");
@@ -257,6 +273,33 @@ bool holdsAssets(const std::string& root) {
     return !root.empty() && isDirectory(root + "/assets/shaders");
 }
 
+// A "<dir>/data" whose shaders are present, found by listing one folder level.
+// Used when nothing the launch path suggested worked: an emulator reports the
+// .nro's location on the host, which says nothing about the emulated card.
+std::string findAssetsBesideLaunchDirs() {
+    for (const char* scanRoot : {"sdmc:/", "sdmc:/switch"}) {
+        DIR* dir = ::opendir(scanRoot);
+        if (!dir) continue;
+        int seen = 0;
+        std::string found;
+        while (struct dirent* entry = ::readdir(dir)) {
+            // Bounded: a card can hold hundreds of folders, and the marker test
+            // is a stat per entry.
+            if (++seen > 64) break;
+            const std::string name = entry->d_name;
+            if (name == "." || name == "..") continue;
+            const std::string candidate = std::string(scanRoot) + name + "/data";
+            if (holdsAssets(candidate)) {
+                found = candidate;
+                break;
+            }
+        }
+        ::closedir(dir);
+        if (!found.empty()) return found;
+    }
+    return std::string();
+}
+
 }  // namespace
 
 std::string appRoot() {
@@ -264,11 +307,11 @@ std::string appRoot() {
         return g_appRoot;
     }
 
-    // In order: an explicit override, then the directory the .nro was launched
-    // from (homebrew layout on a console, "games" folder under an emulator),
-    // then the installed location. An asset root beside the binary is what a
-    // user who copies the whole build tree expects, and it is the only one of
-    // these an emulator run can satisfy without hand-placing files.
+    // In order: an explicit override, the assets beside the .nro (so a user
+    // who edited them wins), the romfs embedded in the .nro, then the
+    // installed SD location, and finally whatever the SD scan turns up.
+    // Rejected candidates are logged so a wrong guess is visible in the boot
+    // log rather than showing up as a missing file much later.
     std::vector<std::string> candidates;
     const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
     if (configured && *configured) {
@@ -286,6 +329,9 @@ std::string appRoot() {
             candidates.push_back("sdmc:/switch/" + stem + "/data");
         }
     }
+    if (g_romfsMounted) {
+        candidates.emplace_back(kEmbeddedRoot);
+    }
     candidates.emplace_back(kAppRoot);
 
     for (const std::string& candidate : candidates) {
@@ -293,6 +339,9 @@ std::string appRoot() {
             g_appRoot = candidate;
             break;
         }
+    }
+    if (g_appRoot.empty()) {
+        g_appRoot = findAssetsBesideLaunchDirs();
     }
     if (g_appRoot.empty()) {
         // Nothing verified. Keep the override (or the default) so the caller's
