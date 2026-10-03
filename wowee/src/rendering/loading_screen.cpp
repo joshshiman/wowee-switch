@@ -1,6 +1,7 @@
 #include "rendering/loading_screen.hpp"
 #include "rendering/loading_screen_layout.hpp"
 #include "rendering/vk_context.hpp"
+#include "rendering/vk_memory_choice.hpp"
 #include "core/logger.hpp"
 #include "pipeline/asset_manager.hpp"
 #include "pipeline/client_loading_screens.hpp"
@@ -205,7 +206,7 @@ bool LoadingScreen::uploadTexture(const unsigned char* pixels, uint32_t width,
     if (vkCreateImage(device, &imageInfo, nullptr, &texture.image) != VK_SUCCESS) return fail("image");
     vkGetImageMemoryRequirements(device, texture.image, &requirements);
     allocation.allocationSize = requirements.size;
-    allocation.memoryTypeIndex = findMemoryType(physical, requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    allocation.memoryTypeIndex = chooseMemoryType(physical, requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     if (allocation.memoryTypeIndex == UINT32_MAX ||
         vkAllocateMemory(device, &allocation, nullptr, &texture.memory) != VK_SUCCESS) return fail("image memory");
     if (vkBindImageMemory(device, texture.image, texture.memory, 0) != VK_SUCCESS) return fail("bind image");

@@ -1,6 +1,8 @@
 #include "ui/wotlk_glue.hpp"
 #include "ui/wotlk_button_style.hpp"
 #include "pipeline/asset_manager.hpp"
+#include "pipeline/blp_loader.hpp"
+#include "rendering/vk_memory_choice.hpp"
 #include "rendering/vk_context.hpp"
 #include "core/logger.hpp"
 #include <imgui_impl_vulkan.h>
@@ -55,12 +57,20 @@ struct WotlkGlue::Impl {
         if (t.memory) vkFreeMemory(device, t.memory, nullptr);
         t = {};
     }
-    bool upload(const pipeline::BLPImage& pixels, Texture& texture) {
-        const auto device = context->getDevice();
-        const auto physical = context->getPhysicalDevice();
-        const auto size = VkDeviceSize(pixels.width) * pixels.height * 4;
-        if (!pixels.isValid() || pixels.width > 4096 || pixels.height > 4096 ||
-            pixels.isBlockCompressed() || size == 0 || pixels.data.size() < size) return false;
+bool upload(const pipeline::BLPImage& pixels, Texture& texture, const char** reason) {
+            const auto device = context->getDevice();
+            const auto physical = context->getPhysicalDevice();
+            const auto size = VkDeviceSize(pixels.width) * pixels.height * 4;
+            // Named failures: "rejected" on its own cannot be acted on, and
+            // every one of these has been hit for real.
+            if (!pixels.isValid()) { *reason = "decoder produced no image"; return false; }
+            if (pixels.isBlockCompressed()) { *reason = "still block-compressed (DXT blocks, not RGBA)"; return false; }
+            if (pixels.width > 4096 || pixels.height > 4096) { *reason = "larger than 4096"; return false; }
+            if (size == 0) { *reason = "zero-sized"; return false; }
+            if (pixels.data.size() < size) {
+                *reason = "pixel buffer shorter than width*height*4";
+                return false;
+            }
         VkBuffer staging = VK_NULL_HANDLE;
         VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
         const auto cleanup = [&]() {
@@ -69,18 +79,22 @@ struct WotlkGlue::Impl {
         };
         VkBufferCreateInfo buffer{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
         buffer.size = size; buffer.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        if (vkCreateBuffer(device, &buffer, nullptr, &staging) != VK_SUCCESS) return false;
+        { const VkResult rc = vkCreateBuffer(device, &buffer, nullptr, &staging);
+          if (rc != VK_SUCCESS) { *reason = "vkCreateBuffer failed"; return false; } }
         VkMemoryRequirements requirements{};
         vkGetBufferMemoryRequirements(device, staging, &requirements);
         VkMemoryAllocateInfo allocate{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
         allocate.allocationSize = requirements.size;
         allocate.memoryTypeIndex = memoryType(physical, requirements.memoryTypeBits,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        if (allocate.memoryTypeIndex == UINT32_MAX ||
-            vkAllocateMemory(device, &allocate, nullptr, &stagingMemory) != VK_SUCCESS ||
-            vkBindBufferMemory(device, staging, stagingMemory, 0) != VK_SUCCESS) { cleanup(); return false; }
+        if (allocate.memoryTypeIndex == UINT32_MAX) { cleanup(); *reason = "no host-visible coherent memory type for the staging buffer"; return false; }
+        { const VkResult rc = vkAllocateMemory(device, &allocate, nullptr, &stagingMemory);
+          if (rc != VK_SUCCESS) { cleanup(); *reason = "staging vkAllocateMemory failed"; return false; } }
+        { const VkResult rc = vkBindBufferMemory(device, staging, stagingMemory, 0);
+          if (rc != VK_SUCCESS) { cleanup(); *reason = "vkBindBufferMemory failed"; return false; } }
         void* mapped = nullptr;
-        if (vkMapMemory(device, stagingMemory, 0, size, 0, &mapped) != VK_SUCCESS || !mapped) { cleanup(); return false; }
+        { const VkResult rc = vkMapMemory(device, stagingMemory, 0, size, 0, &mapped);
+          if (rc != VK_SUCCESS || !mapped) { cleanup(); *reason = "vkMapMemory failed"; return false; } }
         std::memcpy(mapped, pixels.data.data(), static_cast<size_t>(size));
         vkUnmapMemory(device, stagingMemory);
         VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -88,17 +102,26 @@ struct WotlkGlue::Impl {
         image.extent = {static_cast<uint32_t>(pixels.width), static_cast<uint32_t>(pixels.height), 1}; image.mipLevels = 1; image.arrayLayers = 1;
         image.samples = VK_SAMPLE_COUNT_1_BIT; image.tiling = VK_IMAGE_TILING_OPTIMAL;
         image.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-        if (vkCreateImage(device, &image, nullptr, &texture.image) != VK_SUCCESS) { cleanup(); return false; }
+        { const VkResult rc = vkCreateImage(device, &image, nullptr, &texture.image);
+          if (rc != VK_SUCCESS) { cleanup(); *reason = "vkCreateImage failed"; return false; } }
         vkGetImageMemoryRequirements(device, texture.image, &requirements);
         allocate.allocationSize = requirements.size;
-        allocate.memoryTypeIndex = memoryType(physical, requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if (allocate.memoryTypeIndex == UINT32_MAX ||
-            vkAllocateMemory(device, &allocate, nullptr, &texture.memory) != VK_SUCCESS ||
-            vkBindImageMemory(device, texture.image, texture.memory, 0) != VK_SUCCESS) { cleanup(); return false; }
+        bool uncachedAllocation = false;
+        allocate.memoryTypeIndex = rendering::chooseMemoryType(physical, requirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &uncachedAllocation);
+        if (allocate.memoryTypeIndex == UINT32_MAX) { cleanup(); *reason = "no memory type this image can use"; return false; }
+        if (uncachedAllocation) {
+            // Legal, and it renders correctly; the GPU just does not cache it.
+            LOG_INFO("Glue skin: no device-local heap; texture in system memory ", pixels.width, "x", pixels.height);
+        }
+        { const VkResult rc = vkAllocateMemory(device, &allocate, nullptr, &texture.memory);
+          if (rc != VK_SUCCESS) { cleanup(); *reason = "texture vkAllocateMemory failed"; return false; } }
+        { const VkResult rc = vkBindImageMemory(device, texture.image, texture.memory, 0);
+          if (rc != VK_SUCCESS) { cleanup(); *reason = "vkBindImageMemory failed"; return false; } }
         // Every handle above is checked before recording. One complete RGBA8
         // subresource is compatible with the switch optimal-image upload path.
         VkCommandBuffer command = context->beginSingleTimeCommands();
-        if (!command) { cleanup(); return false; }
+        if (!command) { cleanup(); *reason = "no single-time command buffer"; return false; }
         VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -113,17 +136,19 @@ struct WotlkGlue::Impl {
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                              0, 0, nullptr, 0, nullptr, 1, &barrier);
-        if (!context->endSingleTimeCommands(command)) { cleanup(); return false; }
+        if (!context->endSingleTimeCommands(command)) { cleanup(); *reason = "upload copy failed to record"; return false; }
         cleanup();
         VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
         view.image = texture.image; view.viewType = VK_IMAGE_VIEW_TYPE_2D; view.format = image.format;
         view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-        if (vkCreateImageView(device, &view, nullptr, &texture.view) != VK_SUCCESS) return false;
+        { const VkResult rc = vkCreateImageView(device, &view, nullptr, &texture.view);
+          if (rc != VK_SUCCESS) { *reason = "vkCreateImageView failed"; return false; } }
         VkSamplerCreateInfo sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
         sampler.magFilter = sampler.minFilter = VK_FILTER_LINEAR;
         sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         sampler.addressModeU = sampler.addressModeV = sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        if (vkCreateSampler(device, &sampler, nullptr, &texture.sampler) != VK_SUCCESS) return false;
+        { const VkResult rc = vkCreateSampler(device, &sampler, nullptr, &texture.sampler);
+          if (rc != VK_SUCCESS) { *reason = "vkCreateSampler failed"; return false; } }
         texture.descriptor = ImGui_ImplVulkan_AddTexture(texture.sampler, texture.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         return texture.descriptor != VK_NULL_HANDLE;
     }
@@ -147,13 +172,32 @@ void WotlkGlue::ensureLoaded(pipeline::AssetManager* assets, rendering::VkContex
     for (const auto* path : paths) {
         if (!assets->fileExists(path)) { LOG_WARNING("Glue skin: client asset missing: ", path); continue; }
         auto image = assets->loadTexture(path, false);
+        // A DXT-compressed BLP arrives as blocks, not RGBA, and upload() only
+        // takes RGBA - so it has to be decoded first. Other call sites already
+        // do this (wmo_renderer, vk_texture); without it every DXT texture in
+        // the glue skin was silently dropped, which is most of them.
+        if (image.isBlockCompressed()) {
+            std::vector<uint8_t> rgba = pipeline::BLPLoader::decodeBaseLevel(image);
+            if (rgba.empty()) {
+                LOG_WARNING("Glue skin: DXT decode produced nothing: ", path);
+                continue;
+            }
+            LOG_INFO("Glue skin: decoded DXT ", path, " ", rgba.size() / 4, " texels");
+            image.data = std::move(rgba);
+            image.mipmaps.clear();
+        }
         if (path == kButtonUp || path == kButtonDown) {
             const auto changed = glue_button::blueEnamel(image.data);
             LOG_INFO("Glue skin: blue button enamel texels=", changed, " path=", path,
                      " artwork_uv=0,0..0.625,0.6875");
         }
         Impl::Texture texture;
-        if (!impl_->upload(image, texture)) { impl_->release(texture); LOG_WARNING("Glue skin: texture upload rejected: ", path); continue; }
+        const char* why = "unknown";
+        if (!impl_->upload(image, texture, &why)) {
+            impl_->release(texture);
+            LOG_WARNING("Glue skin: texture upload rejected: ", path, " (", why, ")");
+            continue;
+        }
         impl_->textures.emplace(keyFor(path), texture);
         LOG_INFO("Glue skin: loaded ", path, " ", image.width, "x", image.height);
     }

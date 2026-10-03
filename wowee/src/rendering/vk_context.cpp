@@ -16,6 +16,7 @@
 
 #include <fstream>
 #include "rendering/vk_utils.hpp"
+#include "rendering/vk_memory_choice.hpp"
 #include "rendering/vk_shader.hpp"
 #include "rendering/vk_pipeline.hpp"
 #include "core/logger.hpp"
@@ -2585,7 +2586,9 @@ VkDescriptorSet VkContext::uploadImGuiTexture(const uint8_t* rgba, int width, in
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memReqs.size;
-        allocInfo.memoryTypeIndex = findMemType(physicalDevice, memReqs.memoryTypeBits,
+        // Preferred, not required: a driver with no device-local heap still reports
+        // a compatible type, and an image is legal there.
+        allocInfo.memoryTypeIndex = rendering::chooseMemoryType(physicalDevice, memReqs.memoryTypeBits,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
             vkDestroyImage(device, image, nullptr);
