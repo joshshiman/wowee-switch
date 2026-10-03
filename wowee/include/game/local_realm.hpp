@@ -1,0 +1,322 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+#include "game/local_bots.hpp"
+#include "game/local_party.hpp"
+#include "game/local_chat.hpp"
+#include "game/local_social.hpp"
+#include "game/local_mail.hpp"
+#include "game/local_gameplay.hpp"
+#include "game/local_pet.hpp"
+#include "game/local_test_characters.hpp"
+
+namespace wowee::game {
+
+// Standalone authority for singleplayer and trusted local LAN sessions.
+enum class LocalRealmState { Stopped, SinglePlayer, Hosting, Browsing, Connecting, Connected, Error };
+
+/// A character this console saved in a realm directory: the slot whose
+/// identity file owns it, and the player as last saved.
+struct LocalSavedCharacter {
+    uint8_t slot = 0;
+    LocalRealmPlayer player;
+    bool online = false;
+};
+
+class LocalRealm {
+public:
+    static constexpr uint16_t DefaultPort = 3725;
+    static constexpr size_t MinPlayers = 2;
+    static constexpr size_t DefaultPlayers = 8;
+    static constexpr size_t MaxPlayers = 100;
+    static constexpr uint8_t MaxCharacterSlots = 10;
+
+    // The character screen's view of a save directory, without starting a
+    // realm: every slot with an identity file that owns a saved player.
+    static std::vector<LocalSavedCharacter> savedCharacters(const std::string& saveDirectory);
+    // The lowest slot that owns no saved player, or -1 when all ten are taken.
+    static int freeCharacterSlot(const std::string& saveDirectory);
+    // Remove a slot's player from the realm save and forget its identity.
+    static bool deleteSavedCharacter(const std::string& saveDirectory, uint8_t slot);
+    LocalRealm();
+    ~LocalRealm();
+    LocalRealm(const LocalRealm&) = delete;
+    LocalRealm& operator=(const LocalRealm&) = delete;
+
+    // A host and singleplayer share their saved realm. Each joining console keeps
+    // its identity in profileDirectory; its character is saved on the host.
+    bool loadContent(const std::string& path);
+    bool loadCatalog(const std::string& directory);
+    bool setStarterSpells(const std::vector<LocalSpellDefinition>& spells, const std::string& diagnostic);
+    bool setAreaTriggers(const std::vector<LocalAreaTriggerVolume>& volumes);
+    bool setCharacterSlot(uint8_t slot);
+    bool setFactionTemplates(const std::vector<LocalFactionTemplate>& rows,
+                             const std::array<uint32_t, 12>& raceTemplates);
+    bool setFactionReputationBases(const std::vector<LocalFactionReputationBase>& rows);
+    /// Install the player's WotLK Holidays.dbc stage durations before start.
+    /// Calendar events fail closed when a referenced row is unavailable.
+    bool setHolidayCalendar(std::vector<LocalHolidayDefinition> holidays);
+    bool setQuestFactionRewards(const std::array<int32_t,10>& gains,
+                                const std::array<int32_t,10>& losses);
+    bool setCharacterOptions(uint8_t race, uint8_t classId, uint8_t gender);
+    // Appearance for a character this start creates (an existing slot keeps its own).
+    bool setCharacterAppearance(uint8_t skin, uint8_t face, uint8_t hairStyle, uint8_t hairColor,
+                                uint8_t facialHair, bool useFemaleModel);
+    bool setRealmName(const std::string& name);
+    /// Run playerbots on this realm. Must be set before it starts: the roster
+    /// is built with the world, and bots that appeared mid-session would be
+    /// characters nobody logged in.
+    void setPlayerbots(bool enabled, size_t count = 6);
+    [[nodiscard]] bool playerbotsEnabled() const;
+    /// The auction house, as the interface needs to read it.
+    const std::vector<LocalAuction>& auctions() const;
+    /// Buy, bid and list. Host-authoritative like every other action here.
+    bool buyoutAuction(uint32_t auctionId, uint64_t npcGuid = 0);
+    bool bidAuction(uint32_t auctionId, uint32_t amount, uint64_t npcGuid = 0);
+    bool listAuction(uint32_t itemId, uint16_t count);
+    bool listAuction(uint32_t itemId, uint16_t count, uint32_t bid, uint32_t buyout, uint32_t minutes);
+    bool listAuctionStacks(uint32_t itemId, uint16_t count, uint16_t stacks,
+                           uint32_t bid, uint32_t buyout, uint32_t minutes, uint64_t npcGuid = 0);
+    bool cancelAuction(uint32_t auctionId, uint64_t npcGuid = 0);
+    std::vector<LocalMail> inbox() const;
+    uint64_t mailRevision() const;
+    uint64_t mailResultRevision() const;
+    bool mailResultSuccess() const;
+    bool mailAccess(uint64_t service) const;
+    void requestMail(uint64_t service);
+    bool sendMail(uint64_t service,const std::string& recipient,const std::string& subject,
+                  const std::string& body,uint32_t money,uint32_t cod,const std::vector<LocalTradeItem>& items);
+    bool mailAction(LocalAction action,uint64_t service,uint32_t mail,uint32_t slot=0);
+    /// Create the ten level-80 test characters described by `specs` in a save
+    /// directory and write them, then leave the realm stopped. Returns how many
+    /// were created; a slot that already owns a character is never overwritten,
+    /// and zero means nothing was written (see error()).
+    ///
+    /// The realm must already have its content, catalog and starter spells:
+    /// the characters' spellbooks and pools are derived from them, not stored.
+    size_t seedTestCharacters(const std::string& saveDirectory,
+                              const std::vector<LocalTestCharacterSpec>& specs);
+    bool startSinglePlayer(const std::string& saveDirectory, const std::string& name);
+    bool startHost(const std::string& saveDirectory, const std::string& name,
+                   uint16_t port = DefaultPort, size_t playerLimit = DefaultPlayers);
+    bool joinHost(const std::string& ipv4, const std::string& profileDirectory,
+                  const std::string& name, uint16_t port = DefaultPort);
+    // Lobby credentials remain local; all character records and progress stay on
+    // the selected host. Browsing never spawns an avatar or reserves a player slot.
+    bool browseHost(const std::string& ipv4, const std::string& profileDirectory,
+                    uint16_t port = DefaultPort, uint64_t expectedRealmId = 0);
+    const std::vector<LocalSavedCharacter>& remoteCharacters() const;
+    bool characterListReady() const;
+    bool characterOperationPending() const;
+    uint64_t characterListRevision() const;
+    bool refreshRemoteCharacters();
+    bool createRemoteCharacter(uint8_t slot, const std::string& name);
+    bool deleteRemoteCharacter(uint8_t slot, uint64_t guid);
+    bool connectCharacter(uint8_t slot);
+    void setWorldLoading(bool loading);
+    // Pump from the main thread, including while connecting/loading. No worker
+    // thread, blocking receive, DNS lookup, or unbounded per-frame packet loop.
+    void update(float deltaTime);
+    /// Report where this console's character is and how it is moving. The
+    /// movement bits are kLocalMovementFalling/kLocalMovementInLiquid, taken
+    /// from the client's own collision and water - the authority has neither -
+    /// and are what let the host measure this character's falls. Omitting them
+    /// reports a character that is never in the air, which takes no fall damage.
+    bool setLocalPosition(uint32_t mapId, float x, float y, float z, float orientation,
+                          uint8_t movement = 0);
+    bool setLocalTransportOffset(uint32_t entry, float x, float y, float z, float heading);
+    bool attack(uint64_t targetGuid);
+    bool stopAttack();
+    bool castSpell(uint32_t spellId, uint64_t targetGuid);
+    bool cancelStatAura(uint32_t spellId);
+    bool cancelCast();
+    bool cancelForm(uint32_t expectedSpell=0);
+    // Retire this owner's controlled summon. Host-authoritative like every other
+    // action; the expected GUID rejects a stale pet bar instead of dismissing
+    // whatever was summoned after it.
+    bool dismissPet(uint64_t expectedPet=0);
+    bool sendPetAction(uint64_t expectedPet, uint32_t packedAction, uint64_t targetGuid = 0);
+    bool setPetSpellAutocast(uint64_t expectedPet, uint32_t spellId, bool enabled);
+    // Complete or skip this owner's first-world intro; persists with the hero.
+    bool completeIntro();
+    bool acceptQuest(uint32_t questId, uint64_t npcGuid);
+    bool turnInQuest(uint32_t questId, uint64_t npcGuid, uint32_t rewardChoice = 0);
+    bool abandonQuest(uint32_t questId);
+    bool loot(uint64_t npcGuid);
+    bool equipItem(uint32_t itemId, uint8_t slot = 255);
+    bool unequipItem(uint8_t slot);
+    bool useItem(uint32_t itemId);
+    bool dismount();
+    bool respawn(); // Compatibility action: release spirit, never instant revive.
+    void setLocalZone(uint32_t zoneId);
+    bool reclaimCorpse();
+    bool canReclaimCorpse() const;
+    bool setGraveyards(const std::vector<LocalGraveyardSite>& sites);
+    bool interact(uint64_t npcGuid);
+    bool switchVehicleSeat(uint8_t seat);
+    // 2.40 gossip (LAN109).
+    bool gossipSelect(uint64_t npcGuid,uint32_t menuId,uint32_t optionId);
+    bool textEmote(uint32_t emoteId,uint64_t targetGuid);
+    bool gossipText(uint32_t textId,LocalGossipText& out) const;
+    bool useVehicleAbility(uint8_t slot,uint64_t target=0);
+    bool aimVehicle(float yaw,float pitch);
+    std::vector<LocalVehicleProjectile> vehicleProjectiles() const;
+    std::vector<LocalVehicleCast> vehicleCasts() const;
+    /// Host-owned shared schedule state. A guest exposes only a complete,
+    /// context-matched LAN snapshot and never advances it locally.
+    std::vector<LocalWorldEventState> worldEventStates() const;
+    bool worldEventActive(uint32_t eventId) const;
+    /// Recent dialogue visible to this player. A guest exposes it only while
+    /// the complete LAN deck still matches its current world revision.
+    std::vector<LocalScriptDialogue> scriptDialogues() const;
+    uint64_t overwrittenScriptDialogues() const;
+    bool cycleVehicleSeat(int direction);
+    bool useGameObject(uint32_t objectId);
+    /// GAMEOBJECT_TYPE_CHAIR: nearest free slot for the local character. The
+    /// client applies the seat (position, facing, stand state) itself; chairs
+    /// own no shared authority state.
+    bool chairSeat(uint32_t objectId,LocalChairSeat& seat) const;
+    const LocalGameObjectState* gameObjectState(uint32_t objectId) const;
+    std::vector<LocalGameObjectState> gameObjectStates() const;
+    const LocalGameObject* nearbyGameObject() const;
+    bool enterVehicle(uint64_t vehicleGuid, uint8_t seat = 0);
+    bool exitVehicle();
+    bool enterPortal(uint32_t portalId, bool privateInstance = false);
+    bool leaveInstance();
+    // Local parties are session membership, not saved instance/loot/XP rules.
+    bool partyCommand(LocalPartyAction action, uint64_t target = 0, uint32_t inviteId = 0);
+    uint64_t partyPlayerByName(const std::string& name) const;
+    const LocalPartyView& partyView() const;
+    uint64_t partyRevision() const;
+    uint64_t partyRosterRevision() const;
+    bool sendChat(LocalChatChannel channel, const std::string& text, const std::string& target = "");
+    std::vector<LocalChatLine> takeChatMessages();
+    bool startReadyCheck();
+    bool answerReadyCheck(uint32_t check, bool ready);
+    const LocalReadyCheck& readyCheck() const;
+    double readyTimeLeft() const;
+    const LocalTrade& tradeView() const;
+    uint64_t socialRevision() const;
+    bool tradeAction(LocalAction action,uint32_t trade,uint32_t revision,uint64_t value=0,
+                     uint32_t bag=0,uint32_t slot=0,uint32_t expectedItem=0,uint16_t expectedCount=0);
+    bool changeIgnore(const std::string& name,bool add);
+    const std::vector<std::string>& ignoredNames() const;
+    bool isIgnored(const std::string& name) const;
+    std::vector<LocalRealmPortal> availablePortals() const;
+
+    // --- Instances ----------------------------------------------------------
+    /// Install the client's own Map.dbc rows, so a dungeon or raid the world
+    /// catalog never carried is still recognised as one. Additive: without them
+    /// the catalog decides exactly as it did before.
+    bool setClientMaps(std::vector<LocalMapDefinition> maps);
+    const LocalMapDefinition* clientMap(uint32_t mapId) const;
+    /// Which instances this realm currently holds, so the interface can show a
+    /// character what they are saved to.
+    const std::vector<LocalInstanceState>& instances() const;
+
+    // --- Merchants, repair and trainers -------------------------------------
+    /// Install the client's SkillLine.dbc rows. Only professions and secondary
+    /// skills are kept; without them the documented built-in fourteen stand.
+    bool setSkillLines(const std::vector<LocalSkillLine>& lines);
+    const std::vector<LocalSkillLine>& skillLines() const;
+    /// The merchant, blacksmith, trainer or innkeeper the player is standing
+    /// at, or nullptr. Each is the same eight-yard reach as any conversation.
+    const LocalRealmNpc* nearbyBanker(uint64_t npcGuid = 0) const;
+    const LocalRealmNpc* nearbyVendor(uint64_t npcGuid = 0) const;
+    const LocalRealmNpc* nearbyRepairer(uint64_t npcGuid = 0) const;
+    const LocalRealmNpc* nearbyClassTrainer() const;
+    const LocalRealmNpc* nearbyProfessionTrainer() const;
+    const LocalRealmNpc* nearbyInnkeeper() const;
+    /// What that merchant sells, and what a stack costs either way. Prices come
+    /// from the item's own catalog value; see local_services.hpp.
+    std::vector<uint32_t> vendorStock(uint64_t npcGuid = 0) const;
+    int32_t vendorRemaining(uint32_t itemId, uint64_t npcGuid = 0) const;
+    // Select/refresh one merchant's authority-owned stock and owner buyback.
+    // Passing zero closes the subscription; no background all-world stock feed.
+    void refreshMerchant(uint64_t npcGuid);
+    std::vector<LocalMerchantBuyback> vendorBuyback(uint64_t npcGuid = 0) const;
+    bool buybackItem(uint32_t entryId, uint64_t npcGuid = 0);
+    uint32_t vendorBuyPrice(uint32_t itemId, uint16_t count) const;
+    uint32_t vendorSellPrice(uint32_t itemId, uint16_t count) const;
+    /// Abilities the nearby class trainer can teach this character right now.
+    std::vector<uint32_t> trainableSpells(uint64_t npcGuid = 0) const;
+    /// Host-authoritative like every other action here: each sends a command
+    /// and the authority finds the NPC the player is standing at.
+    bool sellToVendor(uint32_t itemId, uint16_t count, uint64_t npcGuid = 0);
+    bool buyFromVendor(uint32_t itemId, uint16_t count, uint64_t npcGuid = 0);
+    bool repairEquipment(uint64_t npcGuid = 0);
+    bool learnSpell(uint32_t spellId, uint64_t npcGuid = 0);
+    bool learnTalent(uint32_t id,uint32_t rank);
+    bool resetTalents();
+    bool trainRiding(uint16_t rank, uint64_t npcGuid);
+    bool discoverTaxi(uint64_t npcGuid);
+    bool depositBankItem(uint32_t itemId, uint16_t count, uint64_t npcGuid);
+    bool depositBankFromSlot(uint32_t bagSlot, uint16_t count, LocalItemStack expectedSource, uint64_t npcGuid);
+    bool depositBankSlot(uint32_t bagSlot, uint32_t bankSlot, uint16_t count,
+                         LocalItemStack expectedSource, LocalItemStack expectedDestination, uint64_t npcGuid);
+    bool withdrawBankItem(uint32_t slot, uint16_t count, uint32_t expectedItem, uint64_t npcGuid, uint16_t expectedCount = 0);
+    bool moveBankItem(uint32_t sourceSlot, uint32_t destinationSlot, uint16_t count,
+                      LocalItemStack expectedSource, LocalItemStack expectedDestination, uint64_t npcGuid);
+    bool craftRecipe(uint32_t recipeId, uint32_t count = 1);
+    bool moveBackpackItem(uint32_t source,uint32_t destination,uint16_t count,LocalItemStack expectedSource,LocalItemStack expectedDestination,uint64_t banker=0,bool fromBank=false);
+    bool unlearnProfession(uint32_t skillId);
+    bool learnRecipe(uint32_t recipeId, uint64_t npcGuid = 0);
+    bool learnProfession(uint32_t skillId, uint64_t npcGuid = 0);
+    bool trainProfessionRank(uint32_t skillId, uint64_t npcGuid = 0);
+    bool setHome(uint64_t npcGuid = 0);
+    bool returnHome();
+
+    // --- Travel -----------------------------------------------------------
+    /// Install the taxi rows read from the player's client DBCs. Without them
+    /// there are no flights and no transports - not invented ones.
+    bool setTravelNetwork(std::vector<LocalTaxiNode> nodes,
+                          std::vector<LocalTaxiPath> paths,
+                          std::vector<LocalTaxiWaypoint> waypoints);
+    const LocalTravelNetwork& travel() const;
+    /// Where every transport is, as of the last authority tick. A LAN guest
+    /// gets these from the same deterministic schedule rather than over the
+    /// wire, so a hull never lags the host by a round trip.
+    const std::vector<LocalTransportState>& transports() const;
+    /// The flight master the player is standing at, or nullptr.
+    const LocalRealmNpc* nearbyFlightMaster() const;
+    /// Nodes that flight master can sell a flight to, already filtered by what
+    /// this character has discovered.
+    std::vector<uint32_t> flightDestinations() const;
+    /// Buy and board a flight to a node. The host validates it either way.
+    bool takeFlight(uint32_t destinationNode);
+    /// Board or leave a transport the player is standing on.
+    bool boardTransport(uint32_t transportEntry);
+    bool leaveTransport();
+    std::vector<LocalQuestDefinition> questsForNpc(uint32_t entry) const;
+    const std::vector<LocalRealmNpc>& npcs() const;
+    /// The owned creatures on this character's map and instance: the authority's
+    /// own roster, or the replicated copy a guest received.
+    const std::vector<LocalRealmPet>& pets() const;
+    const LocalWorldContent& content() const;
+    const std::string& actionStatus() const;
+    uint64_t actionStatusRevision() const;
+    bool save();
+    void stop();
+
+    LocalRealmState state() const;
+    bool ready() const;
+    bool isHost() const;
+    const LocalRealmPlayer* localPlayer() const;
+    const std::vector<LocalRealmPlayer>& players() const;
+    const std::string& error() const;
+    const std::string& status() const;
+    uint16_t port() const;
+    size_t playerLimit() const; // Total connected consoles, including the host.
+    float worldTimeHours() const; // Host-synchronized, advances between snapshots.
+
+private:
+    bool command(const LocalRealmCommand& command);
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+} // namespace wowee::game

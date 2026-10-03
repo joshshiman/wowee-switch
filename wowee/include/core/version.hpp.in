@@ -1,0 +1,17 @@
+#pragma once
+
+// Build identity comes from BUILD_VERSION; git is a fallback for development.
+// See cmake/GitVersion.cmake.
+
+namespace wowee {
+namespace core {
+
+inline constexpr const char* kVersion = "@WOWEE_GIT_VERSION@";
+inline constexpr const char* kBuildDate = "@WOWEE_BUILD_DATE@";
+
+// Release version and build date shown by the client.
+inline constexpr const char* kVersionString =
+    "@WOWEE_GIT_VERSION@ (built @WOWEE_BUILD_DATE@)";
+
+} // namespace core
+} // namespace wowee
