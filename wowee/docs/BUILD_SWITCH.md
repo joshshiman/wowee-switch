@@ -188,6 +188,34 @@ The SDL-shaped event/keyboard layer the client code expects is kept as the
 `include/platform/switch/sdl_scancode_compat.h` slice the PS4 port introduced,
 now fed by HID instead of a DualShock 4.
 
+## Warden on Switch
+
+Blizzard's Warden loads a native x86 module and calls into it. Horizon gives an
+ordinary homebrew process no way to do that: there is no `mmap`, and turning a
+mapping executable needs `svcControlCodeMemory`, which is privileged.
+`warden_module.cpp` therefore loads the module read/write and refuses to call
+into it, and unanswered checks mean a realm that issues a challenge will not
+work. Local and private servers are unaffected, and that is the supported
+configuration.
+
+Three ways this could change, in ascending order of difficulty:
+
+* **A server that does not challenge.** What every port in this space actually
+  does. [WoWx](https://github.com/TommySanzCode/WoWx), which retargets this same
+  client at the original Xbox, does not implement Warden either - it targets a
+  local vMaNGOS server. On that console the question does not even arise, because
+  the hardware has no MMU and so no virtual memory to make executable at all;
+  Horizon at least has the memory model, and lacks only the permission.
+* **Emulating the module.** `WardenEmulator` exists in the tree and is disabled
+  by `HAVE_UNICORN = FALSE`. Turning it on means building Unicorn for
+  devkitA64 to interpret x86 on an AArch64 host, which is a large dependency to
+  carry for a code path most servers never trigger.
+* **Reaching the privileged syscall.** `svcControlCodeMemory` is reachable from
+  kernel context, so a kernel module - the same route Tesla and similar tools
+  take - could make a mapping executable and let the real module run. This is the
+  only option that executes Blizzard's code as written, and it is well outside
+  what a client should be doing to a user's console.
+
 ## Known gaps
 
 * Untested on hardware: the port compiles, links and packages, but no console is
@@ -195,7 +223,8 @@ now fed by HID instead of a DualShock 4.
 * Blizzard Warden cannot run its native modules on Horizon: the kernel will not
   hand out anonymous RWX mappings, so `warden_module.cpp` loads the module
   read/write and refuses to call into it. Realms that issue a Warden challenge
-  will not work; local and private servers do.
+  will not work; local and private servers do. See *Warden on Switch* for what
+  would change that.
 * `elf2nro` here cannot embed a romfs (see *Runtime layout*), so assets are read
   from the SD card rather than from the title itself.
 * No `deko3d`/GLES2 path: rendering is Vulkan 1.x through nxvk, which is what the
