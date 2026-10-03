@@ -80,9 +80,36 @@ cmake --build build-switch --target switchpkg
 | `sdmc:/wowps/wowps/` | writable tree: `logs/`, `cache/`, `saves/`, `config/`, `tmp/` |
 
 The assets are staged beside the `.nro` instead of embedded in an NRO romfs:
-this devkitPro `elf2nro` mmaps the romfs directory and fails with
-`Failed to open input romfs!`, and a side-by-side directory means shaders can be
-refreshed by copying a file rather than rebuilding the binary.
+this devkitPro `elf2nro` cannot read a romfs *directory* (it `mmap`s the
+directory and fails), and a prebuilt image is appended without its `NroStart`
+entry, so `romfsMountSelf()` would never find it either. A side-by-side
+directory also means shaders can be refreshed by copying a file.
+
+`appRoot()` looks for that directory in this order:
+
+1. `WOWEE_RESOURCE_ROOT`
+2. `data/` beside the `.nro`, then the `.nro`'s own directory (from `argv[0]`)
+3. `sdmc:/switch/<nro name>/data` (launchers that pass a bare file name)
+4. `sdmc:/switch/wowee/data`
+5. a `<dir>/data` holding `assets/shaders`, found by listing `sdmc:/` and
+   `sdmc:/switch` (step 5 exists because an emulator passes the `.nro`'s path
+   on the *host*, which says nothing about the emulated card)
+
+Rejected candidates are logged, so `logs/boot.log` records what was tried.
+
+## Diagnosing a launch that does not get going
+
+`sdmc:/wowps/wowps/logs/boot.log` is the only diagnostic channel: a homebrew
+process's stdout is not surfaced by an emulator, and the fatal applet either
+draws nothing or sits there as a spinner. It records the launch path, the
+resource root that was chosen, every rejected candidate, and any startup stage
+that failed. On an emulator, `sdmc:/` is the emulator's SD card folder - for
+example `%AppData%\Eden\sdmc` - so the log is at
+`%AppData%\Eden\sdmc\wowps\wowps\logs\boot.log`.
+
+A launch that ends immediately with `Threw fatal error type 2` /
+`LibnxError_ShouldNotHappen` is the resource check failing: copy
+`build-switch/wowee-data` next to the `.nro` as `data/`.
 
 `WOW_DATA_PATH` defaults to `sdmc:/wowps`; `WOWEE_LOG_LEVEL`, `WOWEE_RESOURCE_ROOT`
 and the other `WOWEE_*` knobs work as on desktop.

@@ -15,7 +15,6 @@
 
 #include <switch.h>
 #include <switch/runtime/devices/fs_dev.h>
-#include <switch/runtime/devices/romfs_dev.h>
 #include <switch/runtime/devices/socket.h>
 #include <switch/services/fatal.h>
 
@@ -54,15 +53,11 @@ constexpr const char* kWritableRoot = "sdmc:/wowps/wowps";
 // directory is sdmc:/switch/wowee, and the assets live in its data/ subdir.
 // Only used when the launch path does not lead to them - see appRoot().
 constexpr const char* kAppRoot = "sdmc:/switch/wowee/data";
-// Used when the .nro carries the assets itself (romfs) and nothing on the SD
-// card overrides them.
-constexpr const char* kEmbeddedRoot = "romfs:/";
 
 bool g_initialised = false;
 bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
 bool g_exitRequested = false;
-bool g_romfsMounted = false;
 // argv[0] as the launcher passed it, and the resource root resolved from it.
 std::string g_launchPath;
 std::string g_appRoot;
@@ -71,14 +66,41 @@ std::string g_appRootReported;
 // known descriptor (see reportCrashSignal).
 volatile std::sig_atomic_t g_bootFd = -1;
 
+void appendBootLine(const char* text) {
+    // The one diagnostic channel: a homebrew process's stdout is not surfaced
+    // by an emulator, so anything worth reading later goes to the boot log
+    // through the descriptor opened once in initSystem().
+    const int fd = g_bootFd;
+    if (fd < 0) return;
+    char stamp[32];
+    const std::time_t now = std::time(nullptr);
+    std::strftime(stamp, sizeof stamp, "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    char line[1024];
+    const int length = std::snprintf(line, sizeof line, "[%s] %s\n", stamp, text);
+    if (length <= 0) return;
+    const size_t total = static_cast<size_t>(length) < sizeof line
+                             ? static_cast<size_t>(length)
+                             : sizeof line - 1;
+    ssize_t written = 0;
+    while (static_cast<size_t>(written) < total) {
+        const ssize_t chunk = ::write(fd, line + written, total - static_cast<size_t>(written));
+        if (chunk <= 0) break;
+        written += chunk;
+    }
+}
+
 void klog(const char* fmt, ...) {
+    char text[768];
     va_list args;
     va_start(args, fmt);
+    std::vsnprintf(text, sizeof text, fmt, args);
+    va_end(args);
+
     std::fputs("[wowee/switch] ", stdout);
-    std::vfprintf(stdout, fmt, args);
+    std::fputs(text, stdout);
     std::fputc('\n', stdout);
     std::fflush(stdout);
-    va_end(args);
+    appendBootLine(text);
 }
 
 // mkdir that treats "already there" as success. One level per call.
@@ -125,28 +147,28 @@ bool initSystem() {
         klog("fsdevMountSdmc failed; sdmc:/ assets are unavailable");
     }
     appletInitialize();
-    // The assets are embedded in the .nro (elf2nro appended a romfs image
-    // built by build_romfs), so a bare .nro is a complete title. The SD copy
-    // beside the .nro stays authoritative when it is there - see appRoot() -
-    // because it lets shaders be refreshed without a rebuild.
-    if (R_SUCCEEDED(romfsInit())) {
-        g_romfsMounted = true;
-        klog("romfs: mounted the embedded asset romfs");
-    } else {
-        klog("romfs: no embedded romfs; falling back to the SD card");
-    }
 
     if (R_FAILED(socketInitializeDefault())) {
         klog("socketInitializeDefault failed");
     }
 
-    createDirectories();
+    // Opened as soon as the logs directory exists, so the directory failures
+    // above reach the file too: a client that cannot write here usually cannot
+    // read its assets either, and that is worth seeing in one place.
+    const bool directoriesOk = createDirectories();
+    const std::string bootLog = std::string(kWritableRoot) + "/logs/boot.log";
+    // Append mode, kept open: the crash-signal path only writes to this
+    // descriptor, so it never allocates or takes a lock.
+    g_bootFd = ::open(bootLog.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (g_bootFd < 0) {
+        klog("could not open %s: errno %d (%s)", bootLog.c_str(), errno,
+             std::strerror(errno));
+    }
+    if (!directoriesOk) {
+        reportBootStage("some directories under sdmc:/wowps could not be created");
+    }
     applyEnvironment();
     vk_nxvk_loader_init();
-    // Opened once, in append mode: reportCrashSignal only writes to this
-    // descriptor, so the signal path never allocates or takes a lock.
-    const std::string bootLog = std::string(kWritableRoot) + "/logs/boot.log";
-    g_bootFd = ::open(bootLog.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
     g_initialised = true;
     reportBootStage("initSystem");
     return true;
@@ -173,16 +195,20 @@ bool frameTraceEnabled() { return g_frameTraceEnabled; }
 void reportBootStage(const char* stage) {
     if (!stage) return;
     // Mirrors the PS4 breadcrumb file: append to logs/boot.log with no
-    // userspace buffer and keep the previous launch's copy.
-    std::string path = std::string(kWritableRoot) + "/logs/boot.log";
-    std::FILE* f = std::fopen(path.c_str(), "a");
-    if (!f) return;
-    std::time_t t = std::time(nullptr);
-    char ts[32];
-    std::strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", std::localtime(&t));
-    std::fprintf(f, "[%s] %s\n", ts, stage);
-    std::fflush(f);
-    std::fclose(f);
+    // userspace buffer and keep the previous launch's copy. Falls back to
+    // opening the file when the persistent descriptor is not up yet, which is
+    // the case for anything logged before initSystem finished.
+    if (g_bootFd >= 0) {
+        appendBootLine(stage);
+    } else {
+        std::string path = std::string(kWritableRoot) + "/logs/boot.log";
+        std::FILE* f = std::fopen(path.c_str(), "a");
+        if (f) {
+            std::fprintf(f, "[%s] %s\n", "", stage);
+            std::fflush(f);
+            std::fclose(f);
+        }
+    }
     std::printf("[boot] %s\n", stage);
 }
 
@@ -308,10 +334,9 @@ std::string appRoot() {
     }
 
     // In order: an explicit override, the assets beside the .nro (so a user
-    // who edited them wins), the romfs embedded in the .nro, then the
-    // installed SD location, and finally whatever the SD scan turns up.
-    // Rejected candidates are logged so a wrong guess is visible in the boot
-    // log rather than showing up as a missing file much later.
+    // who edited them wins), the installed SD location, and finally whatever
+    // the SD scan turns up. Rejected candidates are logged so a wrong guess is
+    // visible in the boot log rather than showing up as a missing file later.
     std::vector<std::string> candidates;
     const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
     if (configured && *configured) {
@@ -328,9 +353,6 @@ std::string appRoot() {
         if (!stem.empty()) {
             candidates.push_back("sdmc:/switch/" + stem + "/data");
         }
-    }
-    if (g_romfsMounted) {
-        candidates.emplace_back(kEmbeddedRoot);
     }
     candidates.emplace_back(kAppRoot);
 
