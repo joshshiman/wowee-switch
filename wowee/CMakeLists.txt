@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(wowee VERSION 2.12.0 LANGUAGES C CXX)
 
-if(NOT WOWEE_SWITCH OR NOT DEVKITPRO)
-    message(FATAL_ERROR "Use tools/switch/build_switch_nro.sh or configure with -DCMAKE_TOOLCHAIN_FILE=cmake/switch.toolchain.cmake. See README.md.")
+# cmake/switch.toolchain.cmake forces this ON in the cache before this file is
+# read, so the option() only picks the default for a native/desktop configure.
+option(WOWEE_SWITCH "Build for the Nintendo Switch (devkitPro + libnx)" OFF)
+
+if(WOWEE_SWITCH AND NOT DEVKITPRO)
+    message(FATAL_ERROR "WOWEE_SWITCH is on but DEVKITPRO is not set. Use tools/switch/build_switch_nro.sh or configure with -DCMAKE_TOOLCHAIN_FILE=cmake/switch.toolchain.cmake. See README.md.")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -21,8 +25,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-add_compile_definitions(WOWEE_SWITCH=1)
-set(WOWEE_SWITCH_TOOLS_DIR "${DEVKITPRO}/tools/bin")
+if(WOWEE_SWITCH)
+    add_compile_definitions(WOWEE_SWITCH=1)
+    set(WOWEE_SWITCH_TOOLS_DIR "${DEVKITPRO}/tools/bin")
+endif()
+
 set(BUILD_SHARED_LIBS OFF)
 set(WOWEE_ENABLE_ASAN OFF)
 set(WOWEE_ENABLE_TRACY OFF)
@@ -48,17 +55,31 @@ if(Python3_Interpreter_FOUND)
     )
 endif()
 
-# Bundled switch dependencies.
-include(cmake/switch/stormlib.cmake)
-include(cmake/switch/crypto_shim.cmake)
-include(cmake/switch/nxvk.cmake)
-set(Vulkan_FOUND TRUE)
-# Newlib/Horizon gaps the statically linked driver expects the title to fill
-# (getrandom, posix_memalign, sysconf, regex stubs, __nx_heap_size, ...).
-add_library(nxvk_compat STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/switch/third_party/nxvk/nvk_compat.c)
-set_target_properties(nxvk_compat PROPERTIES C_STANDARD 11)
-target_link_libraries(nxvk_compat PRIVATE nx)
+# Where each platform's Vulkan, crypto and MPQ reader come from. The client
+# sources include <SDL2/SDL_vulkan.h> and <openssl/*.h> unguarded, so a desktop
+# configure has to find the real ones: on the console the driver is the
+# renderer and switch/compat supplies an OpenSSL subset instead.
+if(WOWEE_SWITCH)
+    include(cmake/switch/stormlib.cmake)
+    include(cmake/switch/crypto_shim.cmake)
+    include(cmake/switch/nxvk.cmake)
+    set(Vulkan_FOUND TRUE)
+    # Newlib/Horizon gaps the statically linked driver expects the title to fill
+    # (getrandom, posix_memalign, sysconf, regex stubs, __nx_heap_size, ...).
+    add_library(nxvk_compat STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/switch/third_party/nxvk/nvk_compat.c)
+    set_target_properties(nxvk_compat PROPERTIES C_STANDARD 11)
+    target_link_libraries(nxvk_compat PRIVATE nx)
+else()
+    find_package(Vulkan REQUIRED)
+    find_package(SDL2 REQUIRED)
+    find_package(OpenSSL REQUIRED)
+    # main.cpp ungrabs the mouse through Xlib in its signal handlers, so the
+    # X11 client library is a link requirement, not a nicety.
+    if(UNIX AND NOT APPLE)
+        find_package(X11 REQUIRED)
+    endif()
+endif()
     find_package(Threads QUIET)
     if(NOT TARGET Threads::Threads)
         add_library(WOWEE_SWITCH_threads INTERFACE)
@@ -99,6 +120,16 @@ if(EXISTS ${IMGUI_DIR})
             message(STATUS "switch: ${WOWEE_SWITCH_IMGUI_BACKEND} not present yet; imgui built without a platform backend")
         endif()
     else()
+        # The SDL2 platform backend is what feeds ImGui its events on a desktop
+        # window. Vendored from the docking branch at 43a90adc, the newest
+        # revision whose imgui_impl_sdl2.h is byte-identical to the one already
+        # in this tree, so the .cpp and .h here are a matched pair.
+        set(WOWEE_DESKTOP_IMGUI_BACKEND ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp)
+        if(EXISTS ${WOWEE_DESKTOP_IMGUI_BACKEND})
+            list(APPEND IMGUI_SOURCES ${WOWEE_DESKTOP_IMGUI_BACKEND})
+        else()
+            message(FATAL_ERROR "ImGui's SDL2 platform backend is missing: ${WOWEE_DESKTOP_IMGUI_BACKEND}")
+        endif()
     endif()
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
     add_library(imgui STATIC ${IMGUI_SOURCES})
@@ -863,9 +894,10 @@ target_include_directories(wowee SYSTEM PRIVATE
 )
 
 # Native console libraries.
-set(WOWEE_SWITCH_LIBS
-    -lnx -lc -lm -lstdc++ -pthread
-)
+if(WOWEE_SWITCH)
+    set(WOWEE_SWITCH_LIBS
+        -lnx -lc -lm -lstdc++ -pthread
+    )
     target_link_libraries(wowee PRIVATE
         Vulkan::Vulkan
         nxvk_compat
@@ -876,6 +908,24 @@ set(WOWEE_SWITCH_LIBS
         lua51
         ${WOWEE_SWITCH_LIBS}
     )
+else()
+    # SDL2main renames main() to SDL_main(); OpenSSL backs the SRP auth and
+    # Warden crypto, which include their headers directly.
+    set(WOWEE_DESKTOP_LIBS ${CMAKE_DL_LIBS})
+    if(TARGET X11::X11)
+        list(APPEND WOWEE_DESKTOP_LIBS X11::X11)
+    endif()
+    target_link_libraries(wowee PRIVATE
+        Vulkan::Vulkan
+        SDL2::SDL2
+        SDL2::SDL2main
+        ZLIB::ZLIB
+        Threads::Threads
+        OpenSSL::Crypto
+        lua51
+        ${WOWEE_DESKTOP_LIBS}
+    )
+endif()
 
 target_link_libraries(wowee PRIVATE imgui ${WOWEE_VK_BOOTSTRAP_TARGET} glm::glm-header-only)
 
@@ -1012,7 +1062,13 @@ add_custom_target(copy_bundled_addons ALL
     COMMENT "Copying bundled addons")
 add_dependencies(copy_bundled_addons wowee)
 
-message(STATUS "WoWee: Nintendo Switch / libnx + devkitPro + nxvk")
+if(WOWEE_SWITCH)
+    message(STATUS "WoWee: Nintendo Switch / libnx + devkitPro + nxvk")
+    message(STATUS "Toolchain: ${DEVKITPRO}")
+    message(STATUS "Package target: switchpkg")
+else()
+    message(STATUS "WoWee: desktop / SDL2 + ${Vulkan_VERSION} + OpenSSL ${OPENSSL_VERSION}")
+    message(STATUS "Vulkan headers: ${Vulkan_INCLUDE_DIRS}")
+    message(STATUS "SDL2 ${SDL2_VERSION}")
+endif()
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Toolchain: ${DEVKITPRO}")
-message(STATUS "Package target: switchpkg")
