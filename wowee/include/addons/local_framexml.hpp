@@ -5,6 +5,9 @@
 #include <string>
 #include <string_view>
 #include "game/local_ui_changes.hpp"
+#ifdef WOWEE_SWITCH
+#include "platform/switch/switch_pad_buttons.h"
+#endif
 #include "ui/local_pad_focus.hpp"
 struct lua_State;
 namespace wowee::game { class LocalRealm; class GameHandler; }
@@ -145,17 +148,15 @@ inline PadFocusRect padFocusRect(float left, float bottom, float rectW, float re
 
 /// The pad button that opens and closes the world map.
 ///
-/// Not the PS button, which is what "the big middle button" is usually taken
-/// to mean: the system owns it outright. OrbisPadButton carries no bit for it
-/// - L3, R3, Options, the D-pad, the four triggers, the four faces and
-/// TOUCH_PAD are the whole enum - and scePadReadState never reports one,
-/// because pressing it suspends the title and raises the quick menu before the
-/// game is asked. Binding it would produce a button that never fires.
-///
-/// The touchpad click is the other button in the middle of a DualShock 4, it
-/// is by a distance the largest thing on the pad, and it is delivered. It held
-/// chat, which moves to the left stick's click - see kBindings.
+/// The Switch has no PS button and no touchpad, so the Minus button is the
+/// middle button that is actually delivered; it opens and closes the map.
+/// (On the PS4 port this was the touchpad click.)
+#ifdef WOWEE_SWITCH
+inline constexpr std::uint32_t kPadWorldMapButton =
+    static_cast<std::uint32_t>(ORBIS_PAD_BUTTON_TOUCH_PAD);
+#else
 inline constexpr std::uint32_t kPadWorldMapButton = 0x00100000u;  // ORBIS_PAD_BUTTON_TOUCH_PAD
+#endif
 
 /// Whether this window holds slots something can be put into.
 ///

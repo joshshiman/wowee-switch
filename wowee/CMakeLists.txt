@@ -810,7 +810,6 @@ add_dependencies(wowee wowee_version)
 if(WOWEE_SWITCH)
     target_include_directories(wowee BEFORE PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include/platform/switch
-        ${CMAKE_CURRENT_SOURCE_DIR}/switch/third_party/nxvk/include
         ${CMAKE_CURRENT_SOURCE_DIR}/switch/compat
         ${CMAKE_CURRENT_SOURCE_DIR}/switch/compat/cxx20
     )
@@ -898,12 +897,16 @@ if(WOWEE_SWITCH)
     set(WOWEE_SWITCH_ROMFS $<TARGET_FILE_DIR:wowee>/romfs)
     set(WOWEE_SWITCH_RUNTIME_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_ROMFS}/assets/shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_ROMFS}/Data/expansions
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/assets/local_realm
             $<TARGET_FILE_DIR:wowee>/local_realm
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/Data
-            $<TARGET_FILE_DIR:wowee>/Data)
+            ${CMAKE_CURRENT_SOURCE_DIR}/Data/expansions
+            ${WOWEE_SWITCH_ROMFS}/Data/expansions
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/Data/opcodes
+            ${WOWEE_SWITCH_ROMFS}/Data/opcodes)
     foreach(_spv ${WOWEE_SWITCH_SPV_FILES})
         get_filename_component(_spv_name ${_spv} NAME)
         list(APPEND WOWEE_SWITCH_RUNTIME_COMMANDS

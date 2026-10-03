@@ -51,9 +51,6 @@ constexpr const char* kAppRoot = "romfs:/";
 bool g_initialised = false;
 bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
-// Never closed during the process lifetime: the signal handler can run on
-// another thread even while normal shutdown is in progress.
-volatile std::sig_atomic_t g_bootFd = -1;
 
 void klog(const char* fmt, ...) {
     va_list args;
@@ -170,9 +167,8 @@ bool installCrashReporter() {
 }
 
 void registerCrashReportingThread(const char* /*name*/) {
-    // No per-thread alternate signal stack service on Switch; newlib's
-    // pthread default is sufficient.
-    (void)&g_bootFd;
+    // Horizon has no per-thread alternate signal stack service, and newlib's
+    // default thread stacks are large enough for the loaders that call this.
 }
 
 size_t defaultThreadStackBytes() {
@@ -181,11 +177,12 @@ size_t defaultThreadStackBytes() {
 }
 
 void showStartupError(const char* message) {
-    // The fatal service is the Switch's system error dialog.
+    // The fatal service is the Switch's system error dialog: it shows the
+    // error code on screen and writes a report. The full diagnosis stays in
+    // the boot log, which is why the text is logged here first.
     std::fprintf(stderr, "[wowee/switch] FATAL: %s\n", message ? message : "(null)");
-    if (message) {
-        fatalSimple(MAKERESULT(Module_Libnx, LibnxError_Fatal_Exception));
-    }
+    reportBootStage("fatal: startup error");
+    fatalThrow(MAKERESULT(Module_Libnx, LibnxError_ShouldNotHappen));
 }
 
 std::string dataRoot() { return kDataRoot; }

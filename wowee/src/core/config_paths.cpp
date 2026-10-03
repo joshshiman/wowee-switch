@@ -26,13 +26,13 @@ namespace fs = std::filesystem;
 
 bool enterResourceRoot() {
 #ifdef WOWEE_SWITCH
-    // A switch homebrew process can open /app0 files while chdir("/app0")
-    // returns EPERM. B1 mistakenly made that unsupported operation a fatal
-    // prerequisite and exited before constructing the renderer. Check actual
-    // package reads instead; all callers must use absolute asset paths.
+    // Homebrew on Switch has no working directory to anchor on: bundled assets
+    // live in the .nro romfs ("romfs:/") and game data on the SD card
+    // ("sdmc:/wowps"). Verify the bundled reads actually work instead of
+    // changing directory; every caller uses absolute paths.
     const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
     if (configured && *configured && configured[0] != '/') {
-        LOG_ERROR("switch package resource root must be absolute: ", configured);
+        LOG_ERROR("Switch resource root must be absolute: ", configured);
         return false;
     }
     static const char* const required[] = {
@@ -51,7 +51,7 @@ bool enterResourceRoot() {
         std::FILE* file = std::fopen(path.c_str(), "rb");
         if (!file) {
             const int error = errno;
-            LOG_ERROR("Required package resource unreadable: ", path,
+            LOG_ERROR("Required bundled resource unreadable: ", path,
                       " errno=", error, " (", std::strerror(error), ")");
             ready = false;
             continue;
@@ -69,7 +69,7 @@ bool enterResourceRoot() {
             ready = false;
         }
     }
-    if (ready) LOG_INFO("switch package resources readable at ",
+    if (ready) LOG_INFO("Switch bundled resources readable at ",
                         configured && *configured ? configured : platform::switchport::appRoot().c_str(),
                         " (absolute file access; no working-directory change)");
     return ready;

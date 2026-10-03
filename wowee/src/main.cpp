@@ -139,9 +139,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 #ifdef WOWEE_SWITCH
     // Lives outside the try block: error dialogs in the catch clauses still
     // need the user/system services that this guard tears down.
-    struct Ps4SystemGuard {
-        ~Ps4SystemGuard() { wowee::platform::switchport::shutdownSystem(); }
-    } ps4SystemGuard;
+    struct SwitchSystemGuard {
+        ~SwitchSystemGuard() { wowee::platform::switchport::shutdownSystem(); }
+    } switchSystemGuard;
 #endif
     try {
 #ifdef WOWEE_SWITCH
@@ -157,29 +157,30 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
         std::signal(SIGILL, crashHandler);
         std::signal(SIGBUS, crashHandler);
     }
-    // The console starts the process with an empty environment and a working
-    // directory that holds nothing of ours, so the platform layer goes first:
-    // it loads the system modules, sets WOW_DATA_PATH, HOME and the WOWEE_*
-    // tuning knobs and creates the writable tree - all of which
+    // Homebrew starts with an empty environment, no useful working directory
+    // and no mounted SD card, so the platform layer goes first: it mounts
+    // sdmc:/, brings up the applet/socket services, sets WOW_DATA_PATH, HOME
+    // and creates the writable tree - all of which
     // readLogLevelFromEnv, the logger and Application::initialize read below.
     // The guard runs shutdownSystem on every way out of main, the exception
     // paths included.
     //
-    // The target defines __FreeBSD__, not __linux__, so the X11 mouse-ungrab,
-    // /proc/self/exe chdir and desktop backtrace blocks below are skipped.
-    // Keep the kernel siginfo/alternate-stack handlers installed above.
+    // devkitA64/newlib define neither __linux__ nor __FreeBSD__, so the X11
+    // mouse-ungrab, /proc/self/exe and desktop backtrace blocks below are
+    // skipped. Keep the crash marker handlers installed above.
     if (!wowee::platform::switchport::initSystem()) {
         wowee::platform::switchport::showStartupError("A required switch system module failed to initialize.");
         return 1;
     }
 #endif
 #if defined(__ANDROID__) || defined(WOWEE_SWITCH)
-    // Android anchors its working directory. switch verifies actual absolute
-    // package reads instead: chdir("/app0") is unsupported even for a healthy
-    // install and must not prevent the client from starting.
+    // Android anchors its working directory. Switch verifies actual absolute
+    // romfs reads instead: there is no package directory to chdir into, and a
+    // missing bundled asset must not prevent the client from starting.
     if (!wowee::core::enterResourceRoot()) {
 #ifdef WOWEE_SWITCH
-        wowee::platform::switchport::showStartupError("Required package files are missing or unreadable. Check wowps.log for the exact paths.");
+        wowee::platform::switchport::showStartupError(
+            "Required bundled resources are missing or unreadable. Check the boot log for the exact paths.");
 #endif
         return 1;
     }

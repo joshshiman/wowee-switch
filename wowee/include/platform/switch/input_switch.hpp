@@ -26,7 +26,7 @@ namespace switchport {
 //
 // The table and the rule that picks a layer are here, rather than beside the
 // code that reads them, for one reason: every other line of input_switch.cpp needs
-// the OpenOrbis SDK, so a mapping left in there could only ever be checked on
+// the platform SDK, so a mapping left in there could only ever be checked on
 // the console - which is the one place a wrong slot is discovered by a player
 // rather than by a test. These two declarations need nothing but the button
 // bits, which tests/switch_pad_stub supplies off-console.
@@ -54,7 +54,7 @@ enum class Action : uint8_t {
 };
 
 struct PadBinding {
-    uint32_t button;      // ORBIS_PAD_BUTTON_*
+    uint32_t button;      // switch_pad_buttons.h aliases (HidNpadButton_*)
     Layer layer;
     Action action;
     SDL_Scancode key;     // for Action::Key
@@ -70,14 +70,11 @@ inline constexpr PadBinding kBindings[] = {
     {ORBIS_PAD_BUTTON_L3,        Layer::Base, Action::Key,          SDL_SCANCODE_NUMLOCKCLEAR,  "toggle autorun"},
     {ORBIS_PAD_BUTTON_R3,        Layer::Base, Action::CursorToggle, SDL_SCANCODE_UNKNOWN,      "right stick: cursor / look"},
     {ORBIS_PAD_BUTTON_OPTIONS,   Layer::Base, Action::Key,          SDL_SCANCODE_ESCAPE,       "game menu / close"},
-    // The button in the middle of the pad. Not the PS button, which is what
-    // "the big middle button" usually names: OrbisPadButton has no bit for it
-    // and scePadReadState never reports one, because the system takes that
-    // press to raise its own menu before the title is asked - a binding there
-    // would be a button that never fires. The touchpad click is the other
-    // middle button, it is much the largest thing on the pad, and it arrives.
+    // The button in the middle of the pad. The Switch has no PS button bit
+    // and no touchpad, so the Minus button (the small middle button that
+    // every Switch and Pro controller has) stands in for both.
     //
-    // L3 remains autorun; touchpad click opens the world map.
+    // L3 remains autorun; Minus opens the world map.
     //
     // Action::WorldMap does nothing here on purpose. While a menu owns the pad
     // this whole table is skipped, so a row that opened the map could never
@@ -190,8 +187,8 @@ bool takeKeyboardRequest();
 
 // ---- what the pad layer tells the interface ---------------------------------
 
-/// The pad after the last pumpInput. Buttons are ORBIS_PAD_BUTTON_* bits;
-/// sticks are -1..1 after the dead zone, +y down as the pad reports it.
+/// The pad after the last pumpInput. Buttons are the HidNpadButton bits the
+/// mapping uses (see switch_pad_buttons.h); sticks are -1..1 after the dead zone.
 struct PadState {
     bool connected = false;
     uint32_t buttons = 0;    ///< held
