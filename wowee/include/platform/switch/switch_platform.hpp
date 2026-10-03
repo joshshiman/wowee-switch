@@ -1,13 +1,13 @@
 #pragma once
-// switch (OpenOrbis) platform layer for the WoWee client.
+// Nintendo Switch (libnx) platform layer for the WoWee client.
 //
 // Contract between the platform pieces (src/platform/switch/*.cpp) and the
 // upstream code that calls them from #ifdef WOWEE_SWITCH branches. Everything
 // here is main-thread only unless stated otherwise.
 //
-//   system_switch.cpp   process/system services, modules, paths, logging, network
-//   input_switch.cpp    ScePad -> core::Input (keyboard/mouse emulation) + ImGui
-//   audio_backend_switch.cpp  miniaudio custom backend on sceAudioOut (see its header)
+//   system_switch.cpp         libnx services, paths, logging, DNS, lifecycle
+//   input_switch.cpp          libnx HID -> core::Input (keyboard/mouse emulation)
+//   audio_backend_switch.cpp  miniaudio custom backend on audout (see its header)
 
 #include <cstddef>
 #include <cstdint>
@@ -22,21 +22,22 @@ namespace switchport {
 
 // ---- system_switch.cpp -------------------------------------------------------
 
-/// Load the system modules the client needs (SysModule, SystemService, Net,
-/// UserService, Pad, AudioOut, Ime), initialise networking (sceNetInit +
-/// pool), set the process environment (WOW_DATA_PATH, WOWEE_* tuning knobs)
-/// and create the writable directories. Call first. Does NOT hide the splash
-/// screen - see hideSplashScreen() below.
+/// Bring the title up: mount sdmc:/, initialize the applet and socket
+/// services, set WOW_DATA_PATH/HOME/TMPDIR, create the writable tree and arm
+/// the Vulkan loader shim. Call first. Does NOT hide the splash screen - see
+/// hideSplashScreen() below.
 bool initSystem();
+/// Undo initSystem (socketExit, unmounts) and write the closing breadcrumb.
 void shutdownSystem();
 
-/// Hides the splash screen after a frame was successfully submitted for
-/// presentation, or after opening a system progress/error dialog. Creating
-/// the swapchain alone is not enough: the client may still be loading.
+/// The title has presented its first frame (or opened a system error screen).
+/// There is no separate splash service on the console: the loader's own
+/// splash is dismissed when the first frame reaches the screen, so this is
+/// only the port's bookkeeping point.
 void hideSplashScreen();
 
 /// Main-thread startup checkpoints, written without a userspace buffer to
-/// logs/boot.log. The previous launch is retained as logs/boot_previous.log.
+/// logs/boot.log.
 void reportBootStage(const char* stage);
 // Main-thread scope: extend backend breadcrumbs through the first world frames.
 void setFrameTraceEnabled(bool enabled);
@@ -44,38 +45,36 @@ bool frameTraceEnabled();
 /// Async-signal-safe: append the fatal signal to the already-open boot log.
 /// Does not call the core logger, allocate, acquire locks or format strings.
 void reportCrashSignal(int signal);
-/// Install the fatal-signal reporter (SIGSEGV/SIGABRT/SIGFPE/SIGILL/SIGBUS)
-/// through the kernel's own sigaction ABI, with an alternate signal stack for
-/// the calling thread so a stack overflow still leaves a marker. Returns
-/// false when the kernel refused the alternate stack or a handler.
+/// Whether the crash marker is armed. Horizon has no per-thread signal-stack
+/// service and no sigaction ABI worth bending to: a false answer tells main()
+/// to install its own std::signal handlers (the fallback it already has), and
+/// the fatal service is what raises the error screen after an abnormal exit.
 bool installCrashReporter();
-/// Give the calling thread an alternate signal stack and a name the crash
-/// marker can print. Call once from any thread whose crash should be
-/// attributable (the audio device thread, loaders). Safe to call repeatedly.
+/// Give the calling thread a named alternate signal stack, when the platform
+/// has one. On Switch this is a no-op (see installCrashReporter).
 void registerCrashReportingThread(const char* name);
-/// The stack size a thread created with no attributes would get from the
-/// kernel. Logged at startup; every thread the client creates gets 2 MiB
-/// through the pthread_create wrapper in threads_switch.cpp regardless.
+/// The stack size a thread created with no attributes gets from newlib.
 size_t defaultThreadStackBytes();
-/// Show a bounded system error dialog on initialization failure. Independent
-/// of the game renderer; the full diagnosis remains in the log files.
+/// Show a bounded system error dialog on initialization failure (libnx fatal).
+/// Does not return. Independent of the game renderer; the full diagnosis
+/// remains in the log files.
 void showStartupError(const char* message);
 
-/// Root the user fills with their own game client: /data/wow_ps
-/// (MPQs under /data/wow_ps/Data). Also the default WOW_DATA_PATH.
+/// Root the user fills with their own game client: sdmc:/wowps
+/// (MPQs under sdmc:/wowps/Data). Also the default WOW_DATA_PATH.
 std::string dataRoot();
 /// Writable directory for settings, logs, caches and saved variables:
-/// /data/wow_ps/wowps (created by initSystem).
+/// sdmc:/wowps/wowps (created by initSystem).
 std::string writableRoot();
-/// Directory the package was launched from (read-only): /app0
+/// Directory the bundled assets were packaged into: romfs:/ (inside the .nro).
 std::string appRoot();
 
-/// Resolve a host name with sceNetResolver (musl's getaddrinfo has no DNS on
-/// the console). Returns the IPv4 address in network byte order, or 0.
+/// Resolve a host name through libnx's bsd service (getaddrinfo). Returns the
+/// IPv4 address in network byte order, or 0.
 uint32_t resolveIPv4(const std::string& host);
 
-/// Kick the system watchdog / process the system event queue once per frame
-/// (sceSystemServiceReceiveEvent) so suspend/resume and the PS button work.
+/// Per-frame lifecycle check (appletMainLoop) so an OS exit request is noticed
+/// and boot-staged. Never blocks.
 void pumpSystemEvents();
 
 // ---- input_switch.cpp --------------------------------------------------------
@@ -87,9 +86,8 @@ void shutdownInput();
 /// Read the pad once per frame and:
 ///  - drive core::Input through its virtual-key API (left stick -> WASD,
 ///    L3 -> autorun, R3 -> mouse-look toggle, triggers/shoulders -> action
-///    bar rows, D-pad -> targeting/UI focus, Options -> Escape, Touchpad ->
-///    cursor and clicks, Share -> screenshot)
-///  - move the emulated mouse cursor (right stick or touchpad) and report
+///    bar rows, D-pad -> targeting/UI focus, Plus -> Escape, Minus -> world map)
+///  - move the emulated mouse cursor (right stick or the touchscreen) and report
 ///    mouse buttons (X = left click, Circle = right click)
 ///  - feed ImGui (mouse position/buttons/wheel, nav gamepad keys, text input
 ///    from the on-screen keyboard)
@@ -110,16 +108,16 @@ bool inputCursorVisible();
 bool inputCameraLooking();
 
 /// Whether the given SDL scancode is currently held through the pad mapping.
-/// (Input::update merges this with its own state on switch.)
+/// (Input::update merges this with its own state on console.)
 bool isVirtualKeyHeld(int sdlScancode);
 
-/// Open the system on-screen keyboard (sceImeDialog) for a text field.
+/// Open the in-game on-screen keyboard for a text field.
 /// The callback receives the final UTF-8 text on the main thread; empty
 /// string + accepted=false when cancelled.
 void showKeyboard(const std::string& title, const std::string& initialText,
                   bool password, std::function<void(const std::string&, bool accepted)> done);
 bool keyboardOpen();
 
-} // namespace switch
+} // namespace switchport
 } // namespace platform
 } // namespace wowee

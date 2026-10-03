@@ -38,6 +38,8 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -108,7 +110,6 @@ constexpr SDL_Scancode kStickRight   = SDL_SCANCODE_E;
 using Clock = std::chrono::steady_clock;
 
 bool s_initialised = false;
-int32_t s_userId = -1;
 bool s_padConnected = false;      // a handle was opened
 
 PadState s_padState;
@@ -180,12 +181,6 @@ uint32_t nowMs() {
     static const Clock::time_point start = Clock::now();
     return static_cast<uint32_t>(
         std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count());
-}
-
-std::string hex(int32_t rc) {
-    char buf[16];
-    std::snprintf(buf, sizeof(buf), "0x%08x", static_cast<uint32_t>(rc));
-    return buf;
 }
 
 float clampf(float v, float lo, float hi) { return std::max(lo, std::min(hi, v)); }
@@ -403,23 +398,54 @@ void readPad(float dt) {
     PadState st;
     st.connected = false;
     {
+        // The console reports the built-in Joy-Cons as one Npad (Handheld) and
+        // any docked/attached controller as another (No1). Both are read and
+        // merged - picking one would make the held set flicker whenever one of
+        // them reports activity.
         HidNpadCommonState handheld{};
         HidNpadCommonState fullkey{};
-        const size_t haveHandheld = hidGetNpadStatesHandheld(HidNpadIdType_Handheld, &handheld, 1);
-        const size_t haveFullKey = hidGetNpadStatesFullKey(HidNpadIdType_No1, &fullkey, 1);
-        const HidNpadCommonState* src = nullptr;
-        if (haveHandheld > 0 && (handheld.buttons != 0 || handheld.analog_stick_l.x != 0 || handheld.analog_stick_l.y != 0 || handheld.analog_stick_r.x != 0 || handheld.analog_stick_r.y != 0)) {
-            src = &handheld;
-        } else if (haveFullKey > 0) {
-            src = &fullkey;
-        } else if (haveHandheld > 0) {
-            src = &handheld;
+        const bool haveHandheld = hidGetNpadStatesHandheld(HidNpadIdType_Handheld, &handheld, 1) > 0;
+        const bool haveFullKey = hidGetNpadStatesFullKey(HidNpadIdType_No1, &fullkey, 1) > 0;
+
+        uint64_t buttons = 0;
+        float lx = 0.0f, ly = 0.0f, rx = 0.0f, ry = 0.0f;
+        bool connected = false;
+        // Take each stick from whichever source deflects it most: two sticks
+        // can be live at once (handheld Joy-Cons plus a Pro controller) and the
+        // stronger deflection is the one the player means.
+        auto takeStick = [](const HidAnalogStickState& state, float& x, float& y) {
+            stickToFloatRaw(state.x, state.y, x, y);
+        };
+        if (haveHandheld && (handheld.attributes & HidNpadAttribute_IsConnected) != 0) {
+            connected = true;
+            buttons |= handheld.buttons;
+            takeStick(handheld.analog_stick_l, lx, ly);
+            takeStick(handheld.analog_stick_r, rx, ry);
         }
-        if (src) {
+        if (haveFullKey && (fullkey.attributes & HidNpadAttribute_IsConnected) != 0) {
+            connected = true;
+            buttons |= fullkey.buttons;
+            float flx = 0.0f, fly = 0.0f, frx = 0.0f, fry = 0.0f;
+            takeStick(fullkey.analog_stick_l, flx, fly);
+            takeStick(fullkey.analog_stick_r, frx, fry);
+            if (std::fabs(flx) + std::fabs(fly) > std::fabs(lx) + std::fabs(ly)) {
+                lx = flx;
+                ly = fly;
+            }
+            if (std::fabs(frx) + std::fabs(fry) > std::fabs(rx) + std::fabs(ry)) {
+                rx = frx;
+                ry = fry;
+            }
+        }
+        if (connected) {
             st.connected = true;
-            st.buttons = static_cast<uint32_t>(src->buttons);
-            stickToFloatRaw(src->analog_stick_l.x, src->analog_stick_l.y, st.lx, st.ly);
-            stickToFloatRaw(src->analog_stick_r.x, src->analog_stick_r.y, st.rx, st.ry);
+            st.buttons = static_cast<uint32_t>(buttons);
+            st.lx = lx;
+            st.ly = ly;
+            st.rx = rx;
+            st.ry = ry;
+            // ZL/ZR are reported as buttons, not analog triggers, so these are
+            // 0 or 1. The mapping only asks "is it held".
             st.l2 = (st.buttons & ORBIS_PAD_BUTTON_L2) ? 1.0f : 0.0f;
             st.r2 = (st.buttons & ORBIS_PAD_BUTTON_R2) ? 1.0f : 0.0f;
         }
@@ -592,14 +618,24 @@ bool initInput() {
     s_cursorX = static_cast<float>(s_displayW) * 0.5f;
     s_cursorY = static_cast<float>(s_displayH) * 0.5f;
 
-    hidInitialize();
+    // Both Npad sources plus the touchscreen: the built-in Joy-Cons, and
+    // whatever the player docked or attached.
+    if (R_FAILED(hidInitialize())) {
+        LOG_ERROR("hidInitialize failed");
+        s_initialised = false;
+        return false;
+    }
     hidInitializeNpad();
     hidInitializeTouchScreen();
     static const HidNpadIdType kIds[] = {HidNpadIdType_No1, HidNpadIdType_Handheld};
-    hidSetSupportedNpadIdType(kIds, 2);
-    hidSetSupportedNpadStyleSet(HidNpadStyleSet_NpadFullCtrl);
+    if (R_FAILED(hidSetSupportedNpadIdType(kIds, 2))) ||
+        R_FAILED(hidSetSupportedNpadStyleSet(HidNpadStyleSet_NpadFullCtrl))) {
+        LOG_ERROR("could not declare the supported Npad ids/styles");
+        s_initialised = false;
+        return false;
+    }
     s_padConnected = true;
-    LOG_INFO("Switch pads initialised (No1 + handheld, full key style)");
+    LOG_INFO("Switch HID ready (No1 + handheld Joy-Cons, full key style, touchscreen)");
     return true;
 }
 
@@ -608,7 +644,9 @@ void shutdownInput() {
     if (s_keyboard.open) {
         finishKeyboard(false, std::string());
     }
+    hidExit();
     s_padConnected = false;
+    s_padState = PadState{};
     s_held.fill(0);
     s_events.clear();
     s_initialised = false;

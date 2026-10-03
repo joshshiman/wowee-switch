@@ -196,7 +196,9 @@ struct PadState {
     uint32_t released = 0;   ///< went up this frame
     float lx = 0.0f, ly = 0.0f;
     float rx = 0.0f, ry = 0.0f;
-    float l2 = 0.0f, r2 = 0.0f;   ///< triggers, 0..1
+    /// Triggers, 0..1. Switch reports ZL/ZR as buttons, so these are 0 or 1;
+    /// the pad mapping only asks whether the trigger is held.
+    float l2 = 0.0f, r2 = 0.0f;
 };
 const PadState& padState();
 

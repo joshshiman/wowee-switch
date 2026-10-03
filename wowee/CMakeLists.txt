@@ -778,7 +778,8 @@ if(WOWEE_SWITCH)
     # __expand_heap and libc++'s condition-variable timed wait because of
     # musl/libkernel quirks. devkitA64 + newlib need none of them - the audio
     # engine sets its own miniaudio thread stack size (audio_engine.cpp), and
-    # newlib's realloc and condvar are already correct.\nendif()
+    # newlib's realloc and condvar are already correct.
+endif()
 if(TARGET opcodes-generate)
     add_dependencies(wowee opcodes-generate)
 endif()

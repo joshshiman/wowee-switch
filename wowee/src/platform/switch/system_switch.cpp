@@ -29,11 +29,11 @@
 #include <cerrno>
 #include <fstream>
 #include <string>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
-#include "addons/framexml_recovery.hpp"
 
 namespace wowee {
 namespace platform {
@@ -76,14 +76,14 @@ bool makeDirectory(const std::string& path) {
 }
 
 bool createDirectories() {
-    if (!makeDirectory(kDataRoot)) return false;
-    if (!makeDirectory(kWritableRoot)) return false;
-    makeDirectory(kWritableRoot + "/logs");
-    makeDirectory(kWritableRoot + "/cache");
-    makeDirectory(kWritableRoot + "/saves");
-    makeDirectory(kWritableRoot + "/config");
-    makeDirectory(kWritableRoot + "/tmp");
-    return true;
+    bool ok = makeDirectory(kDataRoot);
+    ok = makeDirectory(kWritableRoot) && ok;
+    // Parent first: the log/cache/saves/config/tmp children only resolve once
+    // the writable root itself exists.
+    for (const char* relative : {"/logs", "/cache", "/saves", "/config", "/tmp"}) {
+        ok = makeDirectory(std::string(kWritableRoot) + relative) && ok;
+    }
+    return ok;
 }
 
 // Set the process environment the rest of the client reads, in the same
@@ -129,6 +129,10 @@ bool initSystem() {
 }
 
 void shutdownSystem() {
+    if (!g_initialised) return;
+    reportBootStage("shutdown");
+    socketExit();
+    fsdevUnmountAll();
     g_initialised = false;
 }
 
@@ -161,19 +165,20 @@ void reportBootStage(const char* stage) {
 void reportCrashSignal(int signal) {
     // Async-signal-safe: the boot log is already open (opened once in
     // initSystem), so this only writes a fixed line to a known descriptor. No
-    // allocation, no locks, no formatting beyond an integer.
+    // allocation, no locks, no formatting beyond one integer.
     static const char kPrefix[] = "[signal] FATAL SIGNAL ";
     if (g_bootFd < 0) return;
-    char digits[16];
+    char digits[12];
     size_t n = 0;
-    int value = signal;
+    unsigned value = signal < 0 ? static_cast<unsigned>(-signal) : static_cast<unsigned>(signal);
     do {
         digits[n++] = static_cast<char>('0' + (value % 10));
         value /= 10;
     } while (value != 0 && n < sizeof(digits));
-    char line[sizeof(kPrefix) + 16 + 2];
+    char line[sizeof(kPrefix) + sizeof(digits) + 2];
     size_t at = 0;
     for (size_t i = 0; kPrefix[i]; ++i) line[at++] = kPrefix[i];
+    if (signal < 0) line[at++] = '-';
     while (n > 0) line[at++] = digits[--n];
     line[at++] = '\n';
     ::write(g_bootFd, line, at);
@@ -200,7 +205,10 @@ void showStartupError(const char* message) {
     fatalThrow(MAKERESULT(Module_Libnx, LibnxError_ShouldNotHappen));
 }
 
-std::string dataRoot() { return kDataRoot; }
+std::string dataRoot() {
+    const char* configured = std::getenv("WOW_DATA_PATH");
+    return (configured && *configured) ? configured : kDataRoot;
+}
 std::string writableRoot() { return kWritableRoot; }
 std::string appRoot() { return kAppRoot; }
 
