@@ -60,6 +60,20 @@ struct ShaderPair {
 ShaderPair loadShaderPair(VkDevice device, const std::string& vertPath,
                           const std::string& fragPath, const char* what);
 
+/// Source path a module was loaded from, for pipeline diagnostics. Empty when
+/// the module came from memory rather than a file.
+///
+/// Pipeline creation is where a driver reports a problem with a *shader*, and
+/// all it reports is which stage of which pipeline - naming the .spv behind it
+/// is the difference between "a shader failed" and a fix. The entry point in
+/// VkPipelineShaderStageCreateInfo cannot carry this: pName has to stay the
+/// SPIR-V entry point name.
+const std::string& ShaderSourcePath(::VkShaderModule module);
+
+/// Registry hooks used by VkShaderModule; not called directly.
+void RememberShaderSource(::VkShaderModule module, const std::string& path);
+void ForgetShaderSource(::VkShaderModule module);
+
 
 } // namespace rendering
 } // namespace wowee

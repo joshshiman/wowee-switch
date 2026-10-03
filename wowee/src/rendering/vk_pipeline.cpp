@@ -1,5 +1,10 @@
 #include "rendering/vk_pipeline.hpp"
+#include "rendering/vk_shader.hpp"
 #include "core/logger.hpp"
+
+#include <mutex>
+#include <set>
+#include <string>
 
 namespace wowee {
 namespace rendering {
@@ -202,10 +207,30 @@ VkPipeline PipelineBuilder::build(VkDevice device, VkPipelineCache cache) const 
     pipelineInfo.subpass = subpass_;
 
     VkPipeline pipeline = VK_NULL_HANDLE;
-    if (vkCreateGraphicsPipelines(device, cache, 1, &pipelineInfo,
-            nullptr, &pipeline) != VK_SUCCESS)
+    // Which .spv this pipeline is built from, once per distinct combination.
+    // A driver that refuses a shader names a stage and stops there; the last
+    // line before a stall is then the shader that stalled it. Deduplicated
+    // because the renderer builds hundreds of pipelines from ~95 files.
+    std::string stageList;
+    for (const VkPipelineShaderStageCreateInfo& stage : shaderStages_) {
+        const std::string& source = ShaderSourcePath(stage.module);
+        if (!stageList.empty()) stageList += " + ";
+        stageList += source.empty() ? std::string("<memory>") : source;
+    }
+    static std::mutex loggedMutex;
+    static std::set<std::string> loggedCombinations;
     {
-        LOG_ERROR("Failed to create graphics pipeline");
+        std::lock_guard<std::mutex> lock(loggedMutex);
+        if (loggedCombinations.insert(stageList).second) {
+            LOG_WARNING("[PIPELINE] ", stageList);
+        }
+    }
+
+    const VkResult createResult =
+        vkCreateGraphicsPipelines(device, cache, 1, &pipelineInfo, nullptr, &pipeline);
+    if (createResult != VK_SUCCESS) {
+        LOG_ERROR("Failed to create graphics pipeline (", stageList, "): VkResult=",
+                  static_cast<int>(createResult));
         return VK_NULL_HANDLE;
     }
 

@@ -6,9 +6,36 @@
 #include <filesystem>
 #include <cstring>
 #include <cerrno>
+#include <mutex>
+#include <unordered_map>
 
 namespace wowee {
 namespace rendering {
+
+namespace {
+// Module handle -> the file it came from. Diagnostics only: a driver that
+// rejects a shader names a stage, not a file, and the fix is almost always in
+// one specific .spv. Guarded because pipelines are built from worker threads.
+std::mutex g_sourceMutex;
+std::unordered_map<::VkShaderModule, std::string> g_sourcePaths;
+}  // namespace
+
+const std::string& ShaderSourcePath(::VkShaderModule module) {
+    static const std::string empty;
+    std::lock_guard<std::mutex> lock(g_sourceMutex);
+    const auto it = g_sourcePaths.find(module);
+    return it == g_sourcePaths.end() ? empty : it->second;
+}
+
+void RememberShaderSource(::VkShaderModule module, const std::string& path) {
+    std::lock_guard<std::mutex> lock(g_sourceMutex);
+    g_sourcePaths[module] = path;
+}
+
+void ForgetShaderSource(::VkShaderModule module) {
+    std::lock_guard<std::mutex> lock(g_sourceMutex);
+    g_sourcePaths.erase(module);
+}
 
 VkShaderModule::~VkShaderModule() {
     destroy();
@@ -57,6 +84,10 @@ bool VkShaderModule::loadFromFile(VkDevice device, const std::string& path) {
 
     if (!loadFromMemory(device, code.data(), fileSize)) return false;
 
+    // Remembered so a pipeline built from this module can name the file: a
+    // driver that rejects a shader reports a stage, and the fix is in one .spv.
+    RememberShaderSource(module_, path);
+
     // Named with the file it came from, so a shader module in the
     // vkDestroyDevice leak report identifies its subsystem rather than being
     // a bare handle. Nothing without validation: the naming call is a no-op
@@ -98,6 +129,7 @@ bool VkShaderModule::loadFromMemory(VkDevice device, const uint32_t* code, size_
 
 void VkShaderModule::destroy() {
     if (module_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
+        ForgetShaderSource(module_);
         vkDestroyShaderModule(device_, module_, nullptr);
         module_ = VK_NULL_HANDLE;
     }
