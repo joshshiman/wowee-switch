@@ -111,6 +111,18 @@ A launch that ends immediately with `Threw fatal error type 2` /
 `LibnxError_ShouldNotHappen` is the resource check failing: copy
 `build-switch/wowee-data` next to the `.nro` as `data/`.
 
+An abort that happens *before* the client writes anything - nothing in
+`boot.log`, and in the emulator's own log a jump to a near-null address with
+`envSetup`/`envGetMainThreadHandle`/`__libnx_init` in the backtrace - is
+libnx refusing to create the main thread because the loader's homebrew
+environment block carries no `EntryType_MainThreadHandle`. Nothing in the
+client runs at that point, so it is a property of how the title was launched,
+not of the build. Seen under Eden after a previous launch had been force-stopped
+while showing the fatal applet; fully exiting the emulator and launching again
+cleared it, and setting the error applet to HLE avoids the state that led to it.
+A minimal libnx program is a useful control: if that aborts too, the launch is
+the problem rather than this client.
+
 `WOW_DATA_PATH` defaults to `sdmc:/wowps`; `WOWEE_LOG_LEVEL`, `WOWEE_RESOURCE_ROOT`
 and the other `WOWEE_*` knobs work as on desktop.
 
