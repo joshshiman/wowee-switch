@@ -157,10 +157,21 @@ bool Renderer::createPerFrameResources() {
 #ifdef WOWEE_SWITCH
     VkPhysicalDeviceMemoryProperties shadowMemoryProperties{};
     vkGetPhysicalDeviceMemoryProperties(vkCtx->getPhysicalDevice(), &shadowMemoryProperties);
-    imgAllocCI.memoryTypeBits = SwitchShadowMemoryTypeBits(shadowMemoryProperties);
-    if (!imgAllocCI.memoryTypeBits) {
-        LOG_ERROR("Shadow atlas: no uncached GPU-local memory type available");
+    const auto shadowMemory =
+        ChooseSwitchShadowMemoryType(shadowMemoryProperties);
+    imgAllocCI.memoryTypeBits = shadowMemory.memoryTypeBits;
+    if (shadowMemory.policy == SwitchShadowMemoryPolicy::Unavailable) {
+        LOG_ERROR("Shadow atlas: the device reports no device-local memory");
+        LogSwitchMemoryTypes(shadowMemoryProperties);
         return false; // VMA interprets a zero mask as unrestricted, so fail closed.
+    }
+    if (shadowMemory.policy == SwitchShadowMemoryPolicy::DeviceLocalOnly) {
+        // No uncached host-visible heap. Depth inspection wants one, but it is a
+        // WOWEE_PS4-only facility, so a narrower mask than the renderer needs
+        // must not stop the client from starting.
+        LOG_WARNING("Shadow atlas: no uncached host-visible memory type; using device-local "
+                    "memory. CPU depth inspection is unavailable (and unused outside WOWEE_PS4).");
+        LogSwitchMemoryTypes(shadowMemoryProperties);
     }
 #endif
     for (uint32_t i = 0; i < MAX_FRAMES; i++) {
@@ -177,7 +188,9 @@ bool Renderer::createPerFrameResources() {
                  " flags=", shadowMemoryProperties.memoryTypes[shadowAllocationInfo.memoryType].propertyFlags,
                  " allowedTypes=", imgAllocCI.memoryTypeBits,
                  " bytes=", shadowAllocationInfo.size,
-                 "; uncached GPU-local atlas; retired depth inspection supported");
+                 "; ", (shadowMemory.policy == SwitchShadowMemoryPolicy::UncachedHostVisible)
+                        ? "uncached GPU-local atlas; retired depth inspection supported"
+                        : "device-local atlas; retired depth inspection not available");
 #endif
         shadowDepthLayout_[i] = VK_IMAGE_LAYOUT_UNDEFINED;
 #ifdef WOWEE_SWITCH
