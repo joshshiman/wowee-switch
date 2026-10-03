@@ -3,6 +3,7 @@
 #include "game/warden_crypto.hpp"
 #include "auth/crypto.hpp"
 #include "core/logger.hpp"
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <filesystem>
@@ -20,6 +21,12 @@
     #define WIN32_LEAN_AND_MEAN
     #endif
     #include <windows.h>
+#elif defined(WOWEE_SWITCH)
+    // Horizon homebrew has no mmap and no anonymous executable mapping:
+    // libnx maps through svcMapMemory, and turning a mapping executable
+    // needs svcControlCodeMemory, a privileged syscall. The Warden's native
+    // module therefore does not run here; see the allocation sites below.
+    #include <cerrno>
 #else
     #include <sys/mman.h>
     #include <cerrno>
@@ -264,6 +271,8 @@ void WardenModule::unload() {
         LOG_INFO("WardenModule: Freeing ", moduleSize_, " bytes of executable memory");
         #ifdef _WIN32
             VirtualFree(moduleMemory_, 0, MEM_RELEASE);
+        #elif defined(WOWEE_SWITCH)
+            ::free(moduleMemory_);
         #else
             munmap(moduleMemory_, moduleSize_);
         #endif
@@ -605,6 +614,11 @@ bool WardenModule::parseExecutableFormat(const std::vector<uint8_t>& exeData) {
                     #ifdef _WIN32
                     moduleMemory_ = VirtualAlloc(nullptr, imageSize, MEM_COMMIT | MEM_RESERVE,
                                                  PAGE_EXECUTE_READWRITE);
+                    #elif defined(WOWEE_SWITCH)
+                    // Ordinary heap memory: the module is decoded and kept,
+                    // but there is nowhere executable to run it on this
+                    // platform (see the note at the top of this file).
+                    moduleMemory_ = ::malloc(imageSize);
                     #else
                     #ifdef HAVE_UNICORN
                     const int mmapProt = PROT_READ | PROT_WRITE;
@@ -679,29 +693,43 @@ bool WardenModule::parseExecutableFormat(const std::vector<uint8_t>& exeData) {
         // emulator's address space, so we only need read/write access here.
         // Native execution paths (non-Unicorn) need PROT_EXEC; on macOS this
         // requires MAP_JIT due to hardened-runtime restrictions.
-        #ifdef HAVE_UNICORN
-            int mmapProt  = PROT_READ | PROT_WRITE;
-            int mmapFlags = MAP_PRIVATE | MAP_ANONYMOUS;
-        #elif defined(WOWEE_MAP_JIT)
-            int mmapProt  = PROT_READ | PROT_WRITE | PROT_EXEC;
-            int mmapFlags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT;
-        #else
-            int mmapProt  = PROT_READ | PROT_WRITE | PROT_EXEC;
-            int mmapFlags = MAP_PRIVATE | MAP_ANONYMOUS;
-        #endif
-        moduleMemory_ = mmap(
-            nullptr,
-            finalCodeSize,
-            mmapProt,
-            mmapFlags,
-            -1,
-            0
-        );
-        if (moduleMemory_ == MAP_FAILED) {
-            LOG_ERROR("WardenModule: mmap failed: ", strerror(errno));
-            moduleMemory_ = nullptr;
+        #if defined(WOWEE_SWITCH)
+        // No executable anonymous memory on Horizon homebrew (see the top of
+        // this file): allocate read/write and report that the native Warden
+        // module cannot run here. Connections to servers that never send a
+        // Warden challenge - local realms included - are unaffected.
+        moduleMemory_ = ::malloc(finalCodeSize);
+        if (!moduleMemory_) {
+            LOG_ERROR("WardenModule: allocation failed");
             return false;
         }
+        LOG_WARNING("WardenModule: executable memory is unavailable on this platform; "
+                    "the module is loaded read/write and will not be called into");
+        #else
+            #ifdef HAVE_UNICORN
+            int mmapProt  = PROT_READ | PROT_WRITE;
+            int mmapFlags = MAP_PRIVATE | MAP_ANONYMOUS;
+            #elif defined(WOWEE_MAP_JIT)
+            int mmapProt  = PROT_READ | PROT_WRITE | PROT_EXEC;
+            int mmapFlags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT;
+            #else
+            int mmapProt  = PROT_READ | PROT_WRITE | PROT_EXEC;
+            int mmapFlags = MAP_PRIVATE | MAP_ANONYMOUS;
+            #endif
+            moduleMemory_ = mmap(
+                nullptr,
+                finalCodeSize,
+                mmapProt,
+                mmapFlags,
+                -1,
+                0
+            );
+            if (moduleMemory_ == MAP_FAILED) {
+                LOG_ERROR("WardenModule: mmap failed: ", strerror(errno));
+                moduleMemory_ = nullptr;
+                return false;
+            }
+        #endif
     #endif
 
     moduleSize_ = finalCodeSize;

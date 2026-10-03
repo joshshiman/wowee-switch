@@ -112,7 +112,7 @@ using Clock = std::chrono::steady_clock;
 bool s_initialised = false;
 bool s_padConnected = false;      // a handle was opened
 
-PadState s_padState;
+PadSnapshot s_padState;
 uint32_t s_prevButtons = 0;
 Clock::time_point s_lastPump{};
 bool s_pumpedOnce = false;
@@ -395,7 +395,7 @@ Layer activeLayer(uint32_t buttons) {
 
 void readPad(float dt) {
     (void)dt;
-    PadState st;
+    PadSnapshot st;
     st.connected = false;
     {
         // The console reports the built-in Joy-Cons as one Npad (Handheld) and
@@ -491,7 +491,7 @@ void readPad(float dt) {
 // The left stick's four keys, with hysteresis. Off with text focus: the game
 // already ignores movement then, but the keys would still reach the box.
 void applyLeftStick(std::array<bool, SDL_NUM_SCANCODES>& want) {
-    const PadState& st = s_padState;
+    const PadSnapshot& st = s_padState;
     if (s_textFocus || !st.connected) {
         s_walkForward = s_walkBack = s_strafeLeft = s_strafeRight = false;
         return;
@@ -509,7 +509,7 @@ void applyLeftStick(std::array<bool, SDL_NUM_SCANCODES>& want) {
 // The right stick: mouse-look in the world (a right-button drag the camera
 // controller already understands), the cursor everywhere else.
 void applyRightStick(float dt, bool& rightButton) {
-    const PadState& st = s_padState;
+    const PadSnapshot& st = s_padState;
     const float mag = std::sqrt(st.rx * st.rx + st.ry * st.ry);
     const bool lookAllowed = s_inWorld && !s_menuOwners && !s_cursorMode && !s_textFocus && st.connected;
 
@@ -627,9 +627,10 @@ bool initInput() {
     }
     hidInitializeNpad();
     hidInitializeTouchScreen();
-    static const HidNpadIdType kIds[] = {HidNpadIdType_No1, HidNpadIdType_Handheld};
-    if (R_FAILED(hidSetSupportedNpadIdType(kIds, 2))) ||
-        R_FAILED(hidSetSupportedNpadStyleSet(HidNpadStyleSet_NpadFullCtrl))) {
+static const HidNpadIdType kIds[] = {HidNpadIdType_No1, HidNpadIdType_Handheld};
+    const Result idsResult = hidSetSupportedNpadIdType(kIds, 2);
+    const Result stylesResult = hidSetSupportedNpadStyleSet(HidNpadStyleSet_NpadFullCtrl);
+    if (R_FAILED(idsResult) || R_FAILED(stylesResult)) {
         LOG_ERROR("could not declare the supported Npad ids/styles");
         s_initialised = false;
         return false;
@@ -646,7 +647,7 @@ void shutdownInput() {
     }
     hidExit();
     s_padConnected = false;
-    s_padState = PadState{};
+    s_padState = PadSnapshot{};
     s_held.fill(0);
     s_events.clear();
     s_initialised = false;
@@ -679,7 +680,7 @@ void pumpInput() {
 
     readPad(dt);
 
-    const PadState& st = s_padState;
+    const PadSnapshot& st = s_padState;
     s_menuSuppressedButtons &= st.buttons;
     if (s_menuOwners) s_menuSuppressedButtons |= st.buttons;
     const uint32_t gameplayButtons = st.buttons & ~s_menuSuppressedButtons;
@@ -730,7 +731,7 @@ void pumpInput() {
                 // cannot reach, and closing it again needs a press this loop
                 // never sees: the loop is skipped outright while a menu owns
                 // the pad, which is what the open map is. So the bridge reads
-                // the button off padState() and the table keeps the row, so
+                // the button off padSnapshot() and the table keeps the row, so
                 // that what the middle of the pad does is still written in the
                 // one place the mapping is written.
                 break;
@@ -911,7 +912,7 @@ bool takeKeyboardRequest() {
     return r;
 }
 
-const PadState& padState() { return s_padState; }
+const PadSnapshot& padSnapshot() { return s_padState; }
 bool padConnected() { return s_padConnected; }
 
 void pushKeyEvent(SDL_Scancode scancode, bool down) {

@@ -251,7 +251,7 @@ void ImGui_ImplSwitch_NewFrame(int displayWidth, int displayHeight) {
         setInputUiFocus(uiFocus);
         g_bd.uiFocusSent = uiFocus;
     }
-    const PadState& pad = padState();
+    const PadSnapshot& pad = padSnapshot();
     const struct { uint32_t button; ImGuiKey key; } navKeys[8] = {
         {ORBIS_PAD_BUTTON_UP, ImGuiKey_GamepadDpadUp},
         {ORBIS_PAD_BUTTON_DOWN, ImGuiKey_GamepadDpadDown},

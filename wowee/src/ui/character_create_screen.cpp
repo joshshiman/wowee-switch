@@ -706,7 +706,7 @@ void CharacterCreateScreen::render(game::GameHandler&) {
     if (waiting) ui_.popInert();
     if (field.changed && statusIsError) setStatus("");
 #ifdef WOWEE_SWITCH
-    const bool askNameKeyboard = (platform::switchport::padState().pressed & ORBIS_PAD_BUTTON_TRIANGLE) != 0;
+    const bool askNameKeyboard = (platform::switchport::padSnapshot().pressed & ORBIS_PAD_BUTTON_TRIANGLE) != 0;
     if (!nameKeyboard_.open && !keyboardOwnsInput && field.focused && (!nameWasFocused_ || askNameKeyboard)) {
         nameKeyboard_.begin(name_.text());
         platform::switchport::setApplicationKeyboardOpen(true);
@@ -744,7 +744,7 @@ void CharacterCreateScreen::render(game::GameHandler&) {
     bool backKey = !keyboardOwnsInput && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 #ifdef WOWEE_SWITCH
     if (!keyboardOwnsInput)
-        backKey = backKey || ((platform::switchport::padState().pressed & ORBIS_PAD_BUTTON_CIRCLE) != 0);
+        backKey = backKey || ((platform::switchport::padSnapshot().pressed & ORBIS_PAD_BUTTON_CIRCLE) != 0);
 #endif
     if (backKey && !ui_.popupOpen()) {
         if (ui_.wantsTextInput()) ui_.clearFocus();
@@ -780,7 +780,7 @@ void CharacterCreateScreen::renderNameKeyboard() {
         ImGui::Separator();
         const bool ignoreOpeningPress = nameKeyboard_.justOpened;
         nameKeyboard_.justOpened = false;
-        const auto pressed = ignoreOpeningPress ? 0u : platform::switchport::padState().pressed;
+        const auto pressed = ignoreOpeningPress ? 0u : platform::switchport::padSnapshot().pressed;
         if (pressed & ORBIS_PAD_BUTTON_LEFT) nameKeyboard_.move(-1,0);
         if (pressed & ORBIS_PAD_BUTTON_RIGHT) nameKeyboard_.move(1,0);
         if (pressed & ORBIS_PAD_BUTTON_UP) nameKeyboard_.move(0,-1);

@@ -11,6 +11,10 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#elif defined(WOWEE_SWITCH)
+    // No dynamic loader on Horizon homebrew; the FSR3 runtime below is compiled
+    // out on this target anyway (WOWEE_HAS_AMD_FSR3_FRAMEGEN=0), and nothing
+    // here uses dlopen.
 #else
 #include <dlfcn.h>
 #endif
@@ -761,7 +765,7 @@ void AmdFsr3Runtime::shutdown() {
     }
 #if defined(_WIN32)
     if (libHandle_) FreeLibrary(reinterpret_cast<HMODULE>(libHandle_));
-#else
+#elif !defined(WOWEE_SWITCH)
     if (libHandle_) dlclose(libHandle_);
 #endif
     libHandle_ = nullptr;

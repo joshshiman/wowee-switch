@@ -189,7 +189,7 @@ bool takeKeyboardRequest();
 
 /// The pad after the last pumpInput. Buttons are the HidNpadButton bits the
 /// mapping uses (see switch_pad_buttons.h); sticks are -1..1 after the dead zone.
-struct PadState {
+struct PadSnapshot {
     bool connected = false;
     uint32_t buttons = 0;    ///< held
     uint32_t pressed = 0;    ///< went down this frame
@@ -200,7 +200,7 @@ struct PadState {
     /// the pad mapping only asks whether the trigger is held.
     float l2 = 0.0f, r2 = 0.0f;
 };
-const PadState& padState();
+const PadSnapshot& padSnapshot();
 
 /// Whether a pad was opened. The ImGui backend advertises a gamepad on it.
 bool padConnected();

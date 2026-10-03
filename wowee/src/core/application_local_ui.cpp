@@ -116,7 +116,7 @@ void Application::renderLocalRealmOverlay() {
     });
     bool toggleTarget=pressed(ImGuiKey_Tab);
 #ifdef WOWEE_SWITCH
-    const auto& targetPad=platform::switchport::padState();
+    const auto& targetPad=platform::switchport::padSnapshot();
     if(keys && localFrameXml_.ready() && targetPad.connected &&
        !platform::switchport::inputTextFocus() && !platform::switchport::keyboardCapturesInput() && (targetPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE))toggleTarget=true;
 #endif
@@ -282,7 +282,7 @@ void Application::renderLocalRealmOverlay() {
         if(icon){ImGui::Image((ImTextureID)(uintptr_t)icon,ImVec2(pixels*scale,pixels*scale));ImGui::SameLine();}
     };
 #ifdef WOWEE_SWITCH
-    const auto& actionPad=platform::switchport::padState();
+    const auto& actionPad=platform::switchport::padSnapshot();
     if(keys && self.vehicleGuid && actionPad.connected && !platform::switchport::keyboardCapturesInput() &&
        !platform::switchport::inputTextFocus()) {
         const bool yawModifier=(actionPad.buttons&ORBIS_PAD_BUTTON_L2)!=0;
@@ -322,7 +322,7 @@ void Application::renderLocalRealmOverlay() {
     ) {
         bool contextual = false;
 #ifdef WOWEE_SWITCH
-        const auto& pad = platform::switchport::padState();
+        const auto& pad = platform::switchport::padSnapshot();
         contextual = pad.connected && (pad.buttons & ORBIS_PAD_BUTTON_SQUARE) &&
             !(pad.buttons & (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1 |
                              ORBIS_PAD_BUTTON_L2 | ORBIS_PAD_BUTTON_R2));

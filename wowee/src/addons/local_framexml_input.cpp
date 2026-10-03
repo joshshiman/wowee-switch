@@ -209,7 +209,7 @@ bool LocalFrameXml::worldMapOwnsPad() const {
 bool LocalFrameXml::padWorldMapToggle() {
 #ifdef WOWEE_SWITCH
     if(!ready() || platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
-    const auto& pad=platform::switchport::padState();
+    const auto& pad=platform::switchport::padSnapshot();
     if(!pad.connected || ImGui::GetIO().WantTextInput)return false;
     if(!(pad.pressed&kPadWorldMapButton))return false;
     auto& tree=engine_->widgets();
@@ -311,7 +311,7 @@ bool LocalFrameXml::navigateBars() {
     if(auto* realm=realm_?realm_():nullptr) {
         if(const auto* player=realm->localPlayer();player && player->dead) {
             padFocus_.clear();
-            const auto& deathPad=platform::switchport::padState();
+            const auto& deathPad=platform::switchport::padSnapshot();
             if(player->ghost && deathPad.connected &&
                (deathPad.pressed&ORBIS_PAD_BUTTON_SQUARE) &&
                !(deathPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE)) {
@@ -327,7 +327,7 @@ bool LocalFrameXml::navigateBars() {
     }
     // Circle cancels a carried reference before closing a panel. Bag contents
     // stay owned by inventory; cancelling never destroys the item.
-    if(carrying(engine_) && (platform::switchport::padState().pressed&ORBIS_PAD_BUTTON_CIRCLE)) {
+    if(carrying(engine_) && (platform::switchport::padSnapshot().pressed&ORBIS_PAD_BUTTON_CIRCLE)) {
         engine_->executeString("if ClearCursor then ClearCursor() end");
         ui::noteInterfaceConsumedKey(ImGuiKey_GamepadFaceRight);
         ui::noteInterfaceConsumedKey(ImGuiKey_Escape);
@@ -338,7 +338,7 @@ bool LocalFrameXml::navigateBars() {
     // the map is up nothing else may read the pad.
     if(padWorldMapToggle())return true;
     if(padWorldMapFrame())return true;
-    const auto& io=ImGui::GetIO();const auto& pad=platform::switchport::padState();
+    const auto& io=ImGui::GetIO();const auto& pad=platform::switchport::padSnapshot();
     if(!pad.connected || io.WantTextInput)return false;
     auto& tree=engine_->widgets();
     const auto visible=[&](const ui::Widget* w){return w && w->visible && w->alpha>.001f &&
@@ -596,7 +596,7 @@ bool LocalFrameXml::navigate() {
         return true;
     }
 #ifdef WOWEE_SWITCH
-    const auto& rawPad=platform::switchport::padState();
+    const auto& rawPad=platform::switchport::padSnapshot();
     if(focused && !rootChanged && !platform::switchport::keyboardCapturesInput() &&
        (rawPad.pressed&ORBIS_PAD_BUTTON_SQUARE) && !(rawPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE) &&
        !ui::interfaceConsumedKey(ImGuiKey_GamepadFaceLeft)){

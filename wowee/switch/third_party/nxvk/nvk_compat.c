@@ -21,6 +21,14 @@
 #include <switch.h>
 
 /* Back rust's getrandom with CSRNG so the values are actually random. */
+/* ---------------------------------------------------------------------------
+ * The newlib/Horizon gap fills below are only needed by the nxvk *portlib*
+ * build, which does not carry them. The prebuilt drop-in archive
+ * (github.com/jhuz0/nvk-switch) already provides getrandom, posix_memalign,
+ * sysconf, get*id and the regex stubs, so defining them again would be a
+ * duplicate symbol. WOWEE_NXVK_PROVIDES_LOADER marks that build.
+ * ------------------------------------------------------------------------- */
+#ifndef WOWEE_NXVK_PROVIDES_LOADER
 ssize_t getrandom(void *buf, size_t buflen, unsigned int flags)
 {
    (void)flags;
@@ -126,15 +134,17 @@ int fstatat(int fd, const char *path, struct stat *buf, int flag)
 int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t buflen,
                struct passwd **result)
 {
-   (void)uid; (void)pwd; (void)buf; (void)buflen;
+(void)uid; (void)pwd; (void)buf; (void)buflen;
    if (result)
       *result = NULL;
    return ENOTSUP;
 }
 
+#endif /* !WOWEE_NXVK_PROVIDES_LOADER */
+
 /* ---------------------------------------------------------------------------
  * Homebrew process metadata libnx normally takes from the CRT startup. A title
- * linked directly against libnvk.a (as this one is) defines them itself; nxvk
+ * linking the driver statically (as this one does) defines them itself; NVK
  * refuses to enumerate devices without __nx_applet_type being an application,
  * and __nx_heap_size sizes the heap the title's own allocations come from.
  */

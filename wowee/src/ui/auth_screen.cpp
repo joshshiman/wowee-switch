@@ -1352,7 +1352,7 @@ void AuthScreen::renderLocalPlayerLimit(float left, float top, float width, bool
     bool more = ui_.button("lan.players.more", {left + width - step, top}, {left + width, top + height}, "+", PaperUI::ButtonKind::Quiet, enabled && localPlayerLimit_ < 100);
     const bool padEnabled = enabled && !ui_.popupOpen() && !ui_.wantsTextInput();
 #ifdef WOWEE_SWITCH
-    const auto& pad = platform::switchport::padState();
+    const auto& pad = platform::switchport::padSnapshot();
     const bool canAdjust = padEnabled && pad.connected && !platform::switchport::keyboardCapturesInput();
     const int direction = canAdjust ? int((pad.buttons & ORBIS_PAD_BUTTON_RIGHT)!=0) - int((pad.buttons & ORBIS_PAD_BUTTON_LEFT)!=0) : 0;
     const double now=ImGui::GetTime();

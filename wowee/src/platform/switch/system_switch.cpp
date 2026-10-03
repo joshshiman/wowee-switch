@@ -47,7 +47,10 @@ namespace {
 
 constexpr const char* kDataRoot = "sdmc:/wowps";
 constexpr const char* kWritableRoot = "sdmc:/wowps/wowps";
-constexpr const char* kAppRoot = "romfs:/";
+// Runtime assets are staged beside the .nro rather than embedded: the launch
+// directory is sdmc:/switch/wowee, and the assets live in its data/ subdir.
+// WOWEE_RESOURCE_ROOT overrides it (used by tests and by anyone relocating).
+constexpr const char* kAppRoot = "sdmc:/switch/wowee/data";
 
 bool g_initialised = false;
 bool g_splashHidden = false;
@@ -97,7 +100,7 @@ void applyEnvironment() {
         setenv("HOME", kWritableRoot, 0);
     }
     if (!std::getenv("TMPDIR")) {
-        setenv("TMPDIR", (kWritableRoot + "/tmp").c_str(), 0);
+        setenv("TMPDIR", (std::string(kWritableRoot) + "/tmp").c_str(), 0);
     }
 }
 
@@ -210,7 +213,10 @@ std::string dataRoot() {
     return (configured && *configured) ? configured : kDataRoot;
 }
 std::string writableRoot() { return kWritableRoot; }
-std::string appRoot() { return kAppRoot; }
+std::string appRoot() {
+    const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
+    return (configured && *configured) ? configured : kAppRoot;
+}
 
 uint32_t resolveIPv4(const std::string& host) {
     // libnx's newlib getaddrinfo resolves names through the bsd service.

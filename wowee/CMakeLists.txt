@@ -22,7 +22,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_compile_definitions(WOWEE_SWITCH=1)
-set(WOWEE_SWITCH_TOOLS_DIR "${DEVKITPRO}/tools")
+set(WOWEE_SWITCH_TOOLS_DIR "${DEVKITPRO}/tools/bin")
 set(BUILD_SHARED_LIBS OFF)
 set(WOWEE_ENABLE_ASAN OFF)
 set(WOWEE_ENABLE_TRACY OFF)
@@ -112,6 +112,11 @@ if(EXISTS ${IMGUI_DIR})
             ${CMAKE_CURRENT_SOURCE_DIR}/switch/compat/cxx20
             ${CMAKE_CURRENT_SOURCE_DIR}/switch/compat)
         target_include_directories(imgui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        # ImGui's default "open in shell/file browser" helpers fork+exec and
+        # waitpid; a Switch title has no processes and newlib has neither call.
+        target_compile_definitions(imgui PUBLIC
+            IMGUI_DISABLE_DEFAULT_SHELL_FUNCTIONS
+            IMGUI_DISABLE_OS_FUNCTIONS)
         target_link_libraries(imgui PUBLIC Vulkan::Vulkan)
     else()
         target_link_libraries(imgui PUBLIC SDL2::SDL2 Vulkan::Vulkan ${CMAKE_DL_LIBS})
@@ -121,12 +126,18 @@ else()
     message(WARNING "  git clone https://github.com/ocornut/imgui.git extern/imgui")
 endif()
 set(VK_BOOTSTRAP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/vk-bootstrap)
-if(EXISTS ${VK_BOOTSTRAP_DIR})
+# The console's Vulkan backend is the driver itself: VkBootstrap's window/
+# loader discovery has nothing to do there, and the Switch path never calls it
+# (see the !WOWEE_SWITCH branches in src/rendering/vk_context.cpp).
+if(WOWEE_SWITCH)
+    set(WOWEE_VK_BOOTSTRAP_TARGET "")
+elseif(EXISTS ${VK_BOOTSTRAP_DIR})
     add_library(vk-bootstrap STATIC
         ${VK_BOOTSTRAP_DIR}/src/VkBootstrap.cpp
     )
     target_include_directories(vk-bootstrap SYSTEM PUBLIC ${VK_BOOTSTRAP_DIR}/src)
     target_link_libraries(vk-bootstrap PUBLIC Vulkan::Vulkan)
+    set(WOWEE_VK_BOOTSTRAP_TARGET vk-bootstrap)
 else()
     message(FATAL_ERROR "vk-bootstrap not found in extern/vk-bootstrap")
 endif()
@@ -865,7 +876,7 @@ set(WOWEE_SWITCH_LIBS
         ${WOWEE_SWITCH_LIBS}
     )
 
-target_link_libraries(wowee PRIVATE imgui vk-bootstrap glm::glm-header-only)
+target_link_libraries(wowee PRIVATE imgui ${WOWEE_VK_BOOTSTRAP_TARGET} glm::glm-header-only)
 
 # Diagnostics and optimization.
 set(WOWEE_WARNINGS_AS_ERRORS_DEFAULT OFF)
@@ -894,57 +905,62 @@ endif()
 # Runtime files and installable switch package.
 if(WOWEE_SWITCH)
     file(GLOB WOWEE_SWITCH_SPV_FILES ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/*.spv)
-    set(WOWEE_SWITCH_ROMFS $<TARGET_FILE_DIR:wowee>/romfs)
+    # Runtime assets live in a data directory beside the .nro rather than an
+    # embedded romfs: this devkitPro elf2nro cannot read a romfs on this
+    # platform (it mmaps the directory, which fails), and a side-by-side
+    # directory also lets a user refresh shaders without a full rebuild.
+    set(WOWEE_SWITCH_DATA_DIR ${CMAKE_BINARY_DIR}/wowee-data)
     set(WOWEE_SWITCH_RUNTIME_COMMANDS
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_ROMFS}/assets/shaders
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_ROMFS}/Data/expansions
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_DATA_DIR}/assets/shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_DATA_DIR}/Data/expansions
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/assets/local_realm
             $<TARGET_FILE_DIR:wowee>/local_realm
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/Data/expansions
-            ${WOWEE_SWITCH_ROMFS}/Data/expansions
+            ${WOWEE_SWITCH_DATA_DIR}/Data/expansions
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/Data/opcodes
-            ${WOWEE_SWITCH_ROMFS}/Data/opcodes)
+            ${WOWEE_SWITCH_DATA_DIR}/Data/opcodes)
     foreach(_spv ${WOWEE_SWITCH_SPV_FILES})
         get_filename_component(_spv_name ${_spv} NAME)
         list(APPEND WOWEE_SWITCH_RUNTIME_COMMANDS
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${_spv} ${WOWEE_SWITCH_ROMFS}/assets/shaders/${_spv_name})
+                ${_spv} ${WOWEE_SWITCH_DATA_DIR}/assets/shaders/${_spv_name})
     endforeach()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/assets/textures)
         list(APPEND WOWEE_SWITCH_RUNTIME_COMMANDS
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_CURRENT_SOURCE_DIR}/assets/textures
-                ${WOWEE_SWITCH_ROMFS}/assets/textures)
+                ${WOWEE_SWITCH_DATA_DIR}/assets/textures)
     endif()
     foreach(_f grass_biomes.json krayonload.png krayonsignin.png WoWPS.png orgrimmar-entrance.png)
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${_f})
             list(APPEND WOWEE_SWITCH_RUNTIME_COMMANDS
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     ${CMAKE_CURRENT_SOURCE_DIR}/assets/${_f}
-                    ${WOWEE_SWITCH_ROMFS}/assets/${_f})
+                    ${WOWEE_SWITCH_DATA_DIR}/assets/${_f})
         endif()
     endforeach()
-    add_custom_target(WOWEE_SWITCH_runtime_files ALL
+    # The staged data directory is packaged next to the .nro (see
+    # tools/switch/package.sh), so it has to exist before packaging - but it
+    # is not an input to the link itself.
+    add_custom_command(TARGET wowee PRE_LINK
         ${WOWEE_SWITCH_RUNTIME_COMMANDS}
-        COMMENT "switch: syncing assets/shaders/*.spv, assets/textures and Data to $<TARGET_FILE_DIR:wowee>"
+        COMMENT "switch: staging runtime assets into wowee-data/"
         VERBATIM)
-    add_dependencies(WOWEE_SWITCH_runtime_files wowee)
     add_custom_command(TARGET wowee POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E env DEVKITPRO=${DEVKITPRO}
             ${WOWEE_SWITCH_TOOLS_DIR}/nacptool
             --create "WoWee" "WoWee contributors" "2.12.0"
-            $<TARGET_FILE_DIR:wowee>/wowee.nacp
+            ${CMAKE_BINARY_DIR}/wowee.nacp
         COMMAND ${CMAKE_COMMAND} -E env DEVKITPRO=${DEVKITPRO}
             ${WOWEE_SWITCH_TOOLS_DIR}/elf2nro
             $<TARGET_FILE:wowee>
-            $<TARGET_FILE_DIR:wowee>/wowee.nro
-            --nacp=$<TARGET_FILE_DIR:wowee>/wowee.nacp
+            ${CMAKE_BINARY_DIR}/wowee.nro
+            --nacp=${CMAKE_BINARY_DIR}/wowee.nacp
             --icon=${DEVKITPRO}/libnx/default_icon.jpg
-            --romfs=${WOWEE_SWITCH_ROMFS}
-        BYPRODUCTS $<TARGET_FILE_DIR:wowee>/wowee.nro $<TARGET_FILE_DIR:wowee>/wowee.nacp
+        BYPRODUCTS ${CMAKE_BINARY_DIR}/wowee.nro ${CMAKE_BINARY_DIR}/wowee.nacp
         COMMENT "elf2nro: $<TARGET_FILE_NAME:wowee> -> wowee.nro"
         VERBATIM)
     set(WOWEE_SWITCH_BASH bash)
@@ -954,7 +970,7 @@ if(WOWEE_SWITCH)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Staging the Switch homebrew into out/switch"
         VERBATIM USES_TERMINAL)
-    add_dependencies(switchpkg wowee WOWEE_SWITCH_runtime_files copy_bundled_addons)
+    add_dependencies(switchpkg wowee copy_bundled_addons)
 endif()
 
 # Bundled addons.

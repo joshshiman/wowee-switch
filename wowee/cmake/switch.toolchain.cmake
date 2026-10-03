@@ -43,11 +43,11 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 # CPU culling/animation sampling/asset bookkeeping.
 set(WOWEE_SWITCH_COMMON_FLAGS
     "-fPIC -ffunction-sections -fdata-sections -fexceptions -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE -D_GNU_SOURCE -D__SWITCH__ -DWOWEE_SWITCH=1")
-set(CMAKE_C_FLAGS_INIT   "${WOWEE_SWITCH_COMMON_FLAGS}")
-set(CMAKE_CXX_FLAGS_INIT "${WOWEE_SWITCH_COMMON_FLAGS} -fcxx-exceptions")
+set(CMAKE_C_FLAGS_INIT   "${WOWEE_SWITCH_COMMON_FLAGS} -isystem ${DEVKITPRO}/libnx/include")
+set(CMAKE_CXX_FLAGS_INIT "${WOWEE_SWITCH_COMMON_FLAGS} -isystem ${DEVKITPRO}/libnx/include")
 
 set(CMAKE_EXE_LINKER_FLAGS_INIT
-    "-specs=${DEVKITPRO}/libnx/switch.specs -Wl,--gc-sections -L${DEVKITPRO}/portlibs/switch/lib")
+    "-specs=${DEVKITPRO}/libnx/switch.specs -Wl,--gc-sections -L${DEVKITPRO}/libnx/lib -L${DEVKITPRO}/portlibs/switch/lib")
 
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_FIND_ROOT_PATH "${DEVKITPRO}/portlibs/switch;${DEVKITPRO}/libnx")

@@ -15,6 +15,14 @@
   using ProcessHandle = HANDLE;
   inline const ProcessHandle INVALID_PROCESS = INVALID_HANDLE_VALUE;
 
+#elif defined(WOWEE_SWITCH)
+  // A Switch title is a single process: there is no fork/exec, no process
+  // list and no waitpid. The only user of this header is the desktop ffplay
+  // fallback for audio playback, which does not exist here, so the helpers
+  // below become no-ops that report 'not running'.
+  using ProcessHandle = int;
+  inline constexpr ProcessHandle INVALID_PROCESS = -1;
+
 #else
   #include <sys/types.h>
   #include <sys/wait.h>
@@ -49,7 +57,7 @@ namespace platform {
 // directory instead of an exception.
 inline std::string getTempFilePath(const std::string& filename) {
 #ifdef WOWEE_SWITCH
-    return (std::filesystem::path(switch::writableRoot()) / "tmp" / filename).string();
+    return (std::filesystem::path(platform::switchport::writableRoot()) / "tmp" / filename).string();
 #else
     std::error_code ec;
     std::filesystem::path dir = std::filesystem::temp_directory_path(ec);
@@ -66,7 +74,10 @@ inline std::string getTempFilePath(const std::string& filename) {
 inline void killProcess(ProcessHandle& handle) {
     if (handle == INVALID_PROCESS) return;
 
-#ifdef _WIN32
+#if defined(WOWEE_SWITCH)
+    // No subprocess can exist here; nothing to kill.
+    handle = INVALID_PROCESS;
+#elif defined(_WIN32)
     TerminateProcess(handle, 0);
     WaitForSingleObject(handle, 2000);
     CloseHandle(handle);
@@ -96,7 +107,10 @@ inline void killProcess(ProcessHandle& handle) {
 inline bool isProcessRunning(ProcessHandle& handle) {
     if (handle == INVALID_PROCESS) return false;
 
-#ifdef _WIN32
+#if defined(WOWEE_SWITCH)
+    handle = INVALID_PROCESS;
+    return false;
+#elif defined(_WIN32)
     DWORD result = WaitForSingleObject(handle, 0);
     if (result == WAIT_OBJECT_0) {
         // Process has exited

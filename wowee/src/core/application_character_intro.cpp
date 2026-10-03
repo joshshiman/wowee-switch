@@ -298,7 +298,7 @@ void Application::updateCharacterIntro(float deltaTime) {
 
     if (Input::getInstance().isKeyJustPressed(SDL_SCANCODE_ESCAPE)) introSkipRequested_ = true;
 #ifdef WOWEE_SWITCH
-    if (platform::switchport::padState().pressed & ORBIS_PAD_BUTTON_CIRCLE) introSkipRequested_ = true;
+    if (platform::switchport::padSnapshot().pressed & ORBIS_PAD_BUTTON_CIRCLE) introSkipRequested_ = true;
 #endif
     if (introSkipRequested_) {
         const auto skipped=characterIntro_->frame();

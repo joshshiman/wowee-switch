@@ -65,9 +65,15 @@ PFN_vkVoidFunction vk_nxvkLoadDeviceProc(VkDevice device, const char* name) {
     return g_driverGetDeviceProcAddr(device, name);
 }
 
+#ifndef WOWEE_NXVK_PROVIDES_LOADER
+// The nxvk portlib exports only the ICD entry point, so the loader's own
+// vkGetInstanceProcAddr lives here. The prebuilt drop-in archive provides one
+// already (WOWEE_NXVK_PROVIDES_LOADER), and defining it twice would be a
+// duplicate symbol.
 PFN_vkVoidFunction VKAPI_PTR vkGetInstanceProcAddr(VkInstance instance, const char* pName) {
     return vk_icdGetInstanceProcAddr(instance, pName);
 }
+#endif
 
 PFN_vkVoidFunction VKAPI_PTR vkGetDeviceProcAddr(VkDevice device, const char* pName) {
     return vk_nxvkLoadDeviceProc(device, pName);

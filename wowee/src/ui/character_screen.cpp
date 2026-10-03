@@ -255,7 +255,7 @@ void CharacterScreen::render(game::GameHandler& gameHandler) {
         if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, true)) direction = -1;
         if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, true)) direction = 1;
 #ifdef WOWEE_SWITCH
-        const auto& pad = platform::switchport::padState();
+        const auto& pad = platform::switchport::padSnapshot();
         if (pad.pressed & ORBIS_PAD_BUTTON_UP) direction = -1;
         if (pad.pressed & ORBIS_PAD_BUTTON_DOWN) direction = 1;
         // Keep Cross as pointer activation; it must not simultaneously enter
@@ -379,7 +379,7 @@ void CharacterScreen::renderNotice(game::GameHandler& gameHandler, float screenW
         ImVec2(right, screenH - px(30)), "Back");
     back = back || ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 #ifdef WOWEE_SWITCH
-    back = back || ((platform::switchport::padState().pressed & ORBIS_PAD_BUTTON_CIRCLE) != 0);
+    back = back || ((platform::switchport::padSnapshot().pressed & ORBIS_PAD_BUTTON_CIRCLE) != 0);
 #endif
     if (back) { if (onBack) onBack(); return; }
     if (create) { if (onCreateCharacter) onCreateCharacter(); return; }

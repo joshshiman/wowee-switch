@@ -1,11 +1,9 @@
 /*
- * WoWee PS4 crypto shim - RAND_bytes.
+ * WoWee crypto shim - RAND_bytes.
  *
- * PS4:   libSceRandom's sceRandomGetRandomNumber, resolved at runtime with
- *        sceKernelLoadStartModule + sceKernelDlsym so nothing extra has to be
- *        linked; then /dev/urandom through the libc open/read that OpenOrbis
- *        routes to libkernel.
- * Linux: getrandom(2), then /dev/urandom.
+ * Switch: libnx's randomGet() (the console's CSRNG), then /dev/urandom through
+ *         libc open/read.
+ * Linux:  getrandom(2), then /dev/urandom.
  * If every source fails, a SHA-256 based generator seeded from clocks and
  * addresses fills the buffer, a warning is logged once and 0 is returned.
  */
@@ -18,16 +16,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#if defined(__SWITCH__) || defined(__PS4__) || defined(WOWEE_PS4)
-#  define WOWEE_SHIM_PS4 1
-#elif defined(__FreeBSD__) && defined(__has_include)
-#  if __has_include(<orbis/libkernel.h>)
-#    define WOWEE_SHIM_PS4 1
-#  endif
-#endif
-
-#if defined(WOWEE_SHIM_PS4)
-#  include <orbis/libkernel.h>
+#if defined(__SWITCH__) || defined(WOWEE_SWITCH)
+#  define WOWEE_SHIM_SWITCH 1
+#  include <switch.h>
 #elif defined(__linux__)
 #  include <sys/random.h>
 #  include <errno.h>
@@ -37,31 +28,11 @@ WOWEE_SHIM_BEGIN
 
 namespace {
 
-#if defined(WOWEE_SHIM_PS4)
-typedef int (*SceRandomFn)(void *buf, size_t size);
-
-SceRandomFn resolveSceRandom() {
-    static SceRandomFn fn = nullptr;
-    static bool tried = false;
-    if (tried) return fn;
-    tried = true;
-    int32_t handle = static_cast<int32_t>(sceKernelLoadStartModule("libSceRandom.sprx", 0, nullptr, 0, nullptr, nullptr));
-    if (handle <= 0) return nullptr;
-    void *sym = nullptr;
-    if (sceKernelDlsym(handle, "sceRandomGetRandomNumber", &sym) != 0 || !sym) return nullptr;
-    fn = reinterpret_cast<SceRandomFn>(sym);
-    return fn;
-}
-
-bool fillFromSceRandom(unsigned char *buf, size_t n) {
-    SceRandomFn fn = resolveSceRandom();
-    if (!fn) return false;
-    while (n) {
-        size_t chunk = n > 64 ? 64 : n; /* SCE_RANDOM_MAX_SIZE */
-        if (fn(buf, chunk) != 0) return false;
-        buf += chunk;
-        n -= chunk;
-    }
+#if defined(WOWEE_SHIM_SWITCH)
+// libnx's randomGet() is the OS-seeded ChaCha generator the system itself
+// uses (ASLR, temporary names, ...).
+bool fillFromCsrng(unsigned char *buf, size_t n) {
+    randomGet(buf, n);
     return true;
 }
 #endif
@@ -83,7 +54,7 @@ bool fillFromUrandom(unsigned char *buf, size_t n) {
     return ok;
 }
 
-#if defined(__linux__) && !defined(WOWEE_SHIM_PS4)
+#if defined(__linux__) && !defined(WOWEE_SHIM_SWITCH)
 bool fillFromGetrandom(unsigned char *buf, size_t n) {
     while (n) {
         ssize_t r = ::getrandom(buf, n, 0);
@@ -136,8 +107,8 @@ int RAND_bytes(unsigned char *buf, int num) {
     if (num == 0) return 1;
     if (!buf) return 0;
     const size_t n = static_cast<size_t>(num);
-#if defined(WOWEE_SHIM_PS4)
-    if (fillFromSceRandom(buf, n)) return 1;
+#if defined(WOWEE_SHIM_SWITCH)
+    if (fillFromCsrng(buf, n)) return 1;
 #elif defined(__linux__)
     if (fillFromGetrandom(buf, n)) return 1;
 #endif
@@ -150,8 +121,8 @@ int RAND_priv_bytes(unsigned char *buf, int num) { return RAND_bytes(buf, num); 
 
 int RAND_status(void) {
     unsigned char probe[4];
-#if defined(WOWEE_SHIM_PS4)
-    if (fillFromSceRandom(probe, sizeof probe)) return 1;
+#if defined(WOWEE_SHIM_SWITCH)
+    if (fillFromCsrng(probe, sizeof probe)) return 1;
 #elif defined(__linux__)
     if (fillFromGetrandom(probe, sizeof probe)) return 1;
 #endif
