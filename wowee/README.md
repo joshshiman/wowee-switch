@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ps4/sce_sys/icon0.png" alt="WoWPS" width="160">
+  <img src="assets/WoWPS.png" alt="WoWPS" width="160">
 </p>
 
 > [!NOTE]
@@ -8,8 +8,9 @@
 > one and its renderer pointed at Mesa NVK (`VK_NN_vi_surface` over the default
 > `NWindow`). See [docs/BUILD_SWITCH.md](docs/BUILD_SWITCH.md) for the toolchain,
 > the nxvk driver and the SD-card layout. Everything below that describes the
-> PS4 target, its PKG packaging or the GNM backend is kept as history; the PS4
-> sources remain under `ps4/`, `src/platform/ps4/` and `include/platform/ps4/`.
+> PS4 target, its PKG packaging or the GNM backend is upstream history: the PS4
+> sources themselves were removed when the platform layer moved to
+> `switch/`, `src/platform/switch/` and `include/platform/switch/`.
 
 <h1 align="center">WoWPS</h1>
 <p align="center"><em>World of Warcraft, running natively on PlayStation 4.</em></p>

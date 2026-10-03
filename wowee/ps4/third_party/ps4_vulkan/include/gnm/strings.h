@@ -1,6 +1,0 @@
-#ifndef OPENGNM_GNM_COMPAT_STRINGS_H
-#define OPENGNM_GNM_COMPAT_STRINGS_H
-
-#include <gnm_strings.h>
-
-#endif /* OPENGNM_GNM_COMPAT_STRINGS_H */

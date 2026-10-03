@@ -1,6 +1,0 @@
-#ifndef OPENGNM_GNM_COMPAT_RENDERTARGET_H
-#define OPENGNM_GNM_COMPAT_RENDERTARGET_H
-
-#include <compat/freegnm.h>
-
-#endif /* OPENGNM_GNM_COMPAT_RENDERTARGET_H */
