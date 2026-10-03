@@ -56,4 +56,9 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
+# Cross pkg-config for the portlibs (nxvk, zlib). devkitPro ships one per
+# target triple; cmake/switch/nxvk.cmake uses it through pkg_check_modules.
+set(PKG_CONFIG_EXECUTABLE "${DEVKITPRO}/portlibs/switch/bin/aarch64-none-elf-pkg-config"
+    CACHE FILEPATH "devkitA64 pkg-config")
+
 # Output plain ELF; CMakeLists.txt runs elf2nro after link.
