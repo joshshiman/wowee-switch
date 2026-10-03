@@ -7,6 +7,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkAcquireNextImageKHR(VkDevice device, VkSwapchai
     if (!fn) {
         fn = reinterpret_cast<PFN_vkAcquireNextImageKHR>(vk_nxvkLoadDeviceProc(device, "vkAcquireNextImageKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkAcquireNextImageKHR");
     return fn(device, swapchain, timeout, semaphore, fence, pImageIndex);
 }
 
@@ -15,6 +16,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkAllocateCommandBuffers(VkDevice device, const V
     if (!fn) {
         fn = reinterpret_cast<PFN_vkAllocateCommandBuffers>(vk_nxvkLoadDeviceProc(device, "vkAllocateCommandBuffers"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkAllocateCommandBuffers");
     return fn(device, pAllocateInfo, pCommandBuffers);
 }
 
@@ -23,6 +25,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkAllocateDescriptorSets(VkDevice device, const V
     if (!fn) {
         fn = reinterpret_cast<PFN_vkAllocateDescriptorSets>(vk_nxvkLoadDeviceProc(device, "vkAllocateDescriptorSets"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkAllocateDescriptorSets");
     return fn(device, pAllocateInfo, pDescriptorSets);
 }
 
@@ -31,6 +34,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkAllocateMemory(VkDevice device, const VkMemoryA
     if (!fn) {
         fn = reinterpret_cast<PFN_vkAllocateMemory>(vk_nxvkLoadDeviceProc(device, "vkAllocateMemory"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkAllocateMemory");
     return fn(device, pAllocateInfo, pAllocator, pMemory);
 }
 
@@ -39,6 +43,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkBeginCommandBuffer(VkCommandBuffer commandBuffe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkBeginCommandBuffer>(vk_nxvkLoadInstanceProc("vkBeginCommandBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkBeginCommandBuffer");
     return fn(commandBuffer, pBeginInfo);
 }
 
@@ -47,6 +52,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkBindBufferMemory(VkDevice device, VkBuffer buff
     if (!fn) {
         fn = reinterpret_cast<PFN_vkBindBufferMemory>(vk_nxvkLoadDeviceProc(device, "vkBindBufferMemory"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkBindBufferMemory");
     return fn(device, buffer, memory, memoryOffset);
 }
 
@@ -55,6 +61,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkBindImageMemory(VkDevice device, VkImage image,
     if (!fn) {
         fn = reinterpret_cast<PFN_vkBindImageMemory>(vk_nxvkLoadDeviceProc(device, "vkBindImageMemory"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkBindImageMemory");
     return fn(device, image, memory, memoryOffset);
 }
 
@@ -63,6 +70,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBeginRenderPass(VkCommandBuffer commandBuffer, c
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdBeginRenderPass>(vk_nxvkLoadInstanceProc("vkCmdBeginRenderPass"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdBeginRenderPass");
     return fn(commandBuffer, pRenderPassBegin, contents);
 }
 
@@ -71,6 +79,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBindDescriptorSets(VkCommandBuffer commandBuffer
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdBindDescriptorSets>(vk_nxvkLoadInstanceProc("vkCmdBindDescriptorSets"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdBindDescriptorSets");
     return fn(commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
 }
 
@@ -79,6 +88,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBindIndexBuffer(VkCommandBuffer commandBuffer, V
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdBindIndexBuffer>(vk_nxvkLoadInstanceProc("vkCmdBindIndexBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdBindIndexBuffer");
     return fn(commandBuffer, buffer, offset, indexType);
 }
 
@@ -87,6 +97,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBindPipeline(VkCommandBuffer commandBuffer, VkPi
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdBindPipeline>(vk_nxvkLoadInstanceProc("vkCmdBindPipeline"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdBindPipeline");
     return fn(commandBuffer, pipelineBindPoint, pipeline);
 }
 
@@ -95,6 +106,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer,
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdBindVertexBuffers>(vk_nxvkLoadInstanceProc("vkCmdBindVertexBuffers"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdBindVertexBuffers");
     return fn(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets);
 }
 
@@ -103,6 +115,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBlitImage(VkCommandBuffer commandBuffer, VkImage
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdBlitImage>(vk_nxvkLoadInstanceProc("vkCmdBlitImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdBlitImage");
     return fn(commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter);
 }
 
@@ -111,6 +124,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdClearColorImage(VkCommandBuffer commandBuffer, V
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdClearColorImage>(vk_nxvkLoadInstanceProc("vkCmdClearColorImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdClearColorImage");
     return fn(commandBuffer, image, imageLayout, pColor, rangeCount, pRanges);
 }
 
@@ -119,6 +133,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdClearDepthStencilImage(VkCommandBuffer commandBu
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdClearDepthStencilImage>(vk_nxvkLoadInstanceProc("vkCmdClearDepthStencilImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdClearDepthStencilImage");
     return fn(commandBuffer, image, imageLayout, pDepthStencil, rangeCount, pRanges);
 }
 
@@ -127,6 +142,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdCopyBuffer(VkCommandBuffer commandBuffer, VkBuff
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdCopyBuffer>(vk_nxvkLoadInstanceProc("vkCmdCopyBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdCopyBuffer");
     return fn(commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions);
 }
 
@@ -135,6 +151,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdCopyBufferToImage(VkCommandBuffer commandBuffer,
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdCopyBufferToImage>(vk_nxvkLoadInstanceProc("vkCmdCopyBufferToImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdCopyBufferToImage");
     return fn(commandBuffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions);
 }
 
@@ -143,6 +160,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdCopyImage(VkCommandBuffer commandBuffer, VkImage
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdCopyImage>(vk_nxvkLoadInstanceProc("vkCmdCopyImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdCopyImage");
     return fn(commandBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions);
 }
 
@@ -151,6 +169,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer,
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdCopyImageToBuffer>(vk_nxvkLoadInstanceProc("vkCmdCopyImageToBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdCopyImageToBuffer");
     return fn(commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions);
 }
 
@@ -159,6 +178,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDispatch(VkCommandBuffer commandBuffer, uint32_t
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdDispatch>(vk_nxvkLoadInstanceProc("vkCmdDispatch"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdDispatch");
     return fn(commandBuffer, groupCountX, groupCountY, groupCountZ);
 }
 
@@ -167,6 +187,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t ver
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdDraw>(vk_nxvkLoadInstanceProc("vkCmdDraw"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdDraw");
     return fn(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
 }
 
@@ -175,6 +196,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndexed(VkCommandBuffer commandBuffer, uint3
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdDrawIndexed>(vk_nxvkLoadInstanceProc("vkCmdDrawIndexed"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdDrawIndexed");
     return fn(commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 }
 
@@ -183,6 +205,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawIndexedIndirect(VkCommandBuffer commandBuffe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdDrawIndexedIndirect>(vk_nxvkLoadInstanceProc("vkCmdDrawIndexedIndirect"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdDrawIndexedIndirect");
     return fn(commandBuffer, buffer, offset, drawCount, stride);
 }
 
@@ -191,6 +214,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdEndRenderPass(VkCommandBuffer commandBuffer) {
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdEndRenderPass>(vk_nxvkLoadInstanceProc("vkCmdEndRenderPass"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdEndRenderPass");
     return fn(commandBuffer);
 }
 
@@ -199,6 +223,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdExecuteCommands(VkCommandBuffer commandBuffer, u
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdExecuteCommands>(vk_nxvkLoadInstanceProc("vkCmdExecuteCommands"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdExecuteCommands");
     return fn(commandBuffer, commandBufferCount, pCommandBuffers);
 }
 
@@ -207,6 +232,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdFillBuffer(VkCommandBuffer commandBuffer, VkBuff
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdFillBuffer>(vk_nxvkLoadInstanceProc("vkCmdFillBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdFillBuffer");
     return fn(commandBuffer, dstBuffer, dstOffset, size, data);
 }
 
@@ -215,6 +241,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdPipelineBarrier(VkCommandBuffer commandBuffer, V
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdPipelineBarrier>(vk_nxvkLoadInstanceProc("vkCmdPipelineBarrier"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdPipelineBarrier");
     return fn(commandBuffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
 }
 
@@ -223,6 +250,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdPushConstants(VkCommandBuffer commandBuffer, VkP
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdPushConstants>(vk_nxvkLoadInstanceProc("vkCmdPushConstants"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdPushConstants");
     return fn(commandBuffer, layout, stageFlags, offset, size, pValues);
 }
 
@@ -231,6 +259,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdResetQueryPool(VkCommandBuffer commandBuffer, Vk
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdResetQueryPool>(vk_nxvkLoadInstanceProc("vkCmdResetQueryPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdResetQueryPool");
     return fn(commandBuffer, queryPool, firstQuery, queryCount);
 }
 
@@ -239,6 +268,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetDepthBias(VkCommandBuffer commandBuffer, floa
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdSetDepthBias>(vk_nxvkLoadInstanceProc("vkCmdSetDepthBias"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdSetDepthBias");
     return fn(commandBuffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
 }
 
@@ -247,6 +277,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdSetScissor>(vk_nxvkLoadInstanceProc("vkCmdSetScissor"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdSetScissor");
     return fn(commandBuffer, firstScissor, scissorCount, pScissors);
 }
 
@@ -255,6 +286,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetViewport(VkCommandBuffer commandBuffer, uint3
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdSetViewport>(vk_nxvkLoadInstanceProc("vkCmdSetViewport"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdSetViewport");
     return fn(commandBuffer, firstViewport, viewportCount, pViewports);
 }
 
@@ -263,6 +295,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdWriteTimestamp(VkCommandBuffer commandBuffer, Vk
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCmdWriteTimestamp>(vk_nxvkLoadInstanceProc("vkCmdWriteTimestamp"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCmdWriteTimestamp");
     return fn(commandBuffer, pipelineStage, queryPool, query);
 }
 
@@ -271,6 +304,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateBuffer(VkDevice device, const VkBufferCre
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateBuffer>(vk_nxvkLoadDeviceProc(device, "vkCreateBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateBuffer");
     return fn(device, pCreateInfo, pAllocator, pBuffer);
 }
 
@@ -279,6 +313,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateCommandPool(VkDevice device, const VkComm
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateCommandPool>(vk_nxvkLoadDeviceProc(device, "vkCreateCommandPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateCommandPool");
     return fn(device, pCreateInfo, pAllocator, pCommandPool);
 }
 
@@ -287,6 +322,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateComputePipelines(VkDevice device, VkPipel
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateComputePipelines>(vk_nxvkLoadDeviceProc(device, "vkCreateComputePipelines"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateComputePipelines");
     return fn(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 
@@ -295,6 +331,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(VkInstance instanc
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vk_nxvkLoadInstanceProc("vkCreateDebugUtilsMessengerEXT"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateDebugUtilsMessengerEXT");
     return fn(instance, pCreateInfo, pAllocator, pMessenger);
 }
 
@@ -303,6 +340,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDescriptorPool(VkDevice device, const VkD
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateDescriptorPool>(vk_nxvkLoadDeviceProc(device, "vkCreateDescriptorPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateDescriptorPool");
     return fn(device, pCreateInfo, pAllocator, pDescriptorPool);
 }
 
@@ -311,6 +349,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDescriptorSetLayout(VkDevice device, cons
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateDescriptorSetLayout>(vk_nxvkLoadDeviceProc(device, "vkCreateDescriptorSetLayout"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateDescriptorSetLayout");
     return fn(device, pCreateInfo, pAllocator, pSetLayout);
 }
 
@@ -319,6 +358,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physicalDevice, c
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateDevice>(vk_nxvkLoadInstanceProc("vkCreateDevice"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateDevice");
     return fn(physicalDevice, pCreateInfo, pAllocator, pDevice);
 }
 
@@ -327,6 +367,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateFence(VkDevice device, const VkFenceCreat
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateFence>(vk_nxvkLoadDeviceProc(device, "vkCreateFence"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateFence");
     return fn(device, pCreateInfo, pAllocator, pFence);
 }
 
@@ -335,6 +376,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateFramebuffer(VkDevice device, const VkFram
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateFramebuffer>(vk_nxvkLoadDeviceProc(device, "vkCreateFramebuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateFramebuffer");
     return fn(device, pCreateInfo, pAllocator, pFramebuffer);
 }
 
@@ -343,6 +385,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateGraphicsPipelines(VkDevice device, VkPipe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateGraphicsPipelines>(vk_nxvkLoadDeviceProc(device, "vkCreateGraphicsPipelines"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateGraphicsPipelines");
     return fn(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
 }
 
@@ -351,6 +394,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateImage(VkDevice device, const VkImageCreat
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateImage>(vk_nxvkLoadDeviceProc(device, "vkCreateImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateImage");
     return fn(device, pCreateInfo, pAllocator, pImage);
 }
 
@@ -359,6 +403,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateImageView(VkDevice device, const VkImageV
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateImageView>(vk_nxvkLoadDeviceProc(device, "vkCreateImageView"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateImageView");
     return fn(device, pCreateInfo, pAllocator, pView);
 }
 
@@ -367,6 +412,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreatePipelineCache(VkDevice device, const VkPi
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreatePipelineCache>(vk_nxvkLoadDeviceProc(device, "vkCreatePipelineCache"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreatePipelineCache");
     return fn(device, pCreateInfo, pAllocator, pPipelineCache);
 }
 
@@ -375,6 +421,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreatePipelineLayout(VkDevice device, const VkP
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreatePipelineLayout>(vk_nxvkLoadDeviceProc(device, "vkCreatePipelineLayout"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreatePipelineLayout");
     return fn(device, pCreateInfo, pAllocator, pPipelineLayout);
 }
 
@@ -383,6 +430,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateQueryPool(VkDevice device, const VkQueryP
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateQueryPool>(vk_nxvkLoadDeviceProc(device, "vkCreateQueryPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateQueryPool");
     return fn(device, pCreateInfo, pAllocator, pQueryPool);
 }
 
@@ -391,6 +439,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass(VkDevice device, const VkRende
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateRenderPass>(vk_nxvkLoadDeviceProc(device, "vkCreateRenderPass"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateRenderPass");
     return fn(device, pCreateInfo, pAllocator, pRenderPass);
 }
 
@@ -399,6 +448,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateRenderPass2(VkDevice device, const VkRend
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateRenderPass2>(vk_nxvkLoadDeviceProc(device, "vkCreateRenderPass2"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateRenderPass2");
     return fn(device, pCreateInfo, pAllocator, pRenderPass);
 }
 
@@ -407,6 +457,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateSampler(VkDevice device, const VkSamplerC
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateSampler>(vk_nxvkLoadDeviceProc(device, "vkCreateSampler"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateSampler");
     return fn(device, pCreateInfo, pAllocator, pSampler);
 }
 
@@ -415,6 +466,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateSemaphore(VkDevice device, const VkSemaph
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateSemaphore>(vk_nxvkLoadDeviceProc(device, "vkCreateSemaphore"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateSemaphore");
     return fn(device, pCreateInfo, pAllocator, pSemaphore);
 }
 
@@ -423,6 +475,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateShaderModule(VkDevice device, const VkSha
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateShaderModule>(vk_nxvkLoadDeviceProc(device, "vkCreateShaderModule"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateShaderModule");
     return fn(device, pCreateInfo, pAllocator, pShaderModule);
 }
 
@@ -431,6 +484,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateSwapchainKHR(VkDevice device, const VkSwa
     if (!fn) {
         fn = reinterpret_cast<PFN_vkCreateSwapchainKHR>(vk_nxvkLoadDeviceProc(device, "vkCreateSwapchainKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkCreateSwapchainKHR");
     return fn(device, pCreateInfo, pAllocator, pSwapchain);
 }
 
@@ -439,6 +493,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyBuffer(VkDevice device, VkBuffer buffer, con
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyBuffer>(vk_nxvkLoadDeviceProc(device, "vkDestroyBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyBuffer");
     return fn(device, buffer, pAllocator);
 }
 
@@ -447,6 +502,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyCommandPool(VkDevice device, VkCommandPool c
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyCommandPool>(vk_nxvkLoadDeviceProc(device, "vkDestroyCommandPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyCommandPool");
     return fn(device, commandPool, pAllocator);
 }
 
@@ -455,6 +511,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyDescriptorPool(VkDevice device, VkDescriptor
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyDescriptorPool>(vk_nxvkLoadDeviceProc(device, "vkDestroyDescriptorPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyDescriptorPool");
     return fn(device, descriptorPool, pAllocator);
 }
 
@@ -463,6 +520,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyDescriptorSetLayout(VkDevice device, VkDescr
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyDescriptorSetLayout>(vk_nxvkLoadDeviceProc(device, "vkDestroyDescriptorSetLayout"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyDescriptorSetLayout");
     return fn(device, descriptorSetLayout, pAllocator);
 }
 
@@ -471,6 +529,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyDevice(VkDevice device, const VkAllocationCa
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyDevice>(vk_nxvkLoadDeviceProc(device, "vkDestroyDevice"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyDevice");
     return fn(device, pAllocator);
 }
 
@@ -479,6 +538,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyFence(VkDevice device, VkFence fence, const 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyFence>(vk_nxvkLoadDeviceProc(device, "vkDestroyFence"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyFence");
     return fn(device, fence, pAllocator);
 }
 
@@ -487,6 +547,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyFramebuffer(VkDevice device, VkFramebuffer f
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyFramebuffer>(vk_nxvkLoadDeviceProc(device, "vkDestroyFramebuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyFramebuffer");
     return fn(device, framebuffer, pAllocator);
 }
 
@@ -495,6 +556,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyImage(VkDevice device, VkImage image, const 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyImage>(vk_nxvkLoadDeviceProc(device, "vkDestroyImage"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyImage");
     return fn(device, image, pAllocator);
 }
 
@@ -503,15 +565,8 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyImageView(VkDevice device, VkImageView image
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyImageView>(vk_nxvkLoadDeviceProc(device, "vkDestroyImageView"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyImageView");
     return fn(device, imageView, pAllocator);
-}
-
-VKAPI_ATTR void VKAPI_CALL vkDestroyInstance(VkInstance instance, const VkAllocationCallbacks* pAllocator) {
-    static PFN_vkDestroyInstance fn = nullptr;
-    if (!fn) {
-        fn = reinterpret_cast<PFN_vkDestroyInstance>(vk_nxvkLoadInstanceProc("vkDestroyInstance"));
-    }
-    return fn(instance, pAllocator);
 }
 
 VKAPI_ATTR void VKAPI_CALL vkDestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks* pAllocator) {
@@ -519,6 +574,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyPipeline(VkDevice device, VkPipeline pipelin
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyPipeline>(vk_nxvkLoadDeviceProc(device, "vkDestroyPipeline"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyPipeline");
     return fn(device, pipeline, pAllocator);
 }
 
@@ -527,6 +583,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyPipelineCache(VkDevice device, VkPipelineCac
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyPipelineCache>(vk_nxvkLoadDeviceProc(device, "vkDestroyPipelineCache"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyPipelineCache");
     return fn(device, pipelineCache, pAllocator);
 }
 
@@ -535,6 +592,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyPipelineLayout(VkDevice device, VkPipelineLa
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyPipelineLayout>(vk_nxvkLoadDeviceProc(device, "vkDestroyPipelineLayout"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyPipelineLayout");
     return fn(device, pipelineLayout, pAllocator);
 }
 
@@ -543,6 +601,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyQueryPool(VkDevice device, VkQueryPool query
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyQueryPool>(vk_nxvkLoadDeviceProc(device, "vkDestroyQueryPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyQueryPool");
     return fn(device, queryPool, pAllocator);
 }
 
@@ -551,6 +610,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyRenderPass(VkDevice device, VkRenderPass ren
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyRenderPass>(vk_nxvkLoadDeviceProc(device, "vkDestroyRenderPass"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyRenderPass");
     return fn(device, renderPass, pAllocator);
 }
 
@@ -559,6 +619,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroySampler(VkDevice device, VkSampler sampler, 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroySampler>(vk_nxvkLoadDeviceProc(device, "vkDestroySampler"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroySampler");
     return fn(device, sampler, pAllocator);
 }
 
@@ -567,6 +628,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroySemaphore(VkDevice device, VkSemaphore semap
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroySemaphore>(vk_nxvkLoadDeviceProc(device, "vkDestroySemaphore"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroySemaphore");
     return fn(device, semaphore, pAllocator);
 }
 
@@ -575,6 +637,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyShaderModule(VkDevice device, VkShaderModule
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroyShaderModule>(vk_nxvkLoadDeviceProc(device, "vkDestroyShaderModule"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroyShaderModule");
     return fn(device, shaderModule, pAllocator);
 }
 
@@ -583,6 +646,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroySurfaceKHR(VkInstance instance, VkSurfaceKHR
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroySurfaceKHR>(vk_nxvkLoadInstanceProc("vkDestroySurfaceKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroySurfaceKHR");
     return fn(instance, surface, pAllocator);
 }
 
@@ -591,6 +655,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroySwapchainKHR(VkDevice device, VkSwapchainKHR
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDestroySwapchainKHR>(vk_nxvkLoadDeviceProc(device, "vkDestroySwapchainKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDestroySwapchainKHR");
     return fn(device, swapchain, pAllocator);
 }
 
@@ -599,6 +664,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkDeviceWaitIdle(VkDevice device) {
     if (!fn) {
         fn = reinterpret_cast<PFN_vkDeviceWaitIdle>(vk_nxvkLoadDeviceProc(device, "vkDeviceWaitIdle"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkDeviceWaitIdle");
     return fn(device);
 }
 
@@ -607,6 +673,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEndCommandBuffer(VkCommandBuffer commandBuffer)
     if (!fn) {
         fn = reinterpret_cast<PFN_vkEndCommandBuffer>(vk_nxvkLoadInstanceProc("vkEndCommandBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkEndCommandBuffer");
     return fn(commandBuffer);
 }
 
@@ -615,6 +682,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateInstanceVersion(uint32_t* pApiVersion)
     if (!fn) {
         fn = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(vk_nxvkLoadInstanceProc("vkEnumerateInstanceVersion"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkEnumerateInstanceVersion");
     return fn(pApiVersion);
 }
 
@@ -623,6 +691,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDevices(VkInstance instance, u
     if (!fn) {
         fn = reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(vk_nxvkLoadInstanceProc("vkEnumeratePhysicalDevices"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkEnumeratePhysicalDevices");
     return fn(instance, pPhysicalDeviceCount, pPhysicalDevices);
 }
 
@@ -631,6 +700,7 @@ VKAPI_ATTR void VKAPI_CALL vkFreeCommandBuffers(VkDevice device, VkCommandPool c
     if (!fn) {
         fn = reinterpret_cast<PFN_vkFreeCommandBuffers>(vk_nxvkLoadDeviceProc(device, "vkFreeCommandBuffers"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkFreeCommandBuffers");
     return fn(device, commandPool, commandBufferCount, pCommandBuffers);
 }
 
@@ -639,6 +709,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkFreeDescriptorSets(VkDevice device, VkDescripto
     if (!fn) {
         fn = reinterpret_cast<PFN_vkFreeDescriptorSets>(vk_nxvkLoadDeviceProc(device, "vkFreeDescriptorSets"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkFreeDescriptorSets");
     return fn(device, descriptorPool, descriptorSetCount, pDescriptorSets);
 }
 
@@ -647,6 +718,7 @@ VKAPI_ATTR void VKAPI_CALL vkFreeMemory(VkDevice device, VkDeviceMemory memory, 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkFreeMemory>(vk_nxvkLoadDeviceProc(device, "vkFreeMemory"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkFreeMemory");
     return fn(device, memory, pAllocator);
 }
 
@@ -655,6 +727,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetBufferMemoryRequirements(VkDevice device, VkBuff
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetBufferMemoryRequirements>(vk_nxvkLoadDeviceProc(device, "vkGetBufferMemoryRequirements"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetBufferMemoryRequirements");
     return fn(device, buffer, pMemoryRequirements);
 }
 
@@ -663,6 +736,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue(VkDevice device, uint32_t queueFamil
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetDeviceQueue>(vk_nxvkLoadDeviceProc(device, "vkGetDeviceQueue"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetDeviceQueue");
     return fn(device, queueFamilyIndex, queueIndex, pQueue);
 }
 
@@ -671,6 +745,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetFenceStatus(VkDevice device, VkFence fence) 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetFenceStatus>(vk_nxvkLoadDeviceProc(device, "vkGetFenceStatus"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetFenceStatus");
     return fn(device, fence);
 }
 
@@ -679,6 +754,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetImageMemoryRequirements(VkDevice device, VkImage
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetImageMemoryRequirements>(vk_nxvkLoadDeviceProc(device, "vkGetImageMemoryRequirements"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetImageMemoryRequirements");
     return fn(device, image, pMemoryRequirements);
 }
 
@@ -687,6 +763,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures(VkPhysicalDevice physical
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceFeatures"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceFeatures");
     return fn(physicalDevice, pFeatures);
 }
 
@@ -695,6 +772,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures2(VkPhysicalDevice physica
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceFeatures2"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceFeatures2");
     return fn(physicalDevice, pFeatures);
 }
 
@@ -703,6 +781,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFormatProperties(VkPhysicalDevice 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceFormatProperties>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceFormatProperties"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceFormatProperties");
     return fn(physicalDevice, format, pFormatProperties);
 }
 
@@ -711,6 +790,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceMemoryProperties(VkPhysicalDevice 
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceMemoryProperties"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceMemoryProperties");
     return fn(physicalDevice, pMemoryProperties);
 }
 
@@ -719,6 +799,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceProperties(VkPhysicalDevice physic
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceProperties"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceProperties");
     return fn(physicalDevice, pProperties);
 }
 
@@ -727,6 +808,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceProperties2(VkPhysicalDevice physi
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceProperties2"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceProperties2");
     return fn(physicalDevice, pProperties);
 }
 
@@ -735,6 +817,7 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceQueueFamilyProperties(VkPhysicalDe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceQueueFamilyProperties"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceQueueFamilyProperties");
     return fn(physicalDevice, pQueueFamilyPropertyCount, pQueueFamilyProperties);
 }
 
@@ -743,6 +826,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysi
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceSurfaceCapabilitiesKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
     return fn(physicalDevice, surface, pSurfaceCapabilities);
 }
 
@@ -751,6 +835,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceSurfaceFormatsKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceSurfaceFormatsKHR");
     return fn(physicalDevice, surface, pSurfaceFormatCount, pSurfaceFormats);
 }
 
@@ -759,6 +844,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceSupportKHR>(vk_nxvkLoadInstanceProc("vkGetPhysicalDeviceSurfaceSupportKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPhysicalDeviceSurfaceSupportKHR");
     return fn(physicalDevice, queueFamilyIndex, surface, pSupported);
 }
 
@@ -767,6 +853,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineCacheData(VkDevice device, VkPipelin
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetPipelineCacheData>(vk_nxvkLoadDeviceProc(device, "vkGetPipelineCacheData"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetPipelineCacheData");
     return fn(device, pipelineCache, pDataSize, pData);
 }
 
@@ -775,6 +862,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetQueryPoolResults(VkDevice device, VkQueryPoo
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetQueryPoolResults>(vk_nxvkLoadDeviceProc(device, "vkGetQueryPoolResults"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetQueryPoolResults");
     return fn(device, queryPool, firstQuery, queryCount, dataSize, pData, stride, flags);
 }
 
@@ -783,6 +871,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainImagesKHR(VkDevice device, VkSwapch
     if (!fn) {
         fn = reinterpret_cast<PFN_vkGetSwapchainImagesKHR>(vk_nxvkLoadDeviceProc(device, "vkGetSwapchainImagesKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkGetSwapchainImagesKHR");
     return fn(device, swapchain, pSwapchainImageCount, pSwapchainImages);
 }
 
@@ -791,6 +880,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device, VkDeviceMemory memor
     if (!fn) {
         fn = reinterpret_cast<PFN_vkMapMemory>(vk_nxvkLoadDeviceProc(device, "vkMapMemory"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkMapMemory");
     return fn(device, memory, offset, size, flags, ppData);
 }
 
@@ -799,6 +889,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue, const VkPresentI
     if (!fn) {
         fn = reinterpret_cast<PFN_vkQueuePresentKHR>(vk_nxvkLoadInstanceProc("vkQueuePresentKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkQueuePresentKHR");
     return fn(queue, pPresentInfo);
 }
 
@@ -807,6 +898,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit(VkQueue queue, uint32_t submitCount
     if (!fn) {
         fn = reinterpret_cast<PFN_vkQueueSubmit>(vk_nxvkLoadInstanceProc("vkQueueSubmit"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkQueueSubmit");
     return fn(queue, submitCount, pSubmits, fence);
 }
 
@@ -815,6 +907,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandBuffer(VkCommandBuffer commandBuffe
     if (!fn) {
         fn = reinterpret_cast<PFN_vkResetCommandBuffer>(vk_nxvkLoadInstanceProc("vkResetCommandBuffer"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkResetCommandBuffer");
     return fn(commandBuffer, flags);
 }
 
@@ -823,6 +916,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkResetDescriptorPool(VkDevice device, VkDescript
     if (!fn) {
         fn = reinterpret_cast<PFN_vkResetDescriptorPool>(vk_nxvkLoadDeviceProc(device, "vkResetDescriptorPool"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkResetDescriptorPool");
     return fn(device, descriptorPool, flags);
 }
 
@@ -831,6 +925,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkResetFences(VkDevice device, uint32_t fenceCoun
     if (!fn) {
         fn = reinterpret_cast<PFN_vkResetFences>(vk_nxvkLoadDeviceProc(device, "vkResetFences"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkResetFences");
     return fn(device, fenceCount, pFences);
 }
 
@@ -839,6 +934,7 @@ VKAPI_ATTR void VKAPI_CALL vkUnmapMemory(VkDevice device, VkDeviceMemory memory)
     if (!fn) {
         fn = reinterpret_cast<PFN_vkUnmapMemory>(vk_nxvkLoadDeviceProc(device, "vkUnmapMemory"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkUnmapMemory");
     return fn(device, memory);
 }
 
@@ -847,6 +943,7 @@ VKAPI_ATTR void VKAPI_CALL vkUpdateDescriptorSets(VkDevice device, uint32_t desc
     if (!fn) {
         fn = reinterpret_cast<PFN_vkUpdateDescriptorSets>(vk_nxvkLoadDeviceProc(device, "vkUpdateDescriptorSets"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkUpdateDescriptorSets");
     return fn(device, descriptorWriteCount, pDescriptorWrites, descriptorCopyCount, pDescriptorCopies);
 }
 
@@ -855,6 +952,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, uint32_t fenceCo
     if (!fn) {
         fn = reinterpret_cast<PFN_vkWaitForFences>(vk_nxvkLoadDeviceProc(device, "vkWaitForFences"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkWaitForFences");
     return fn(device, fenceCount, pFences, waitAll, timeout);
 }
 
@@ -863,6 +961,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitSemaphores(VkDevice device, const VkSemapho
     if (!fn) {
         fn = reinterpret_cast<PFN_vkWaitSemaphores>(vk_nxvkLoadDeviceProc(device, "vkWaitSemaphores"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkWaitSemaphores");
     return fn(device, pWaitInfo, timeout);
 }
 
@@ -871,5 +970,6 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitSemaphoresKHR(VkDevice device, const VkSema
     if (!fn) {
         fn = reinterpret_cast<PFN_vkWaitSemaphoresKHR>(vk_nxvkLoadDeviceProc(device, "vkWaitSemaphoresKHR"));
     }
+    if (!fn) vk_nxvkMissingEntryPoint("vkWaitSemaphoresKHR");
     return fn(device, pWaitInfo, timeout);
 }

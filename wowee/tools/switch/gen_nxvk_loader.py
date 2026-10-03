@@ -118,6 +118,7 @@ def emit(name, ret, params, out):
         out.append('        fn = reinterpret_cast<PFN_%s>('
                    'vk_nxvkLoadInstanceProc("%s"));' % (name, name))
     out.append("    }")
+    out.append('    if (!fn) vk_nxvkMissingEntryPoint("%s");' % name)
     out.append("    return fn(%s);" % call_args)
     out.append("}")
     out.append("")

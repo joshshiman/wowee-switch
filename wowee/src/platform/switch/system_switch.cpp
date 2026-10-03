@@ -19,6 +19,7 @@
 #include <switch/services/fatal.h>
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <cstdarg>
 #include <cstdio>
@@ -51,6 +52,10 @@ constexpr const char* kAppRoot = "romfs:/";
 bool g_initialised = false;
 bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
+bool g_exitRequested = false;
+// The boot log, opened once so the crash-signal path only ever writes to a
+// known descriptor (see reportCrashSignal).
+volatile std::sig_atomic_t g_bootFd = -1;
 
 void klog(const char* fmt, ...) {
     va_list args;
@@ -114,6 +119,10 @@ bool initSystem() {
     createDirectories();
     applyEnvironment();
     vk_nxvk_loader_init();
+    // Opened once, in append mode: reportCrashSignal only writes to this
+    // descriptor, so the signal path never allocates or takes a lock.
+    const std::string bootLog = std::string(kWritableRoot) + "/logs/boot.log";
+    g_bootFd = ::open(bootLog.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0666);
     g_initialised = true;
     reportBootStage("initSystem");
     return true;
@@ -150,30 +159,36 @@ void reportBootStage(const char* stage) {
 }
 
 void reportCrashSignal(int signal) {
-    // Async-signal-safe: append to the already-open boot log. No locks.
-    std::string path = std::string(kWritableRoot) + "/logs/boot.log";
-    std::FILE* f = std::fopen(path.c_str(), "a");
-    if (!f) return;
-    std::fprintf(f, "FATAL SIGNAL %d\n", signal);
-    std::fflush(f);
-    std::fclose(f);
+    // Async-signal-safe: the boot log is already open (opened once in
+    // initSystem), so this only writes a fixed line to a known descriptor. No
+    // allocation, no locks, no formatting beyond an integer.
+    static const char kPrefix[] = "[signal] FATAL SIGNAL ";
+    if (g_bootFd < 0) return;
+    char digits[16];
+    size_t n = 0;
+    int value = signal;
+    do {
+        digits[n++] = static_cast<char>('0' + (value % 10));
+        value /= 10;
+    } while (value != 0 && n < sizeof(digits));
+    char line[sizeof(kPrefix) + 16 + 2];
+    size_t at = 0;
+    for (size_t i = 0; kPrefix[i]; ++i) line[at++] = kPrefix[i];
+    while (n > 0) line[at++] = digits[--n];
+    line[at++] = '\n';
+    ::write(g_bootFd, line, at);
 }
 
 bool installCrashReporter() {
-    // libnx delivers errors to the OS error applet on abnormal exit; the
-    // per-thread signal handler in main.cpp already logs markers to
-    // boot.log, so there is nothing further to install here.
-    return true;
+    // libnx has no per-thread signal stack service and its fatal service only
+    // raises after the process is already unwinding, so the marker written by
+    // reportCrashSignal above is the whole of the crash reporting here.
+    return g_bootFd >= 0;
 }
 
 void registerCrashReportingThread(const char* /*name*/) {
     // Horizon has no per-thread alternate signal stack service, and newlib's
     // default thread stacks are large enough for the loaders that call this.
-}
-
-size_t defaultThreadStackBytes() {
-    // libnx threads default to 8 KiB plus an explicit size at creation.
-    return 8192;
 }
 
 void showStartupError(const char* message) {
@@ -208,10 +223,17 @@ uint32_t resolveIPv4(const std::string& host) {
 }
 
 void pumpSystemEvents() {
-    // libnx titles have no per-frame system event queue to drain; the OS
-    // suspend/applet lifecycle is handled by keeping the applet's main
-    // loop alive. Home/PS buttons show the system overlay, which has its
-    // own path back to the title.
+    // The title's lifecycle. appletMainLoop() is false once the OS has asked
+    // the title to close; a frame budget is kept open for libnx to deliver
+    // applet events (Home is the system overlay's, suspend/resume is handled
+    // by the OS around the title). Nothing here blocks - this runs per frame.
+    if (!appletMainLoop()) {
+        if (!g_exitRequested) {
+            g_exitRequested = true;
+            klog("applet reported exit");
+            reportBootStage("system: exit requested");
+        }
+    }
     (void)g_splashHidden;
 }
 

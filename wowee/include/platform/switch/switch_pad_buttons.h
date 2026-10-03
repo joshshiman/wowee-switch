@@ -6,7 +6,10 @@
 //
 // Console face buttons to Switch face buttons: PS4 Cross is A, Circle is
 // B, Square is X, Triangle is Y (Xbox/Switch layout).
-#include <switch/services/hid.h>
+//
+// <switch.h>, not the sub-header: only switch.h wraps libnx in extern "C",
+// and a C++-linkage declaration of hidGet* would not link against libnx.
+#include <switch.h>
 
 #define ORBIS_PAD_BUTTON_CROSS   (HidNpadButton_A)
 #define ORBIS_PAD_BUTTON_CIRCLE  (HidNpadButton_B)

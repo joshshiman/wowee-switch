@@ -1,16 +1,16 @@
 // audio_backend_switch.cpp - miniaudio custom backend on libnx audout.
 //
-// One playback device: the system main audio output, 48 kHz stereo s16,
-// 256-frame grains. miniaudio's default audio thread calls onDeviceWrite()
-// with one period at a time; audoutPlayBuffer blocks until the grain has
-// been consumed, which paces the thread. Buffers for audout must be
-// 0x1000-aligned in address and size, hence the aligned staging.
+// One playback device: the default audout output, 48 kHz stereo s16,
+// 1024-frame grains (one 0x1000-aligned page, the granularity audout
+// requires). miniaudio's default audio thread calls onDeviceWrite() with one
+// period at a time; audoutPlayBuffer blocks until the grain has been
+// consumed, which paces the thread.
 #include "platform/switch/audio_backend_switch.hpp"
 #include "platform/switch/switch_platform.hpp"
 
 #include "core/logger.hpp"
 
-#include <switch/services/audout.h>
+#include <switch.h>   // the C-linkage master header; audout lives under it
 
 #include <cstring>
 #include <cstdio>
@@ -34,6 +34,9 @@ constexpr size_t kGrainBytes = kGrainFrames * kChannels * sizeof(int16_t);
 
 ma_result ctxInit(ma_context* pContext, const ma_context_config*, ma_backend_callbacks* pCallbacks) {
     (void)pContext;
+    // audoutInitialize opens the default "DeviceOut" (48 kHz, 2ch, Int16) and
+    // registers the buffer-completion event; audoutGet* below reads back what
+    // it negotiated.
     if (R_FAILED(audoutInitialize())) {
         LOG_ERROR("audoutInitialize failed");
         return MA_FAILED_TO_INIT_BACKEND;
@@ -78,15 +81,12 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
     (void)pDescriptorCapture;
     if (g_port.opened) return MA_ALREADY_EXISTS;
 
-    u32 rateOut = 0, channelsOut = 0;
-    PcmFormat format = PcmFormat_Invalid;
-    AudioOutState state = AudioOutState_Stopped;
-    if (R_FAILED(audoutOpenAudioOut(nullptr, nullptr, kSampleRate, kChannels, &rateOut, &channelsOut, &format, &state))) {
-        LOG_ERROR("audoutOpenAudioOut failed");
-        return MA_FAILED_TO_OPEN_BACKEND_DEVICE;
-    }
-    if (format != PcmFormat_Int16) {
-        LOG_ERROR("audoutOpenAudioOut returned unexpected format");
+    const u32 rate = audoutGetSampleRate();
+    const u32 channels = audoutGetChannelCount();
+    const PcmFormat format = audoutGetPcmFormat();
+    if (rate != kSampleRate || channels != kChannels || format != PcmFormat_Int16) {
+        LOG_ERROR("audout opened at ", rate, "Hz/", channels, "ch/format ", static_cast<int>(format),
+                  "; expected ", kSampleRate, "Hz/", kChannels, "ch/Int16");
         return MA_FAILED_TO_OPEN_BACKEND_DEVICE;
     }
     g_port.opened = true;
@@ -99,7 +99,7 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
     pDescriptorPlayback->periodSizeInFrames = kGrainFrames;
     pDescriptorPlayback->periodSizeInMilliseconds = 0;
     pDescriptorPlayback->periodCount = 2;
-    LOG_INFO("switch audio: audout opened (48 kHz stereo s16, 256-frame grains)");
+    LOG_INFO("switch audio: audout open (48 kHz stereo s16, 1024-frame grains)");
     return MA_SUCCESS;
 }
 

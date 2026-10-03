@@ -32,7 +32,8 @@
 #include "platform/switch/switch_pad_buttons.h"
 #include "ui/controller_text_keyboard.hpp"
 #include <imgui.h>
-#include <switch.h>\r\n
+#include <switch.h>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
