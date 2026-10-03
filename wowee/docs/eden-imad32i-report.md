@@ -62,6 +62,33 @@ seems worth addressing regardless of whether `IMAD32I` gets implemented: a
 pipeline that cannot be recompiled should fail `vkCreateGraphicsPipelines`
 rather than hand back a handle that executes garbage.
 
+## The incompatibility is systemic, not one shader
+
+This was first read as a single bad shader. It is not. With a skip list
+(`sdmc:/switch/wowee/skip-shaders.txt`, one shader-name substring per line,
+substituting `stub.*.spv` for the matched pair) the offending shader can be
+removed from the build:
+
+* Skipping eight shader pairs removed the `IMAD32I` message entirely -
+  `CreateGraphicsPipeline: Instruction IMAD32I is not implemented` no longer
+  appeared.
+* The stall did not change: the client still stopped after
+  `gpu: submit returned; choosing present path`, in exactly the same place.
+* Eden's log for that run still ended in
+  `MacroJIT_ErrorThunk: invalid parameter access` and
+  `maxwell_3d.cpp:616: assert buffer_address != 0`.
+
+So `IMAD32I` is one symptom of a broader mismatch. Whatever NVK emits, Eden's
+Maxwell recompiler turns into GPU state the emulated Maxwell 3D engine rejects,
+and the queue never completes - which is what hangs the present. No selection
+of shaders avoids it.
+
+The likely reason this was never seen: the recompiler was built and validated
+against *retail* Switch shaders, which NVIDIA's own compiler emits for Maxwell.
+Mesa NVK is a from-scratch Maxwell compiler and uses instruction forms and
+scheduling the recompiler does not handle. Any guest running NVK-compiled
+shaders is outside what has been tested.
+
 ## Two related observations
 
 **No device-local memory.** The same build reports:
