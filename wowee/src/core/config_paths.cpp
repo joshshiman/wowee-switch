@@ -27,9 +27,9 @@ namespace fs = std::filesystem;
 bool enterResourceRoot() {
 #ifdef WOWEE_SWITCH
     // Homebrew on Switch has no working directory to anchor on: bundled assets
-    // live in the .nro romfs ("romfs:/") and game data on the SD card
-    // ("sdmc:/wowps"). Verify the bundled reads actually work instead of
-    // changing directory; every caller uses absolute paths.
+    // live beside the .nro on the SD card ("sdmc:/switch/wowee/data") and game
+    // data under "sdmc:/wowps". Verify the bundled reads actually work
+    // instead of changing directory; every caller uses absolute paths.
     const char* configured = std::getenv("WOWEE_RESOURCE_ROOT");
     if (configured && *configured && configured[0] != '/') {
         LOG_ERROR("Switch resource root must be absolute: ", configured);

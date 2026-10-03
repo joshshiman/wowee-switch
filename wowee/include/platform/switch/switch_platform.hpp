@@ -66,7 +66,8 @@ std::string dataRoot();
 /// Writable directory for settings, logs, caches and saved variables:
 /// sdmc:/wowps/wowps (created by initSystem).
 std::string writableRoot();
-/// Directory the bundled assets were packaged into: romfs:/ (inside the .nro).
+/// Directory the bundled assets were staged into: sdmc:/switch/wowee/data,
+/// beside the .nro. WOWEE_RESOURCE_ROOT overrides it.
 std::string appRoot();
 
 /// Resolve a host name through libnx's bsd service (getaddrinfo). Returns the

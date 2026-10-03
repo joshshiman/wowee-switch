@@ -627,7 +627,7 @@ bool initInput() {
     }
     hidInitializeNpad();
     hidInitializeTouchScreen();
-static const HidNpadIdType kIds[] = {HidNpadIdType_No1, HidNpadIdType_Handheld};
+    static const HidNpadIdType kIds[] = {HidNpadIdType_No1, HidNpadIdType_Handheld};
     const Result idsResult = hidSetSupportedNpadIdType(kIds, 2);
     const Result stylesResult = hidSetSupportedNpadStyleSet(HidNpadStyleSet_NpadFullCtrl);
     if (R_FAILED(idsResult) || R_FAILED(stylesResult)) {

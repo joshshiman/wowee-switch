@@ -913,9 +913,12 @@ if(WOWEE_SWITCH)
     set(WOWEE_SWITCH_RUNTIME_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_DATA_DIR}/assets/shaders
         COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWEE_SWITCH_DATA_DIR}/Data/expansions
+        # The local realm is read through resolveRelativeAssetPath(), i.e.
+        # relative to the resource root, so it belongs in the data directory
+        # rather than next to the build tree.
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/assets/local_realm
-            $<TARGET_FILE_DIR:wowee>/local_realm
+            ${WOWEE_SWITCH_DATA_DIR}/assets/local_realm
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/Data/expansions
             ${WOWEE_SWITCH_DATA_DIR}/Data/expansions

@@ -175,7 +175,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 #endif
 #if defined(__ANDROID__) || defined(WOWEE_SWITCH)
     // Android anchors its working directory. Switch verifies actual absolute
-    // romfs reads instead: there is no package directory to chdir into, and a
+    // reads instead: there is no package directory to chdir into, and a
     // missing bundled asset must not prevent the client from starting.
     if (!wowee::core::enterResourceRoot()) {
 #ifdef WOWEE_SWITCH

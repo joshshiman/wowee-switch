@@ -26,11 +26,26 @@ constexpr ma_uint32 kGrainFrames = 1024;
 struct PortState {
     bool opened = false;
     bool started = false;
+    bool inFlight = false;
     alignas(0x1000) uint8_t grain[kGrainFrames * kChannels * sizeof(int16_t)];
 };
 PortState g_port;   // one device per process
 
 constexpr size_t kGrainBytes = kGrainFrames * kChannels * sizeof(int16_t);
+
+// audout reads a buffer when it is played, not when it is queued, so the grain
+// cannot be rewritten until audout has released it. Waiting here also paces
+// the audio thread: the wait returns as soon as the grain finishes.
+bool waitForGrainRelease() {
+    if (!g_port.inFlight) {
+        return true;
+    }
+    AudioOutBuffer* released = nullptr;
+    u32 releasedCount = 0;
+    const Result rc = audoutWaitPlayFinish(&released, &releasedCount, 1000000000ULL);
+    g_port.inFlight = false;
+    return R_SUCCEEDED(rc) || releasedCount > 0;
+}
 
 ma_result ctxInit(ma_context* pContext, const ma_context_config*, ma_backend_callbacks* pCallbacks) {
     (void)pContext;
@@ -105,6 +120,7 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
 
 ma_result devUninit(ma_device*) {
     if (g_port.opened) {
+        waitForGrainRelease();
         audoutStopAudioOut();
         g_port.opened = false;
     }
@@ -120,9 +136,7 @@ ma_result devStart(ma_device*) {
 
 ma_result devStop(ma_device*) {
     g_port.started = false;
-    AudioOutBuffer* released = nullptr;
-    u32 releasedCount = 0;
-    audoutWaitPlayFinish(&released, &releasedCount, 1000000000ULL);
+    waitForGrainRelease();
     audoutStopAudioOut();
     return MA_SUCCESS;
 }
@@ -142,6 +156,11 @@ ma_result devWrite(ma_device* pDevice, const void* pFrames, ma_uint32 frameCount
     while (done < frameCount) {
         ma_uint32 n = frameCount - done;
         if (n > kGrainFrames) n = kGrainFrames;
+        if (!waitForGrainRelease()) {
+            LOG_ERROR("audout did not release the previous grain");
+            if (pFramesWritten) *pFramesWritten = done;
+            return MA_ERROR;
+        }
         std::memcpy(g_port.grain, src + (size_t)done * kChannels * sizeof(int16_t), (size_t)n * kChannels * sizeof(int16_t));
         if (n < kGrainFrames) {
             std::memset(g_port.grain + (size_t)n * kChannels * sizeof(int16_t), 0, (size_t)(kGrainFrames - n) * kChannels * sizeof(int16_t));
@@ -153,8 +172,10 @@ ma_result devWrite(ma_device* pDevice, const void* pFrames, ma_uint32 frameCount
         AudioOutBuffer* released = nullptr;
         if (R_FAILED(audoutPlayBuffer(&buf, &released))) {
             LOG_ERROR("audoutPlayBuffer failed");
+            if (pFramesWritten) *pFramesWritten = done;
             return MA_ERROR;
         }
+        g_port.inFlight = true;
         done += n;
     }
     if (pFramesWritten) *pFramesWritten = done;
