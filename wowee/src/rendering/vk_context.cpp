@@ -3178,8 +3178,30 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
     // After acquiring we swap it into the per-image slot so the old per-image
     // semaphore (now released by the presentation engine) becomes the free one.
     if (!retainedFrameImage_) {
-        VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX,
+#if defined(WOWEE_SWITCH)
+        // Bounded, unlike the desktop path's UINT64_MAX. The acquire is a wait
+        // on the presentation engine, and an emulator whose queue is wedged -
+        // a pipeline its shader translator rejected, say - simply never signals
+        // it. An unbounded wait turns that into a silent hang with no log line
+        // and no way to tell it from a slow frame; a timeout turns it into an
+        // error that names the call and a swapchain rebuild.
+        constexpr uint64_t kAcquireTimeoutNs = 2000000000ULL;  // 2 seconds
+        const uint64_t acquireTimeout = kAcquireTimeoutNs;
+#else
+        const uint64_t acquireTimeout = UINT64_MAX;
+#endif
+        VkResult result = vkAcquireNextImageKHR(device, swapchain, acquireTimeout,
             nextAcquireSemaphore_, VK_NULL_HANDLE, &imageIndex);
+#if defined(WOWEE_SWITCH)
+        // Bracketed in the boot log because this is the one frame step that can
+        // wait forever on something outside our control: the presentation
+        // engine. "render: beginFrame" with no "gpu: acquire done" after it
+        // names the hang without any further instrumentation.
+        platform::switchport::reportBootStage(
+            (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)
+                ? "gpu: swapchain acquire done"
+                : "gpu: swapchain acquire FAILED");
+#endif
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             swapchainDirty = true;
