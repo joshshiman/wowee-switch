@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Configure, build and package the switch client with OpenOrbis.
+# Configure, build and stage the Switch client with devkitPro.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="$REPO_DIR/build-switch"
 CONFIG="Release"
-TITLE_ID="${WOWEE_SWITCH_TITLE_ID:-WOWE00001}"
 JOBS=""
 CLEAN=0
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 usage() {
     cat <<'USAGE'
-Build WoWPS for PlayStation 4 and produce an installable .pkg.
+Build WoWee for the Nintendo Switch and stage the .nro for an SD card.
 
 Usage: tools/switch/build_switch_nro.sh [options]
 
@@ -20,41 +19,40 @@ Usage: tools/switch/build_switch_nro.sh [options]
   --jobs N, -j N         Parallel compile jobs; defaults to the host CPU count.
   --build-dir DIR        Build directory; defaults to ./build-switch.
   --config CONFIG        Release, Debug, RelWithDebInfo or MinSizeRel.
-  --title-id ID          Four uppercase letters and five digits; WOWE00001.
+  --stage-dir DIR        Where to put the SD-card layout; defaults to ./out/switch.
   -h, --help             Show this help.
 
 Environment:
-  DEVKITPRO         Root of the OpenOrbis switch Toolchain.
-  WOWEE_SWITCH_LIBSSL11_DIR   Optional directory with OpenSSL 1.1 host libraries.
-  WOWEE_SWITCH_TITLE          Package title; defaults to WoWPS.
-  WOWEE_SWITCH_VERSION        Package version; defaults to the project BUILD_VERSION.
-  WOWEE_SWITCH_CONTENT_ID     Optional full content ID override.
+  DEVKITPRO         devkitPro root (devkitA64 + libnx + portlibs).
+  PKG_CONFIG_PATH   must contain the nxvk portlib's pkgconfig dir.
 
-Required external link inputs:
-  switch/third_party/nxvk/lib/libopengnm.a
-  switch/third_party/nxvk/lib/libpsbc.orbis.a
+Requires the nxvk (Mesa NVK) devkitPro portlib:
+  https://github.com/PalindromicBreadLoaf/nxvk  (make image && make && sudo make install)
 
-See README.md for prerequisites, library compatibility and game-data setup.
-Output: <build-dir>/pkg/<content-id>.pkg
+Output:
+  <build-dir>/bin/wowee.nro
+  <stage-dir>/switch/wowee/wowee.nro   (copy the stage dir to the SD card root)
 USAGE
 }
+
+STAGE_DIR="$REPO_DIR/out/switch"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --clean) CLEAN=1; shift ;;
-        -j|--jobs|--build-dir|--config|--title-id)
+        -j|--jobs|--build-dir|--config|--stage-dir)
             [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"
             case "$1" in
                 -j|--jobs) JOBS="$2" ;;
                 --build-dir) BUILD_DIR="$2" ;;
                 --config) CONFIG="$2" ;;
-                --title-id) TITLE_ID="$2" ;;
+                --stage-dir) STAGE_DIR="$2" ;;
             esac
             shift 2 ;;
         --jobs=*) JOBS="${1#*=}"; shift ;;
         --build-dir=*) BUILD_DIR="${1#*=}"; shift ;;
         --config=*) CONFIG="${1#*=}"; shift ;;
-        --title-id=*) TITLE_ID="${1#*=}"; shift ;;
+        --stage-dir=*) STAGE_DIR="${1#*=}"; shift ;;
         -h|--help) usage; exit 0 ;;
         *) die "unknown option '$1'; use --help" ;;
     esac
@@ -64,10 +62,6 @@ case "$CONFIG" in
     Release|Debug|RelWithDebInfo|MinSizeRel) ;;
     *) die "unsupported build configuration '$CONFIG'" ;;
 esac
-case "$TITLE_ID" in
-    [A-Z][A-Z][A-Z][A-Z][0-9][0-9][0-9][0-9][0-9]) ;;
-    *) die "--title-id must be four uppercase letters followed by five digits" ;;
-esac
 if [ -z "$JOBS" ]; then
     JOBS="$( (nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 4) | tr -d '[:space:]')"
 fi
@@ -76,55 +70,23 @@ fi
 for tool in cmake ninja python3; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool was not found on PATH; see README.md"
 done
-for tool in clang clang++ ld.lld; do
-    command -v "${tool}-18" >/dev/null 2>&1 || command -v "$tool" >/dev/null 2>&1 || \
-        die "$tool was not found on PATH; LLVM 18 is recommended"
-done
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || die "Python 3.10 or newer is required"
 
-[ -n "${DEVKITPRO:-}" ] || die "set DEVKITPRO to the OpenOrbis toolchain root; see README.md"
-for f in link.x lib/crt1.o include/stdio.h include/c++/v1/vector; do
-    [ -f "$DEVKITPRO/$f" ] || die "OpenOrbis toolchain is missing $f"
+[ -n "${DEVKITPRO:-}" ] || die "set DEVKITPRO to the devkitPro root; see README.md"
+for f in devkitA64/bin/aarch64-none-elf-gcc libnx/switch.specs libnx/include/switch.h; do
+    [ -e "$DEVKITPRO/$f" ] || die "devkitPro install is missing $f"
 done
-case "$(uname -s)" in
-    Linux) TOOLS_DIR="$DEVKITPRO/bin/linux" ;;
-    Darwin) TOOLS_DIR="$DEVKITPRO/bin/macos" ;;
-    *) die "use Linux, macOS or WSL for the OpenOrbis host tools" ;;
-esac
-for tool in create-fself create-gp4 PkgTool.Core; do
-    [ -x "$TOOLS_DIR/$tool" ] || die "$TOOLS_DIR/$tool is missing or not executable"
-done
-for lib in libopengnm.a libpsbc.orbis.a; do
-    [ -s "$REPO_DIR/switch/third_party/nxvk/lib/$lib" ] || \
-        die "missing switch link input: switch/third_party/nxvk/lib/$lib; see README.md"
-done
-for f in world.json catalog/manifest.json catalog/cells.idx catalog/contacts.pack \
-         catalog/items.pack catalog/npcs.pack catalog/quests.pack catalog/spawns.pack; do
-    [ -s "$REPO_DIR/assets/local_realm/$f" ] || die "missing bundled runtime data: assets/local_realm/$f"
-done
+PKGCFG="${PKG_CONFIG_PATH:-$DEVKITPRO/portlibs/switch/lib/pkgconfig}"
+[ -f "$PKGCFG/nxvk.pc" ] || \
+    die "the nxvk portlib is not installed (expected $PKGCFG/nxvk.pc); see README.md"
 
-# Resolve paths before allowing a recursive clean. Never delete a source tree,
-# its parent, the home directory, or a toolchain directory.
-[ -n "$BUILD_DIR" ] || die "--build-dir cannot be empty"
-BUILD_DIR="$(python3 - "$BUILD_DIR" "$REPO_DIR" "$DEVKITPRO" <<'PY'
-from pathlib import Path
-import sys
-build, repo, sdk = (Path(p).expanduser().resolve() for p in sys.argv[1:])
-if (build in (Path('/'), Path.home().resolve()) or build == repo or build in repo.parents
-    or build == sdk or build in sdk.parents or sdk in build.parents):
-    sys.exit('error: unsafe build directory: ' + str(build))
-if repo in build.parents:
-    top = build.relative_to(repo).parts[0]
-    if top not in ('build-switch', 'out') and not top.startswith('build-'):
-        sys.exit('error: use build-* or out/ for an in-repository build directory')
-print(build)
-PY
-)"
 if [ "$CLEAN" -eq 1 ] && [ -d "$BUILD_DIR" ]; then
-    [ -f "$BUILD_DIR/CMakeCache.txt" ] || die "refusing to clean a directory without CMakeCache.txt: $BUILD_DIR"
     printf '==> removing %s\n' "$BUILD_DIR"
     rm -rf -- "$BUILD_DIR"
 fi
+
+export DEVKITPRO
+export PKG_CONFIG_PATH="$PKGCFG"
 
 printf '==> configure (%s)\n' "$CONFIG"
 cmake -S "$REPO_DIR" -B "$BUILD_DIR" -G Ninja \
@@ -132,14 +94,13 @@ cmake -S "$REPO_DIR" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE="$CONFIG"
 printf '==> build (%s jobs)\n' "$JOBS"
 cmake --build "$BUILD_DIR" --parallel "$JOBS"
-[ -s "$BUILD_DIR/wowee.elf" ] || die "build did not produce $BUILD_DIR/wowee.elf"
-printf '==> package\n'
-WOWEE_SWITCH_TITLE_ID="$TITLE_ID" "$REPO_DIR/tools/switch/package.sh" "$BUILD_DIR"
 
-PKG=""
-for file in "$BUILD_DIR/pkg/"*.pkg; do
-    [ -s "$file" ] || continue
-    PKG="$file"
-done
-[ -n "$PKG" ] || die "packaging did not produce a .pkg file"
-printf '\nPackage: %s\nSize: %s bytes\n' "$PKG" "$(wc -c < "$PKG" | tr -d '[:space:]')"
+NRO="$BUILD_DIR/bin/wowee.nro"
+[ -s "$NRO" ] || die "build did not produce $NRO"
+
+printf '==> stage\n'
+"$REPO_DIR/tools/switch/package.sh" "$BUILD_DIR" "$STAGE_DIR"
+
+printf '\nNRO: %s (%s bytes)\nStaged: %s/switch/wowee/wowee.nro\n' \
+    "$NRO" "$(wc -c < "$NRO" | tr -d '[:space:]')" "$STAGE_DIR"
+printf 'On the console: copy your WotLK client Data/ to sdmc:/wowps/Data.\n'

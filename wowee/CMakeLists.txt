@@ -53,6 +53,12 @@ include(cmake/switch/stormlib.cmake)
 include(cmake/switch/crypto_shim.cmake)
 include(cmake/switch/nxvk.cmake)
 set(Vulkan_FOUND TRUE)
+# Newlib/Horizon gaps the statically linked driver expects the title to fill
+# (getrandom, posix_memalign, sysconf, regex stubs, __nx_heap_size, ...).
+add_library(nxvk_compat STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/switch/third_party/nxvk/nvk_compat.c)
+set_target_properties(nxvk_compat PROPERTIES C_STANDARD 11)
+target_link_libraries(nxvk_compat PRIVATE nx)
     find_package(Threads QUIET)
     if(NOT TARGET Threads::Threads)
         add_library(WOWEE_SWITCH_threads INTERFACE)
@@ -851,6 +857,7 @@ set(WOWEE_SWITCH_LIBS
 )
     target_link_libraries(wowee PRIVATE
         Vulkan::Vulkan
+        nxvk_compat
         WOWEE_SWITCH_crypto
         storm
         ZLIB::ZLIB
@@ -939,10 +946,10 @@ if(WOWEE_SWITCH)
         VERBATIM)
     set(WOWEE_SWITCH_BASH bash)
     add_custom_target(switchpkg
-        COMMAND ${CMAKE_COMMAND} -E env DEVKITPRO=${DEVKITPRO}
-            ${WOWEE_SWITCH_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/switch/package.sh ${CMAKE_BINARY_DIR}
+        COMMAND ${WOWEE_SWITCH_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/tools/switch/package.sh
+            ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/out/switch
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Packaging switch .pkg from ${CMAKE_BINARY_DIR}"
+        COMMENT "Staging the Switch homebrew into out/switch"
         VERBATIM USES_TERMINAL)
     add_dependencies(switchpkg wowee WOWEE_SWITCH_runtime_files copy_bundled_addons)
 endif()

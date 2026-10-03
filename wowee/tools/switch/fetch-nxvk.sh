@@ -1,32 +1,66 @@
 #!/usr/bin/env bash
-# Download the OpenOrbis switch Toolchain release (built against LLVM 18, which is
-# the clang this port is tested with) into $1 (default: ./switch-toolchain) and
-# print the export line to put in your shell.
+# Install the Vulkan driver this port renders through.
 #
-#   tools/switch/fetch-toolchain.sh [dest-dir] [llvm-version]
+# WoWee on the Switch draws through Mesa's NVK Vulkan driver, ported to the
+# console as a devkitPro portlib by PalindromicBreadLoaf:
 #
-# The release tarball already contains musl, libc++, the library stubs, the
-# SDL2 port, create-fself, create-gp4, readoelf and PkgTool.Core.
+#   https://github.com/PalindromicBreadLoaf/nxvk
+#
+# That port is built from Mesa with podman/docker, so this script does the
+# clone + build + install and stops with the URL when the container runtime is
+# missing.
+#
+#   tools/switch/fetch-nxvk.sh [dest-dir]
+#
+# After it finishes, $DEVKITPRO/portlibs/switch/lib/pkgconfig/nxvk.pc exists
+# and cmake/switch/nxvk.cmake picks the driver up through pkg-config.
 set -euo pipefail
 
-DEST="${1:-$(pwd)/switch-toolchain}"
-LLVM_VER="${2:-18}"
-URL="https://github.com/OpenOrbis/OpenOrbis-switch-Toolchain/releases/latest/download/toolchain-llvm-${LLVM_VER}.tar.gz"
+DEST="${1:-$(pwd)/nxvk}"
+REPO="https://github.com/PalindromicBreadLoaf/nxvk.git"
 
-mkdir -p "$DEST"
-echo "Downloading $URL"
-curl -sSL --fail -o "$DEST/toolchain.tar.gz" "$URL"
-echo "Extracting to $DEST"
-tar -xzf "$DEST/toolchain.tar.gz" -C "$DEST" --strip-components=2
-rm -f "$DEST/toolchain.tar.gz"
+if [ ! -f "${DEVKITPRO:-$DEVKITPRO_UNSET}/portlibs/switch/lib/pkgconfig/nxvk.pc" ]; then
+    :
+else
+    echo "nxvk portlib already installed; nothing to do."
+    exit 0
+fi
 
-if [ ! -f "$DEST/link.x" ] || [ ! -f "$DEST/lib/crt1.o" ]; then
-    echo "error: $DEST does not contain link.x / lib/crt1.o after extraction" >&2
+command -v git >/dev/null 2>&1 || { echo "git is required" >&2; exit 1; }
+
+if [ ! -d "$DEST/.git" ]; then
+    echo "==> cloning $REPO into $DEST"
+    git clone --depth 1 --branch switch "$REPO" "$DEST"
+fi
+
+if ! command -v podman >/dev/null 2>&1 && ! command -v docker >/dev/null 2>&1; then
+    cat >&2 <<EOF
+
+The nxvk driver is built inside a container image, and neither podman nor
+docker was found on PATH.
+
+  1. Install podman or docker
+  2. Re-run: tools/switch/fetch-nxvk.sh $DEST
+
+then, inside $DEST:
+
+  make image     # build the toolchain image (once)
+  make           # build libnvk.a + the portlib package
+  sudo make install
+
+EOF
     exit 1
 fi
-chmod +x "$DEST"/bin/linux/* 2>/dev/null || true
+
+cd "$DEST"
+echo "==> make image (toolchain container)"
+make image
+echo "==> make (driver + portlib staging)"
+make
+echo "==> make install (copies into \$DEVKITPRO/portlibs/switch)"
+sudo make install
 
 echo
-echo "OpenOrbis toolchain installed."
-echo "  export DEVKITPRO=$DEST"
-echo "Host requirements: clang and lld (clang-${LLVM_VER} recommended), cmake >= 3.20, ninja."
+echo "nxvk installed. Configure the client with:"
+echo "  export DEVKITPRO=/opt/devkitpro   # or wherever devkitPro lives"
+echo "  tools/switch/build_switch_nro.sh"
