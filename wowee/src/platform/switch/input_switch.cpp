@@ -89,6 +89,13 @@ constexpr uint32_t kDoubleClickMs = 500;
 // pad. Ignore the buttons for this long so it does not become a click.
 constexpr uint32_t kDialogGraceMs = 200;
 
+// How many samples of the pad's own history to read each frame. libnx keeps a
+// 17-entry LIFO per Npad and hands back as many as are asked for, newest first
+// (hid.c:_hidGetStates, called through _hidGetNpadStates), so the whole window
+// is cheap: 17 x sizeof(HidNpadCommonState) per source, off the shared memory,
+// with no waiting and nothing to stall for.
+constexpr size_t kNpadHistory = 17;
+
 
 
 // The pad mapping - Layer, Action, PadBinding, kBindings and padLayerFor - is
@@ -116,6 +123,25 @@ PadSnapshot s_padState;
 uint32_t s_prevButtons = 0;
 Clock::time_point s_lastPump{};
 bool s_pumpedOnce = false;
+
+// The pad's own LIFO, and how far into it this pump has read. Reading the
+// history does not drain it - _hidGetStates only loads header->count and
+// header->tail - so the same tap sits in the window for many frames after it
+// happened. Each sample carries the sampling number the pad gave it, and that
+// is what tells an entry this pump has not seen from one it has already
+// reported: without it every edge would repeat for as long as its sample
+// survived in the ring, and the invariant consumers rely on (a press once,
+// never a repeat - include/ui/local_pad_focus.hpp) would be gone.
+struct NpadHistory {
+    uint64_t lastSampling = 0;
+    bool primed = false;
+};
+NpadHistory s_handheldHistory;
+NpadHistory s_no1History;
+// Static rather than per-frame stack: they are two reads deep and this runs
+// every frame for the life of the process.
+HidNpadCommonState s_handheldStates[kNpadHistory];
+HidNpadCommonState s_no1States[kNpadHistory];
 
 // What the interface says.
 int s_displayW = 1920;
@@ -410,21 +436,68 @@ bool hidReady() {
     return s_initialised && hidGetSharedmemAddr() != nullptr;
 }
 
+// Fold one Npad LIFO window into the buttons it says are held now, OR-ing into
+// `pressed` every press that happened between two of its samples and that this
+// pump has not reported yet. states[] is newest first and the walk below runs
+// oldest to newest, which is the order the pad pressed them in, so the result
+// is one press per button however many samples the tap took.
+//
+// A button that went down and up inside one window is the case this exists
+// for: the held set alone cannot show it, so readPad gives it a frame of held
+// state (see there) and the release follows from the ordinary diff.
+uint32_t foldNpadWindow(const HidNpadCommonState* states, size_t total,
+                        NpadHistory& history, uint32_t& pressed) {
+    if (total == 0) return 0;
+    const uint32_t newest = static_cast<uint32_t>(states[0].buttons);
+    if (!history.primed) {
+        // The window holds samples from before this client ever pumped, which
+        // is the wrong window to diff against: starting it at the newest entry
+        // means the chain begins where the pad is now, and whatever is down
+        // this frame is reported once by the ordinary held-set edge rather
+        // than once per historical press.
+        history.primed = true;
+        history.lastSampling = states[0].sampling_number;
+        return newest;
+    }
+    uint32_t older = static_cast<uint32_t>(states[total - 1].buttons);
+    uint64_t reported = history.lastSampling;
+    for (size_t i = total - 1; i-- > 0;) {
+        const uint32_t newer = static_cast<uint32_t>(states[i].buttons);
+        if (states[i].sampling_number > reported) {
+            pressed |= newer & ~older;
+            reported = states[i].sampling_number;
+        }
+        older = newer;
+    }
+    history.lastSampling = reported;
+    return newest;
+}
+
 void readPad(float dt) {
     (void)dt;
     PadSnapshot st;
     st.connected = false;
-    // Nothing below may run without HID (hidReady). The snapshot stays at its
-    // defaults, so the frame reports an empty, disconnected pad.
+    // Every button that went down since the last pump, from either source's
+    // history. A tap that has already finished leaves no held state behind, and
+    // the rows that act on it - the keys and the mouse buttons ask "is it held",
+    // and the keyboard button, R3 and the world map the bridge reads off
+    // padSnapshot().pressed ask "was it pressed" - are all empty-handed without
+    // this. Nothing here without HID: it stays 0 and the frame is an empty,
+    // disconnected pad.
+    uint32_t pressed = 0;
+    // Nothing below may run without HID (hidReady).
     if (hidReady()) {
         // The console reports the built-in Joy-Cons as one Npad (Handheld) and
         // any docked/attached controller as another (No1). Both are read and
         // merged - picking one would make the held set flicker whenever one of
-        // them reports activity.
-        HidNpadCommonState handheld{};
-        HidNpadCommonState fullkey{};
-        const bool haveHandheld = hidGetNpadStatesHandheld(HidNpadIdType_Handheld, &handheld, 1) > 0;
-        const bool haveFullKey = hidGetNpadStatesFullKey(HidNpadIdType_No1, &fullkey, 1) > 0;
+        // them reports activity. Each is read with the whole of its history,
+        // not one sample: see kNpadHistory.
+        const size_t handheldSamples =
+            hidGetNpadStatesHandheld(HidNpadIdType_Handheld, s_handheldStates, kNpadHistory);
+        const size_t fullKeySamples =
+            hidGetNpadStatesFullKey(HidNpadIdType_No1, s_no1States, kNpadHistory);
+        const HidNpadCommonState& handheld = s_handheldStates[0];
+        const HidNpadCommonState& fullkey = s_no1States[0];
 
         uint64_t buttons = 0;
         float lx = 0.0f, ly = 0.0f, rx = 0.0f, ry = 0.0f;
@@ -435,15 +508,15 @@ void readPad(float dt) {
         auto takeStick = [](const HidAnalogStickState& state, float& x, float& y) {
             stickToFloatRaw(state.x, state.y, x, y);
         };
-        if (haveHandheld && (handheld.attributes & HidNpadAttribute_IsConnected) != 0) {
+        if (handheldSamples > 0 && (handheld.attributes & HidNpadAttribute_IsConnected) != 0) {
             connected = true;
-            buttons |= handheld.buttons;
+            buttons |= foldNpadWindow(s_handheldStates, handheldSamples, s_handheldHistory, pressed);
             takeStick(handheld.analog_stick_l, lx, ly);
             takeStick(handheld.analog_stick_r, rx, ry);
         }
-        if (haveFullKey && (fullkey.attributes & HidNpadAttribute_IsConnected) != 0) {
+        if (fullKeySamples > 0 && (fullkey.attributes & HidNpadAttribute_IsConnected) != 0) {
             connected = true;
-            buttons |= fullkey.buttons;
+            buttons |= foldNpadWindow(s_no1States, fullKeySamples, s_no1History, pressed);
             float flx = 0.0f, fly = 0.0f, frx = 0.0f, fry = 0.0f;
             takeStick(fullkey.analog_stick_l, flx, fly);
             takeStick(fullkey.analog_stick_r, frx, fry);
@@ -490,7 +563,10 @@ void readPad(float dt) {
     }
 
     if (s_keyboard.open) {
-        s_keyboard.rawPressed = st.buttons & ~s_keyboard.rawPrevious;
+        // The modal owns the pad while it is up, so it reads the raw pad and not
+        // the masked snapshot below - and it reads the taps as well, for the
+        // same reason everything else in this layer does.
+        s_keyboard.rawPressed = (st.buttons | pressed) & ~s_keyboard.rawPrevious;
         s_keyboard.rawPrevious = st.buttons;
     }
     // The in-game keyboard has the pad while it is up, and the press that
@@ -499,9 +575,20 @@ void readPad(float dt) {
         st.buttons = 0;
         st.lx = st.ly = st.rx = st.ry = 0.0f;
         st.l2 = st.r2 = 0.0f;
+    } else if (pressed) {
+        // A press that began and ended between two pumps is given one frame of
+        // held state, so the rows that ask "is it held" act on it and the whole
+        // tap is over by the next frame: the release below is the same diff
+        // against the same s_prevButtons. Without this a tap shorter than a
+        // frame was not a click, not a key and not a spell - one sample with
+        // the button up, which is indistinguishable from never touching it.
+        st.buttons |= pressed & ~st.buttons;
     }
 
-    st.pressed = st.buttons & ~s_prevButtons;
+    // The press edge is the union of what the held set changed by and what the
+    // history saw since the last pump: the two differ only for a button that
+    // was already down when the window opened and was pressed again inside it.
+    st.pressed = (st.buttons & ~s_prevButtons) | pressed;
     st.released = s_prevButtons & ~st.buttons;
     s_prevButtons = st.buttons;
     s_padState = st;
