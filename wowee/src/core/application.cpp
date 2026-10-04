@@ -28,10 +28,14 @@
 #include "rendering/animation_controller.hpp"
 #include <bit>
 #include <unordered_set>
+#include <algorithm>
 #include <cmath>
 #include <chrono>
+#include <cstdint>
 #include <limits>
+#include <string>
 #include <utility>
+#include <vector>
 #include "core/logger.hpp"
 #include "core/memory_monitor.hpp"
 #include "platform/cpu_geometry.hpp"
@@ -4593,6 +4597,8 @@ void Application::render() {
                            , ps4TraceStages
 #endif
                           ](const char* stageName, auto&& fn) {
+        static constexpr float kSlowStageMs = 50.0f;
+        static constexpr std::chrono::seconds kSlowStageReportInterval{10};
 #ifdef WOWEE_SWITCH
         if (ps4TraceStages) {
             char stage[96];
@@ -4617,8 +4623,36 @@ void Application::render() {
         float stageMs = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - stageStart).count();
         noteStageTime(stageName, stageMs);
-        if (stageMs > 50.0f) {
-            LOG_WARNING("SLOW render stage '", stageName, "': ", stageMs, "ms");
+        // One line per slow frame per stage is a firehose, not a diagnostic: a
+        // stage that is over budget every frame said so 1100 times in a two
+        // minute session and told the reader nothing extra. Said on the way
+        // over and then at most once every ten seconds, carrying how many
+        // frames were skipped and how bad the worst of them was - which is the
+        // part a reader actually wants. On the console each of those lines is a
+        // flushed write to the SD card.
+        if (stageMs > kSlowStageMs) {
+            struct SlowStageNote {
+                std::string name;
+                std::chrono::steady_clock::time_point lastAt{};
+                uint32_t skipped = 0;
+            };
+            static std::vector<SlowStageNote> notes;
+            const auto now = std::chrono::steady_clock::now();
+            auto it = std::find_if(notes.begin(), notes.end(),
+                                   [&](const SlowStageNote& n) { return n.name == stageName; });
+            if (it == notes.end()) {
+                notes.push_back({stageName, now, 0});
+            } else if (now - it->lastAt >= kSlowStageReportInterval) {
+                const uint32_t skipped = it->skipped;
+                it->lastAt = now;
+                it->skipped = 0;
+                LOG_WARNING("SLOW render stage '", stageName, "': ", stageMs,
+                            "ms (", skipped + 1, " frames over ", kSlowStageMs,
+                            "ms since the last report ", kSlowStageReportInterval.count(),
+                            "s ago)");
+            } else {
+                ++it->skipped;
+            }
         }
     };
 

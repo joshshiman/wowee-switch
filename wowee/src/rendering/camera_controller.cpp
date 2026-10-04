@@ -1613,11 +1613,11 @@ void CameraController::groundFollowedCharacter(float deltaTime, FrameInput& f,
                 // put them on the hillside above the entrance they just walked
                 // into.
                 // Probed from the player, not from the terrain surface: the
-                // floor query culls any group whose top sits more than 4 yards
-                // below the probe height, so probing from up at the heightfield
-                // would skip the crypt or the tunnel entirely and report clear
-                // ground - the exact opposite of the truth. From here the
-                // structure the player is standing in is right above them.
+                // floor ray reaches a bounded distance below its probe, so
+                // probing from up at the heightfield can skip the crypt or the
+                // tunnel entirely and report clear ground - the exact opposite
+                // of the truth. From here the structure the player is standing
+                // in is right above them.
                 const float probeZ = targetPos.z + 1.5f;
                 bool structureBelowTerrain = false;
                 if (wmoRenderer &&
@@ -2159,19 +2159,30 @@ void CameraController::updateOrbitCamera(float deltaTime, FrameInput& f,
         }
         std::optional<float> camWmoH;
         if (wmoRenderer) {
-            // Skip expensive WMO floor query if camera barely moved
+            float camFloorProbeZ = smoothedCamPos.z;
+            if (cachedInsideInteriorWMO) {
+                // Inside tunnels/buildings, probe near player height so roof
+                // triangles above the camera don't get treated as floor.
+                camFloorProbeZ = std::min(smoothedCamPos.z, targetPos.z + 1.0f);
+            }
+            // Skip expensive WMO floor query if camera barely moved.
+            //
+            // Height is part of "barely moved". The floor query takes the probe
+            // height as an argument and answers from it - the ray it casts
+            // reaches a different band of geometry, and the building under the
+            // camera is in or out of that band - so a cache keyed on XY alone
+            // replays a floor found for a height the camera has since left.
+            // That is how a camera that rose got a stale "nothing here" kept for
+            // as long as it held still, and had no floor to sit on while it did.
+            // Same hazard named in WMORenderer::getFloorHeight, where the
+            // per-frame (x,y) cache was removed for it.
             float cdx = smoothedCamPos.x - lastCamFloorQueryPos.x;
             float cdy = smoothedCamPos.y - lastCamFloorQueryPos.y;
-            float camDeltaSq = cdx * cdx + cdy * cdy;
+            float cdz = camFloorProbeZ - lastCamFloorQueryPos.z;
+            float camDeltaSq = cdx * cdx + cdy * cdy + cdz * cdz;
             if (camDeltaSq < 0.09f && hasCachedCamFloor) {
                 camWmoH = cachedCamWmoFloor;
             } else {
-                float camFloorProbeZ = smoothedCamPos.z;
-                if (cachedInsideInteriorWMO) {
-                    // Inside tunnels/buildings, probe near player height so roof
-                    // triangles above the camera don't get treated as floor.
-                    camFloorProbeZ = std::min(smoothedCamPos.z, targetPos.z + 1.0f);
-                }
                 camWmoH = wmoRenderer->getFloorHeight(
                     smoothedCamPos.x, smoothedCamPos.y, camFloorProbeZ);
 
@@ -2185,6 +2196,7 @@ void CameraController::updateOrbitCamera(float deltaTime, FrameInput& f,
                 cachedCamWmoFloor = camWmoH;
                 hasCachedCamFloor = true;
                 lastCamFloorQueryPos = smoothedCamPos;
+                lastCamFloorQueryPos.z = camFloorProbeZ;
             }
         }
         // When camera/character are inside a WMO, force WMO floor usage for camera

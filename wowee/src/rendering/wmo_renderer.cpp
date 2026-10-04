@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -71,6 +72,101 @@ static void transformAABB(const glm::mat4& modelMatrix,
                           const glm::vec3& localMax,
                           glm::vec3& outMin,
                           glm::vec3& outMax);
+
+/// How far below and above the probe point a downward floor ray reaches.
+///
+/// The ray is cast from kFloorRayReachAbove above the probe and keeps the
+/// highest hit at or below it, so this is the reach of the whole query: an
+/// instance or group entirely outside this band cannot produce a floor this
+/// query would accept, and one inside it might. Both ends are named because
+/// the spatial index is keyed in Z too and prunes on the same band - when the
+/// two disagree the cheaper one silently decides, which is how a group that
+/// was reachable by ray never reached the triangle test at all.
+///
+/// Twenty below is not a new number. The floor query had a model-dependent
+/// margin pair, 2 down by 4 up, and gave a *low platform* - a WMO thinner than
+/// six yards and longer than twenty, which is what a bridge deck or a plank is
+/// - twenty by twenty, because a thin deck is exactly the thing a 2-yard
+/// downward window cannot see: the probe sits above its top and it was
+/// discarded. That was the same bug with a special case bolted on, and the
+/// special case is the tell. A ray pointed down reaches everything below its
+/// probe, so the reach is now the same for every model, and it is the widest
+/// the query already had.
+///
+/// It stays finite. "Highest floor at or below the probe" only reaches a floor
+/// this far down when there is nothing at all nearer the probe, and a floor
+/// twenty yards under a character's feet is another storey down rather than
+/// this one - the point window's protection, kept.
+constexpr float kFloorRayReachBelow = 20.0f;
+constexpr float kFloorRayReachAbove = 10.0f;
+
+/// Whether the downward floor ray from a probe at `glZ` can reach geometry
+/// inside this box, and reach it within the query's accept band.
+///
+/// This is a statement about the box against the ray's reach. It is
+/// deliberately NOT "is the probe point inside the box", which is what the
+/// floor query used to ask, and asking it that way is the bug: a downward ray
+/// is above almost everything it is looking for, so a point-inside test throws
+/// away every instance and group lying wholly *below* the probe - which is the
+/// ordinary case, not the exception. A camera looking down at a roof, a bridge
+/// deck or a paved square is over a building whose top is metres below it, and
+/// that building, the one surface the camera belongs on, was discarded before a
+/// single triangle was tested. The log said so, in as many words: a building
+/// covering the spot, whose height window rejected the query.
+///
+/// A non-finite bound compares false and so drops the instance, which is the
+/// behaviour every one of these predicates already had.
+static bool rayReachesFloor(const glm::vec3& boundsMin, const glm::vec3& boundsMax,
+                            float glZ) {
+    return boundsMax.z >= glZ - kFloorRayReachBelow &&
+           boundsMin.z <= glZ + kFloorRayReachAbove;
+}
+
+/// "No WMO floor here", said once per distinct spot and once per reason.
+///
+/// The old gate was a one-second clock, which is one line per second for as
+/// long as a single character stands still in one place: 143 identical lines in
+/// a ninety-second session on the desktop, and on the console one flushed SD
+/// card write each. The query is asked every frame, so the rate of the answer
+/// is not the rate of the news: the same spot missing is one problem.
+///
+/// Keyed on the spot quantised to half a yard and the reason, with a bounded
+/// set of recent keys, so walking back and forth over a genuine hole says it
+/// twice rather than growing without limit. Half a yard is finer than a
+/// character stands still and coarser than the drift of a slow slide down a
+/// ramp, so one problem stays one key while walking along a seam produces a few.
+static void warnOncePerFloorMiss(float glX, float glY, float glZ,
+                                 bool outOfReach, size_t groupsConsidered,
+                                 float rejectedZMin, float rejectedZMax) {
+    struct FloorMissKey {
+        int64_t x, y, z;
+        bool outOfReach;
+        bool operator==(const FloorMissKey& o) const {
+            return x == o.x && y == o.y && z == o.z && outOfReach == o.outOfReach;
+        }
+    };
+    auto bucket = [](float v) { return static_cast<int64_t>(std::floor(v * 2.0f)); };
+    const FloorMissKey key{bucket(glX), bucket(glY), bucket(glZ), outOfReach};
+
+    constexpr size_t kMaxRemembered = 16;
+    static std::vector<FloorMissKey> reported;
+    if (std::find(reported.begin(), reported.end(), key) != reported.end()) return;
+    if (reported.size() >= kMaxRemembered) {
+        reported.erase(reported.begin());
+    }
+    reported.push_back(key);
+
+    if (outOfReach) {
+        LOG_WARNING("No WMO floor at (", glX, ",", glY, ",", glZ,
+                    ") - a building covers that spot but lies outside the ray's "
+                    "reach below the probe: bounds z=[", rejectedZMin, "..",
+                    rejectedZMax, "]");
+    } else {
+        LOG_WARNING("No WMO floor at (", glX, ",", glY, ",", glZ,
+                    ") - ", groupsConsidered,
+                    " group(s) there were tested and no triangle was hit");
+    }
+}
 
 WMORenderer::WMORenderer() {
 }
@@ -3452,6 +3548,9 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
     bool overlappedInXY = false;
     bool rejectedByZ = false;
     float rejectedZMin = 0.0f, rejectedZMax = 0.0f;
+    // Groups that survived the culls and had their triangles actually tested.
+    // This, and not the instance box, is what "considered" has to mean.
+    size_t groupsConsidered = 0;
 
     // A moving transport (elevator, ship hull) IS ordinary collision - you walk
     // up a docked ship's hull and you stand on a lift with no attachment at all
@@ -3564,7 +3663,7 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
                     const auto& [gMin, gMax] = instance.worldGroupBounds[gi];
                     if (glX < gMin.x || glX > gMax.x ||
                         glY < gMin.y || glY > gMax.y ||
-                        glZ - 4.0f > gMax.z) {
+                        !rayReachesFloor(gMin, gMax, glZ)) {
                         return;
                     }
                 }
@@ -3572,6 +3671,7 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
                 if (!rayIntersectsAABB(localOrigin, localDir, group.boundingBoxMin, group.boundingBoxMax)) {
                     return;
                 }
+                ++groupsConsidered;
                 testGroupFloor(instance, model, group, localOrigin, localDir);
             };
 
@@ -3586,8 +3686,11 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
 
     // Full scan: test all instances (active group result above is not
     // early-returned because overlapping WMO instances need full coverage).
-    glm::vec3 queryMin(glX - 2.0f, glY - 2.0f, glZ - 8.0f);
-    glm::vec3 queryMax(glX + 2.0f, glY + 2.0f, glZ + 10.0f);
+    // The Z box is the ray's own reach, the same band rayReachesFloor keeps to:
+    // the index is keyed in Z, so a narrower or wider box here decides the
+    // candidate set before the per-instance test ever runs.
+    glm::vec3 queryMin(glX - 2.0f, glY - 2.0f, glZ - kFloorRayReachBelow);
+    glm::vec3 queryMax(glX + 2.0f, glY + 2.0f, glZ + kFloorRayReachAbove);
     gatherCandidates(queryMin, queryMax, tl_candidateScratch);
 
     for (size_t idx : tl_candidateScratch) {
@@ -3598,8 +3701,6 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
         if (it == loadedModels.end()) continue;
 
         const ModelData& model = it->second;
-        float zMarginDown = model.isLowPlatform ? 20.0f : 2.0f;
-        float zMarginUp = model.isLowPlatform ? 20.0f : 4.0f;
 
         // Broad-phase reject in world space to avoid expensive matrix transforms.
         // In a filtered nearest-reference query, a lower instance can be
@@ -3611,10 +3712,17 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
         }
         const bool insideXY = glX >= instance.worldBoundsMin.x && glX <= instance.worldBoundsMax.x &&
                               glY >= instance.worldBoundsMin.y && glY <= instance.worldBoundsMax.y;
-        if (!withinWorldBounds(instance, glX, glY, glZ, zMarginDown, zMarginUp)) {
+        // XY, plus whether the ray reaches this instance's Z. Not
+        // withinWorldBounds: see rayReachesFloor. The model-dependent margins
+        // that call took (2 down by 4 up, 20 by 20 for a low platform) put the
+        // probe point inside the instance, which for a ray cast from five
+        // hundred units above is the wrong question - it discarded every roof
+        // and deck under the query, and the camera had no floor to sit on while
+        // a building plainly covered it.
+        if (!insideXY || !rayReachesFloor(instance.worldBoundsMin, instance.worldBoundsMax, glZ)) {
             // Over a building and rejected anyway: the only thing that can do
-            // that here is the Z window, and it is worth naming when the answer
-            // comes back "no floor" - falling through something you are
+            // that here is the ray's reach, and it is worth naming when the
+            // answer comes back "no floor" - falling through something you are
             // standing on looks the same whether it was never considered or
             // considered and missed.
             if (insideXY) {
@@ -3628,14 +3736,14 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
         if (insideXY) overlappedInXY = true;
 
         // World-space pre-pass: check which groups' world XY bounds contain
-        // the query point. For a vertical ray this eliminates most groups
-        // before any local-space math.
+        // the query point, and whether the ray reaches their Z. For a vertical
+        // ray this eliminates most groups before any local-space math.
         bool anyGroupOverlaps = false;
         for (size_t gi = 0; gi < model.groups.size() && gi < instance.worldGroupBounds.size(); ++gi) {
             const auto& [gMin, gMax] = instance.worldGroupBounds[gi];
             if (glX >= gMin.x && glX <= gMax.x &&
                 glY >= gMin.y && glY <= gMax.y &&
-                glZ - 4.0f <= gMax.z) {
+                rayReachesFloor(gMin, gMax, glZ)) {
                 anyGroupOverlaps = true;
                 break;
             }
@@ -3652,7 +3760,7 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
                 const auto& [gMin, gMax] = instance.worldGroupBounds[gi];
                 if (glX < gMin.x || glX > gMax.x ||
                     glY < gMin.y || glY > gMax.y ||
-                    glZ - 4.0f > gMax.z) {
+                    !rayReachesFloor(gMin, gMax, glZ)) {
                     continue;
                 }
             }
@@ -3662,6 +3770,7 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
                 continue;
             }
 
+            ++groupsConsidered;
             testGroupFloor(instance, model, group, localOrigin, localDir);
         }
     }
@@ -3671,25 +3780,34 @@ std::optional<float> WMORenderer::getFloorHeight(float glX, float glY, float glZ
     // Standing over a building and told there is no floor.
     //
     // Falling through something looks the same whether the building was never
-    // considered, considered and rejected by the height window, or considered
-    // and simply missed by the ray - and those need different fixes. Said at
-    // most once a second, and only when the query was over one at all.
+    // considered, considered and rejected by the ray's reach, or considered
+    // and simply missed by the triangle test - and those need different fixes.
+    //
+    // "Never considered" is not a fault and is not said. Whether a group was
+    // ever tested is groupsConsidered, not whether some instance's box covers
+    // the spot: an instance box comes from the WMO header and is routinely far
+    // larger than its collision geometry, and Stormwind is a single WMO for the
+    // whole city, so its one box covers every street in it. Reading that as
+    // "considered" produced the claim that a building had been considered and
+    // had missed, once a second, for as long as the character stood still, on
+    // a spot where no group of that city had a floor to miss.
+    //
+    // A group that was tested and hit nothing is the other half and is said in
+    // preference: that one is a real fault. The out-of-reach line is for when
+    // nothing was tested at all and the nearest surface was more than a
+    // building's height below the probe, which is worth knowing and is not
+    // worth saying in preference to the fault above.
+    //
+    // Said once per distinct spot and reason rather than once a second. The
+    // query runs every frame for as long as the answer is missing, and the
+    // console log flushes a line at a time.
     if (!bestFloor && overlappedInXY) {
-        using Clock = std::chrono::steady_clock;
-        static Clock::time_point lastAt{};
-        const auto now = Clock::now();
-        if (now - lastAt > std::chrono::seconds(1)) {
-            lastAt = now;
-            if (rejectedByZ) {
-                LOG_WARNING("No WMO floor at (", glX, ",", glY, ",", glZ,
-                            ") - a building covers that spot but its height window "
-                            "rejected the query: bounds z=[", rejectedZMin, "..",
-                            rejectedZMax, "]");
-            } else {
-                LOG_WARNING("No WMO floor at (", glX, ",", glY, ",", glZ,
-                            ") - a building covers that spot, was considered, and "
-                            "no triangle was hit");
-            }
+        if (groupsConsidered > 0) {
+            warnOncePerFloorMiss(glX, glY, glZ, /*outOfReach=*/false, groupsConsidered,
+                                 0.0f, 0.0f);
+        } else if (rejectedByZ) {
+            warnOncePerFloorMiss(glX, glY, glZ, /*outOfReach=*/true, groupsConsidered,
+                                 rejectedZMin, rejectedZMax);
         }
     }
 
