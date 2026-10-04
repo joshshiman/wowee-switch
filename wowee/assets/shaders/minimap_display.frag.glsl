@@ -41,7 +41,14 @@ void main() {
     float sn = sin(push.rotation);
     vec2 mapCenter = vec2(-center.x, center.y);
     vec2 rotated = vec2(mapCenter.x * cs - mapCenter.y * sn, mapCenter.x * sn + mapCenter.y * cs);
-    vec2 mapUV = push.playerUV + vec2(rotated.y, -rotated.x) * push.zoomRadius * 2.0;
+    // The composite's u grows east and its v grows south: compositePass gives
+    // gridOffset.x to dc (tileY, which rises eastward) and gridOffset.y to dr
+    // (tileX, which falls as renderY/north rises), so v = 0 is the composite's top
+    // row. TexCoord.y = 0 is the top of this quad, so a north-up map takes u from
+    // screen right - mapCenter above has already negated rotated.x into +center.x -
+    // and v from screen up, which is rotated.y. zoomRadius is already in composite
+    // UV (viewRadius / 3 tiles); the gain below is over it and must stay 1.0.
+    vec2 mapUV = push.playerUV + vec2(-rotated.x, rotated.y) * push.zoomRadius * 1.0;
 
     vec4 mapColor = texture(uComposite, mapUV);
 

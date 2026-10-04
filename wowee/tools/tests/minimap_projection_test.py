@@ -63,7 +63,7 @@ def display_uv_swizzle() -> tuple[str, str]:
     the expression is rewritten.
     """
     text = read(SHADERS / "minimap_display.frag.glsl")
-    match = re.search(r"mapUV\s*=\s*[^;]*?vec2\(\s*([A-Za-z0-9_.]+)\s*,\s*(-?[A-Za-z0-9_.]+)\s*\)", text)
+    match = re.search(r"mapUV\s*=\s*[^;]*?vec2\(\s*(-?[A-Za-z0-9_.]+)\s*,\s*(-?[A-Za-z0-9_.]+)\s*\)", text)
     if not match:
         raise AssertionError("minimap_display.frag.glsl no longer builds mapUV as vec2(a, b)")
     return match.group(1), match.group(2)
@@ -184,9 +184,19 @@ def main() -> int:
              "grid puts u on renderX (east-west) and v on renderY (north-south). "
              "The display transposes them, so the map is rotated 90 degrees: "
              "what should be to the east is drawn to the north. For a north-up "
-             "minimap the offset should be vec2(-rotated.x, -rotated.y): screen "
-             "right is +renderX, which is -u, and screen up is -renderY, which "
-             "is +v.")
+             "minimap the offset should be vec2(-rotated.x, rotated.y): the "
+             "composite's u grows east (include/ui/minimap_projection.hpp says so "
+             "too), so screen right has to raise u, and mapCenter has already "
+             "negated rotated.x to make that +center.x; the composite's v grows "
+             "south - compositePass gives v = 0 to the tile north of the player, "
+             "because dr steps tileX and tileX falls as renderY (north) rises - so "
+             "screen up has to lower v, which is -center.y, and rotated.y is "
+             "+center.y.")
+    elif u_expr == "-rotated.x" and v_expr == "rotated.y":
+        # rotated == vec2(-center.x, center.y) at rotation 0, so the offset is
+        # (+center.x, +center.y): u rises to the right (east, which grows u) and v
+        # rises downward (south, which grows v). East right, north up.
+        u_driven_by, v_driven_by = "screenX", "screenY"
     else:
         u_driven_by = v_driven_by = "?"
         note(False, f"minimap_display.frag's mapUV offset changed shape "
