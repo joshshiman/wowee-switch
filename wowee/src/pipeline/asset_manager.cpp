@@ -75,10 +75,10 @@ bool AssetManager::initialize(const std::string& dataPath_) {
 
     setupFileCacheBudget();
 
-#ifdef WOWEE_SWITCH
-    // The console streams from the user's archives, as the real client does.
-    // No extracted tree is read or required (B4 test 7); the manifest path
-    // below is the desktop's.
+#if defined(WOWEE_MPQ_SOURCE_AVAILABLE)
+    // Stream from the user's archives, as the real client does. No extracted
+    // tree is read or required (B4 test 7); the manifest path below is the
+    // fallback for a build with no MPQ reader linked in.
     {
         std::string error;
         for (const std::string& dir : {dataPath + "/Data", dataPath}) {

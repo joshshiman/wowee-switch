@@ -793,12 +793,9 @@ set_source_files_properties(
     PROPERTIES COMPILE_DEFINITIONS WOWEE_STB_IMAGE_WRITE_EXTERNAL)
 
 # The MPQ-backed asset source is how a stock WotLK client directory gets opened
-# without a separate extraction pass. Both platforms want it: the console has no
-# other way to reach the archives, and the desktop build reads the same ones so a
-# run here exercises the code the Switch runs rather than a second path fed by
-# pre-extracted loose files.
-set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/pipeline/mpq_asset_source.cpp
-    PROPERTIES COMPILE_DEFINITIONS WOWEE_MPQ_SOURCE_AVAILABLE=1)
+# without a separate extraction pass, and the macro gates both the reader and the
+# branch in asset_manager.cpp that chooses it - so it is applied to the target
+# itself, below, once that exists.
 
 # Lua 5.1 runtime.
 set(LUA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/lua-5.1.5/src)
@@ -885,6 +882,10 @@ target_include_directories(wowee PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_BINARY_DIR}/generated
 )
+
+# StormLib is linked into every platform, so every platform can stream a stock
+# WotLK client directory straight out of its archives.
+target_compile_definitions(wowee PRIVATE WOWEE_MPQ_SOURCE_AVAILABLE=1)
 set(WOWEE_PCH_STD
     <cstdint>
     <cstddef>
