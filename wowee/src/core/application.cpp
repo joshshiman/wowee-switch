@@ -101,6 +101,7 @@
 #include "platform/switch/extract_switch.hpp"
 #include "platform/switch/cpu_memory.hpp"
 #include "platform/switch/heap_growth.hpp"
+#include "platform/switch/input_switch.hpp"
 #include "rendering/frame_timing_window.hpp"
 #include "rendering/post_process_pipeline.hpp"
 #endif
@@ -4732,6 +4733,25 @@ void Application::render() {
     // interface it had been using never went away.
     const bool drawWidgets = state == AppState::IN_GAME && !characterIntroOwnsView() &&
         (!(gameHandler && gameHandler->isLocalExploration()) || localFrameXml_.ready());
+#ifdef WOWEE_SWITCH
+    // Whether the original interface's panels own the pad, derived rather than
+    // latched.
+    //
+    // It used to be written from inside the FrameXML pad lanes, and the only
+    // place that took it back was navigate() - which a frame reaches only when
+    // the cursor is not over one of this client's own windows. A panel closed
+    // behind the cursor's back therefore left the bit standing for as long as
+    // nothing came back to clear it, and a standing bit is not a hint: it gates
+    // off the left stick, the whole kBindings table and camera look
+    // (input_switch.cpp), so the player could not walk, zoom or turn and only
+    // leaving the world recovered it.
+    //
+    // panelOpen() is the question navigate() answered when it set the bit - is
+    // a panel on top - asked here instead so that it is asked on the frames no
+    // lane runs in as well. Nothing owns the pad, so nothing holds the bit.
+    platform::switchport::setInputMenuNavigation(
+        platform::switchport::MenuOwner::FrameXml, drawWidgets && localFrameXml_.panelOpen());
+#endif
     if (drawWidgets && addonManager_ && addonManager_->getLuaEngine() && renderer) {
         runRenderStage("addonWidgets", [&] {
             const ImGuiIO& io = ImGui::GetIO();

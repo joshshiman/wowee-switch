@@ -264,10 +264,10 @@ bool LocalFrameXml::padWorldMapFrame() {
     // outline and the carried-icon anchor has nothing to follow.
     focus_=0;padFocus_.clear();
     if(!ImGui::IsKeyDown(ImGuiKey_GamepadFaceDown))padCrossHandled_=false;
-    // Every other in-game control is off while the map is up, and this is what
-    // says so. The panel lane says the same thing for every other window, but
-    // it is not running: this lane answers first and it answers every frame.
-    platform::switchport::setInputMenuNavigation(platform::switchport::MenuOwner::FrameXml,true);
+    // Every other in-game control is off while the map is up, and this lane is
+    // what says so - by answering first, and by answering every frame. Who owns
+    // the pad is not asked from here: application.cpp asks panelOpen() once a
+    // frame, and the map is one of the panels that answers it.
     if(ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight,false) ||
        ImGui::IsKeyPressed(ImGuiKey_Escape,false)){
         ui::noteInterfaceConsumedKey(ImGuiKey_GamepadFaceRight);
@@ -486,10 +486,12 @@ bool LocalFrameXml::navigate() {
     // stays claimed only for as long as the button is held, and the frame that
     // released it may well be one where nothing is focused at all.
     if(!ImGui::IsKeyDown(ImGuiKey_GamepadFaceDown))padCrossHandled_=false;
+    // Whether a panel owns the pad is not decided here. application.cpp asks
+    // panelOpen() every frame and tells the pad layer, because this function is
+    // reached only when the cursor is not over one of this client's own windows
+    // and a panel closed behind the cursor's back used to leave the answer
+    // standing for as long as nothing came back here to take it back.
     auto* root=ready()?panel(engine_->widgets()):nullptr;
-#ifdef WOWEE_SWITCH
-    platform::switchport::setInputMenuNavigation(platform::switchport::MenuOwner::FrameXml,root!=nullptr);
-#endif
     if(!root){focus_=0;navigationRoot_=0;return false;}
 #ifdef WOWEE_SWITCH
     if(platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
