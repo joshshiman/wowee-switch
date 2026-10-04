@@ -97,20 +97,48 @@ assert 'activatePadControl' in micro, 'the panel is opened by the interface own 
 # Two shoulders step it and one opens it, each read off the raw pad and each
 # alone - so no face button is taken and all twelve action slots stay reachable.
 assert micro.count('pad.pressed&ORBIS_PAD_BUTTON_') >= 3, micro
+# The four face buttons are live in-world on a remote realm - jump, interact,
+# slot 1, target nearest - and none of them can carry this. They may be named,
+# but only in the mask of buttons this lane stands down for.
+mask = re.search(r'constexpr uint32_t kOthers=(.*?);', micro, re.S).group(1)
+assert 'pad.pressed' not in mask and 'pad.buttons' not in mask, micro
 for face in ('ORBIS_PAD_BUTTON_CROSS', 'ORBIS_PAD_BUTTON_CIRCLE',
              'ORBIS_PAD_BUTTON_SQUARE', 'ORBIS_PAD_BUTTON_TRIANGLE'):
-    assert face not in micro, f'{face} is live in-world on a remote realm and must not be taken'
+    assert face in mask, f'{face} must be listed among the buttons this lane stands down for'
+    assert face not in micro.replace(mask, ''), \
+        f'{face} is live in-world on a remote realm and must not be bound here'
 # L1+R1 is chat and L1's layer is the character keys, so a shoulder beside L1 is
 # somebody reaching for those.
-assert 'ORBIS_PAD_BUTTON_L1' in micro
+assert 'ORBIS_PAD_BUTTON_L1' in mask
+# The mask gates the press and the opening together: a shoulder beside a face
+# button casts its action slot and walks nothing, and it opens nothing.
+assert re.search(r'const bool armed=\(step \|\| open\) && !\(pad\.buttons&kOthers\);', micro), micro
+assert 'if(consumed && open && selected->enabled)' in micro, micro
+# And a frame with neither a press nor a selection is not this lane's, so the
+# thirty-name panel walk is not paid again for nothing.
+assert re.search(r'if\(!armed && !chosen\)return false;', micro), micro
 # The gate hands over rather than dropping the part that is not local-realm-only.
 assert 'if(!ready())return padMicroMenuLane();' in bars
 assert bars.index('if(!ready())return padMicroMenuLane();') == bar_gate
+# Reached from that one line and nowhere else, so a local realm - ready() true -
+# runs exactly the lane it ran before this existed.
+assert bars.count('padMicroMenuLane()') == 1, 'the lane is called from exactly one place'
+assert 'padMicroMenuLane' not in body(input_cpp, 'bool LocalFrameXml::navigate()')
+assert 'bool padMicroMenuLane();' in bridge_hpp
 # And the local realm's own row reads the same shared list, so the two lanes can
-# never walk two different orders of the same bar.
+# never walk two different orders of the same bar. The predicate it reads with is
+# the one the bar lane had inline, spelled out once in the header.
 assert 'ui::padMicroButtonRow(tree)' in bars
 assert 'CharacterMicroButton' not in bars, 'the micro button names live in one list'
-assert 'kPadMicroButtons' in nav_hpp and 'padMicroButtonRow' in nav_hpp
+assert 'kPadMicroButtons' in nav_hpp and 'padMicroButtonRow' in nav_hpp and 'padControlVisible' in nav_hpp
+
+# The hint has to tell the truth about it: L2/R2 step, R1 opens, and neither is
+# listed as a plain L2/R2/R1 press doing nothing.
+hud = (ROOT / 'src/ui/game_screen_hud.cpp').read_text()
+hint = body(hud, 'void drawPadControlHint(bool inWorld, float safeAreaInset)')
+for said in ('L2 / R2', 'R1: open'):
+    assert said in hint, f'the on-screen hint does not say {said}'
+assert 'L3: autorun' in hint and 'R3: camera / cursor' in hint, hint
 
 # toggleGameMenu() runs local GameMenuFrame Lua and is only called from the local
 # realm overlay, so it keeps asking the bridge.

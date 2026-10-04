@@ -315,8 +315,14 @@ bool LocalFrameXml::padWorldMapFrame() {
 ///    binding on the pad. None of the four can carry this.
 ///
 ///  - R1 opens the chosen button, again alone so it costs no action slot.
-///    L1+R1 is chat and L1's own layer is the character keys, so a shoulder
-///    pressed beside L1 belongs to that and stands down here.
+///    L1+R1 is chat and L1's own layer is the character keys.
+///
+/// Both are answered from the shoulder alone, with no face button and no L1
+/// down: L1 beside a trigger belongs to the character row, and a face button
+/// beside a trigger is an action slot, so a gesture that walks the row and
+/// casts at the same time is not one anybody meant. Every row in the L2, R1 and
+/// R2 layers is a face button, so a shoulder pressed by itself produces no key
+/// and there is nothing here for this to double up with.
 ///
 ///  - L3 is free too - it is in no layer but Base - and is deliberately not used.
 ///    It is the pad's only mode button, so a chord with it is the last shape a
@@ -326,6 +332,21 @@ bool LocalFrameXml::padMicroMenuLane() {
     const auto& io=ImGui::GetIO();
     const auto& pad=platform::switchport::padSnapshot();
     if(!pad.connected || io.WantTextInput)return false;
+    const int step=((pad.pressed&ORBIS_PAD_BUTTON_R2)?1:0)-((pad.pressed&ORBIS_PAD_BUTTON_L2)?1:0);
+    const bool open=(pad.pressed&ORBIS_PAD_BUTTON_R1)!=0;
+    // Answered from the shoulder alone. L1 beside a trigger is the character
+    // row and L1+R1 is chat, and a face button held with a shoulder is an
+    // action slot - walking the row and casting from the same gesture is not one
+    // anybody meant. The same shape the local realm's bar lane uses to keep
+    // Square off its own chord.
+    constexpr uint32_t kOthers=ORBIS_PAD_BUTTON_L1|ORBIS_PAD_BUTTON_CROSS|
+        ORBIS_PAD_BUTTON_CIRCLE|ORBIS_PAD_BUTTON_SQUARE|ORBIS_PAD_BUTTON_TRIANGLE;
+    const bool armed=(step || open) && !(pad.buttons&kOthers);
+    const bool chosen=padFocus_.lane==ui::LocalPadFocus::Lane::Menus;
+    // Nothing pressed and nothing chosen: this frame is not this lane's, and the
+    // walk over the panel list below is a scan of thirty names the interface has
+    // already answered twice this frame for panelOpen() and the world map.
+    if(!armed && !chosen)return false;
     auto& tree=engine_->widgets();
     // A panel on top owns the pad: its own lane has already given L1 and R1 to
     // the scroll wheel and Square to the focused control, so the row would be a
@@ -333,18 +354,16 @@ bool LocalFrameXml::padMicroMenuLane() {
     // the local realm's lane keeps its own across an opening for the same
     // reason - so closing the panel puts the pad back on the same icon.
     if(panel(tree))return false;
-    const int step=((pad.pressed&ORBIS_PAD_BUTTON_R2)?1:0)-((pad.pressed&ORBIS_PAD_BUTTON_L2)?1:0);
-    const bool open=(pad.pressed&ORBIS_PAD_BUTTON_R1)!=0;
     bool consumed=false;
-    if((step || open) && !(pad.buttons&ORBIS_PAD_BUTTON_L1)){
+    if(armed){
         const auto ids=ui::padMicroButtonRow(tree);
         if(!ids.empty()){
             // An unknown selection lands on the end of the row rather than
             // nowhere, so a first R1 press opens something instead of reading
             // as a dead shoulder.
-            uint32_t chosen=ui::LocalPadFocus::step(ids,padFocus_.widget,step);
-            if(!chosen)chosen=ids.front();
-            padFocus_.select(ui::LocalPadFocus::Lane::Menus,chosen);
+            uint32_t wanted=ui::LocalPadFocus::step(ids,padFocus_.widget,step);
+            if(!wanted)wanted=ids.front();
+            padFocus_.select(ui::LocalPadFocus::Lane::Menus,wanted);
             consumed=true;
         }
     }
@@ -355,17 +374,20 @@ bool LocalFrameXml::padMicroMenuLane() {
     }
     // The outline outlives the press that chose it, exactly as the bar lane's
     // does: a selection that vanished between two shoulder taps would be a
-    // selection nobody could aim at.
+    // selection nobody could aim at. Read back off the focus, because this frame
+    // may be the one that chose it.
     if(padFocus_.lane!=ui::LocalPadFocus::Lane::Menus)return consumed;
     const auto* selected=tree.get(padFocus_.widget);
     if(!ui::padControlVisible(tree,selected)){padFocus_.clear();return consumed;}
     // Drawn before the press is spent, so the frame a panel opens on carries no
     // outline left floating over it.
     drawPadFocus(*selected,tree,tree.uiScale(),io.DisplaySize.y);
-    if(open && selected->enabled){
+    if(consumed && open && selected->enabled){
         // The interface's own OnClick, so the toggle is the authored one - bags,
         // spellbook, quest log, character sheet - and whatever it opens is then
-        // reachable by the D-pad like any other panel.
+        // reachable by the D-pad like any other panel. Tied to consumed, so a
+        // shoulder pressed beside a face button walks nothing and opens nothing
+        // and leaves the action slot that same press did fire.
         const uint32_t id=selected->id;
         activatePadControl(id);
         LOG_INFO("[PAD_UI] Micro button opened widget=",id);
