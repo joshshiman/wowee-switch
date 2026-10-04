@@ -74,6 +74,12 @@ else()
     find_package(Vulkan REQUIRED)
     find_package(SDL2 REQUIRED)
     find_package(OpenSSL REQUIRED)
+    # The desktop build reads the same MPQ archives the console does, out of the
+    # same client directory, so what runs here is what runs on the Switch rather
+    # than a second code path fed by pre-extracted loose files. StormLib bundles
+    # its own zlib, bzip2, lzma and libtom*, and this fragment must come before
+    # the find_package(ZLIB) below so ZLIB::ZLIB resolves to the bundled copy.
+    include(cmake/switch/stormlib.cmake)
     # main.cpp ungrabs the mouse through Xlib in its signal handlers, so the
     # X11 client library is a link requirement, not a nicety.
     if(UNIX AND NOT APPLE)
@@ -761,25 +767,38 @@ set(WOWEE_HEADERS
     include/ui/keybinding_manager.hpp
 )
 
-# Console platform and in-process MPQ extraction.
+# Console platform layer, plus the in-process MPQ extraction helpers every
+# platform shares.
 set(WOWEE_PLATFORM_SOURCES)
 if(WOWEE_SWITCH)
     file(GLOB WOWEE_SWITCH_PLATFORM_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/switch/*.cpp)
     list(FILTER WOWEE_SWITCH_PLATFORM_SOURCES EXCLUDE REGEX "imgui_impl_switch\\.cpp$")
     list(APPEND WOWEE_PLATFORM_SOURCES ${WOWEE_SWITCH_PLATFORM_SOURCES})
-    list(APPEND WOWEE_PLATFORM_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/extractor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/path_mapper.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/manifest_writer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/open_format_emitter.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/first_launch.cpp)
-    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/pipeline/mpq_asset_source.cpp
-        PROPERTIES COMPILE_DEFINITIONS WOWEE_MPQ_SOURCE_AVAILABLE=1)
-    set_source_files_properties(
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/open_format_emitter.cpp
-        PROPERTIES COMPILE_DEFINITIONS WOWEE_STB_IMAGE_WRITE_EXTERNAL)
 endif()
+
+# mpq_asset_source.cpp calls Extractor::detectExpansion, detectLocale and
+# discoverArchives, so the extractor has to be in the client on every platform,
+# not only the one that happens to ship the standalone extraction tool.
+list(APPEND WOWEE_PLATFORM_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/extractor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/path_mapper.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/manifest_writer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/first_launch.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/open_format_emitter.cpp)
+# open_format_emitter.cpp writes loose copies of the archives, so it needs
+# stb_image_write as a real translation unit rather than an inline definition.
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/open_format_emitter.cpp
+    PROPERTIES COMPILE_DEFINITIONS WOWEE_STB_IMAGE_WRITE_EXTERNAL)
+
+# The MPQ-backed asset source is how a stock WotLK client directory gets opened
+# without a separate extraction pass. Both platforms want it: the console has no
+# other way to reach the archives, and the desktop build reads the same ones so a
+# run here exercises the code the Switch runs rather than a second path fed by
+# pre-extracted loose files.
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/pipeline/mpq_asset_source.cpp
+    PROPERTIES COMPILE_DEFINITIONS WOWEE_MPQ_SOURCE_AVAILABLE=1)
 
 # Lua 5.1 runtime.
 set(LUA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/lua-5.1.5/src)
@@ -856,8 +875,11 @@ if(WOWEE_SWITCH)
         ${CMAKE_CURRENT_SOURCE_DIR}/switch/compat
         ${CMAKE_CURRENT_SOURCE_DIR}/switch/compat/cxx20
     )
-    target_include_directories(wowee PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract)
 endif()
+# mpq_asset_source.cpp includes extractor.hpp, so the extractor's own directory
+# is on the include path for every platform that compiles that source - which is
+# now both of them.
+target_include_directories(wowee PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract)
 target_include_directories(wowee PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -919,6 +941,7 @@ else()
         Vulkan::Vulkan
         SDL2::SDL2
         SDL2::SDL2main
+        storm
         ZLIB::ZLIB
         Threads::Threads
         OpenSSL::Crypto
