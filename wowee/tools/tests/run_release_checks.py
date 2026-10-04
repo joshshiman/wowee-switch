@@ -16,6 +16,8 @@ SUITES = {
     'package_staging': 'tools/tests/package_staging_test.py',
     'm2_cutout_shader': 'tools/tests/run_m2_cutout_shader_tests.py',
     'blp_dxt5_alpha': 'tools/tests/run_blp_dxt5_alpha_tests.sh',
+    'blp_mip_chain': 'tools/tests/run_blp_mip_chain_tests.sh',
+    'minimap_projection_axes': 'tools/tests/run_minimap_projection_axes_tests.sh',
     'ground_recovery': 'tools/tests/run_ground_recovery_tests.py',
     'local_graveyard_sites': 'tools/tests/run_local_graveyard_sites_tests.sh',
     'local_wall_clock': 'tools/tests/run_local_wall_clock_tests.sh',
