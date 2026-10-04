@@ -138,8 +138,8 @@ struct NpadHistory {
 };
 NpadHistory s_handheldHistory;
 NpadHistory s_no1History;
-// Static rather than per-frame stack: they are two reads deep and this runs
-// every frame for the life of the process.
+// Static rather than per-frame stack: this runs every frame for the life of
+// the process, and there are only two of them, one per source.
 HidNpadCommonState s_handheldStates[kNpadHistory];
 HidNpadCommonState s_no1States[kNpadHistory];
 
