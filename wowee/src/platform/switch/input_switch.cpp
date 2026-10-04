@@ -393,11 +393,30 @@ Layer activeLayer(uint32_t buttons) {
     return padLayerFor(buttons, s_textFocus, s_inWorld, s_actionBarNavigation);
 }
 
+// Whether libnx's per-frame readers may be called at all. hidGetNpadStates*
+// reaches _hidGetNpadInternalState and hidGetTouchScreenStates reaches the
+// shared memory directly, and both abort the process rather than return when
+// that memory is not mapped (references/libnx/nx/source/services/hid.c:86-89
+// and :237-241, LibnxError_NotInitialized). Application::run pumps every frame
+// whether or not initInput succeeded - the window logs "Switch pads not
+// initialised; the client has no input" and carries on (core/window.cpp) - so
+// every HID read below is behind this one check. Without it a failed
+// initialisation was a fatal-error screen on frame 1 instead of a client that
+// runs with no input; with it nothing is held, so every key the pad had down is
+// released on this frame and the client sits there.
+bool hidReady() {
+    // s_initialised is the module's own state (hidExit took the memory away and
+    // the mapping check is what libnx itself asks before using it).
+    return s_initialised && hidGetSharedmemAddr() != nullptr;
+}
+
 void readPad(float dt) {
     (void)dt;
     PadSnapshot st;
     st.connected = false;
-    {
+    // Nothing below may run without HID (hidReady). The snapshot stays at its
+    // defaults, so the frame reports an empty, disconnected pad.
+    if (hidReady()) {
         // The console reports the built-in Joy-Cons as one Npad (Handheld) and
         // any docked/attached controller as another (No1). Both are read and
         // merged - picking one would make the held set flicker whenever one of
