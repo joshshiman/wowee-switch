@@ -17,6 +17,15 @@ void Input::update() {
     previousMouseState = currentMouseState;
     previousMousePosition = mousePosition;
 
+    // The events drained since the last call are this frame's edges. They are
+    // taken here, at the top, because the poll below is where the levels are
+    // read - and the two are read together, so that a press one of them saw and
+    // the other did not is still one press and not two.
+    edgePressed = pressedSincePoll;
+    edgeReleased = releasedSincePoll;
+    pressedSincePoll.fill(false);
+    releasedSincePoll.fill(false);
+
 #ifdef WOWEE_SWITCH
     // No keyboard or mouse on the console. The pad layer
     // (src/platform/switch/input_switch.cpp) holds scancodes on the player's behalf
@@ -56,6 +65,56 @@ void Input::update() {
 
     // Calculate mouse delta
     mouseDelta = mousePosition - previousMousePosition;
+
+    // An event's position is the truth and the poll's is a frame old, so the
+    // event wins wherever one arrived. Nothing reads the delta and the frame's
+    // own hover - the cursor affordance, the link rects - all want the place
+    // the cursor is rather than the place it was when the frame began.
+    if (eventPositionValid) mousePosition = eventPosition;
+    eventPositionValid = false;
+
+    // The frame's edges, from both sources at once.
+    //
+    // What the poll saw change is one half. The other half is an edge the queue
+    // saw and the poll could not have - a click whose press and release both
+    // fell between two polls, which reads as one sample with the button up and
+    // is no click at all. The queue half only counts while the level says the
+    // button is not being held: a level that says "down" is already the poll's
+    // answer, and a level that says "up" cannot also be the frame that reports
+    // a press that has been given back.
+    //
+    // Each is reported once, whichever source saw it first. The queue gets the
+    // news first and the poll catches up a frame later, and two reports of one
+    // click are two clicks to whatever is counting them.
+    for (int b = 1; b < NUM_MOUSE_BUTTONS; ++b) {
+        const bool pressed = (currentMouseState[b] && !previousMouseState[b]) ||
+                             (edgePressed[b] && !currentMouseState[b]);
+        const bool released = (!currentMouseState[b] && previousMouseState[b]) ||
+                              (edgeReleased[b] && !currentMouseState[b]);
+        justPressedFrame[b] = pressed && !pressSeen[b];
+        justReleasedFrame[b] = released && !releaseSeen[b];
+        if (pressed) pressSeen[b] = true;
+        if (released) pressSeen[b] = false;
+        if (released) releaseSeen[b] = true;
+        if (pressed) releaseSeen[b] = false;
+    }
+}
+
+void Input::noteMouseMotionEvent(int x, int y) {
+    eventPosition = glm::vec2(static_cast<float>(x), static_cast<float>(y));
+    eventPositionValid = true;
+}
+
+void Input::noteMouseButtonEvent(int button, bool down, int x, int y) {
+    // The button index is SDL's own 1-based one, the same numbering
+    // isMouseButtonPressed asks in, so nothing shifts it on the way in.
+    if (button <= 0 || button >= NUM_MOUSE_BUTTONS) return;
+    if (down) pressedSincePoll[button] = true;
+    else releasedSincePoll[button] = true;
+    // A press and a release can both have come in since the last update. Both
+    // are latched, and neither is cancelled by the other: the level the poll
+    // reports is up, and each of them is still a thing that happened.
+    noteMouseMotionEvent(x, y);
 }
 
 void Input::setVirtualKey(SDL_Scancode key, bool held) {
@@ -83,12 +142,12 @@ bool Input::isMouseButtonPressed(int button) const {
 
 bool Input::isMouseButtonJustPressed(int button) const {
     if (button < 0 || button >= NUM_MOUSE_BUTTONS) return false;
-    return currentMouseState[button] && !previousMouseState[button];
+    return justPressedFrame[button];
 }
 
 bool Input::isMouseButtonJustReleased(int button) const {
     if (button < 0 || button >= NUM_MOUSE_BUTTONS) return false;
-    return !currentMouseState[button] && previousMouseState[button];
+    return justReleasedFrame[button];
 }
 } // namespace core
 } // namespace wowee

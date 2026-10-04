@@ -1525,6 +1525,27 @@ void Application::run() {
                 continue;
             }
 
+            // The pointer's own state, from the event rather than from the poll
+            // Input::update() takes at the top of the next frame.
+            //
+            // Ungated, and before the camera's own dispatch below, because it is
+            // not gameplay input - it is the record of where the pointer is and
+            // which way each button last went. The one consumer that cares about
+            // the interface having the cursor is the pick, and it asks for
+            // itself.
+            //
+            // The console's pad layer queues these same two events
+            // (platform/switch/input_switch.cpp pushMouseMotion and
+            // pushMouseButton), so the record is made the same way there
+            // without anything in that directory changing.
+            if (event.type == SDL_MOUSEMOTION) {
+                Input::getInstance().noteMouseMotionEvent(event.motion.x, event.motion.y);
+            } else if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+                Input::getInstance().noteMouseButtonEvent(
+                    event.button.button, event.type == SDL_MOUSEBUTTONDOWN,
+                    event.button.x, event.button.y);
+            }
+
             // Pass mouse events to camera controller (skip when UI has mouse focus)
             if (renderer && renderer->getCameraController() && !ImGui::GetIO().WantCaptureMouse) {
                 if (event.type == SDL_MOUSEMOTION) {
