@@ -1,6 +1,11 @@
 #include "ui/game_screen.hpp"
 #include "game/local_forms.hpp"
 #include "game/local_realm.hpp"
+#ifdef WOWEE_SWITCH
+#include "platform/switch/switch_platform.hpp"
+#include "platform/switch/input_switch.hpp"
+#include "platform/switch/switch_pad_buttons.h"
+#endif
 #include "ui/sight_cache.hpp"
 #include "addons/lua_api_registrations.hpp"
 #include "ui/ui_texture_load.hpp"
@@ -1640,6 +1645,76 @@ void GameScreen::renderNameplates(game::GameHandler& gameHandler) {
         }
         ImGui::End();
     }
+}
+
+// ============================================================
+// Controller legend
+// ============================================================
+
+void drawPadControlHint(bool inWorld, float safeAreaInset) {
+#ifdef WOWEE_SWITCH
+    // What the pad does, once, for as long as it takes to read it.
+    //
+    // The only other legend in the client is the local realm's action panel
+    // (application_local_ui.cpp), and this screen is not drawn there: the local
+    // realm has its own action bar drawn as buttons and says the pad's meaning
+    // under them. On a remote realm nothing said anything, and the two things a
+    // player cannot guess are the ones that matter most - R3 is the only thing
+    // that turns the camera into a pointer, and every panel of the original
+    // interface is then reached by clicking rather than by walking to it.
+    //
+    // Twelve seconds, fading over the last two, and gone at once on R3 or +
+    // because at that point the player has it. Once per process rather than per
+    // character: this is a first answer, not a permanent strip down the screen.
+    static double shownAt = -1.0;
+    static bool retired = false;
+    if (retired || !inWorld) return;
+    const double now = ImGui::GetTime();
+    if (shownAt < 0.0) shownAt = now;
+    const double age = now - shownAt;
+    constexpr double kVisibleFor = 12.0;
+    constexpr double kFadeOver = 2.0;
+    if (age >= kVisibleFor) { retired = true; return; }
+    const auto& pad = platform::switchport::padSnapshot();
+    if (pad.connected &&
+        (pad.pressed & (ORBIS_PAD_BUTTON_R3 | ORBIS_PAD_BUTTON_OPTIONS))) {
+        retired = true;
+        return;
+    }
+    const int alpha = static_cast<int>(255.0f * std::clamp(
+        static_cast<float>((kVisibleFor - age) / kFadeOver), 0.0f, 1.0f));
+    if (alpha <= 0) return;
+
+    // Every control here is one the pad layer actually produces in-world on a
+    // remote realm, and nothing else is claimed: the shoulder rows below are
+    // the modifier layers, which only stay live because FrameXML's own bar lane
+    // is not running without a local realm behind it.
+    static constexpr const char* kLines[] = {
+        "R3: cursor / camera      +: menus      L3: autorun",
+        "A: jump / click      B: interact      Triangle: nearest target",
+        "X: ability 1      R2 + face: 1-4      L2 + face: 5-8      R1 + face: 9-12",
+    };
+    const ImGuiIO& io = ImGui::GetIO();
+    // The title-safe margin the interface lays out inside, which the widget tree
+    // applies to each edge as a fraction of that edge.
+    const float inset = std::clamp(safeAreaInset, 0.0f, 0.1f);
+    ImDrawList* drawList = ImGui::GetBackgroundDrawList();
+    // The background list, like every other world overlay in this file: the
+    // interface's own panels are added after this stage and belong on top.
+    float y = io.DisplaySize.y * inset + 8.0f;
+    for (const char* line : kLines) {
+        const ImVec2 size = ImGui::CalcTextSize(line);
+        const ImVec2 at((io.DisplaySize.x - size.x) * 0.5f, y);
+        // The nameplates' own treatment a few hundred lines up: a hard shadow
+        // behind the glyphs, so the line reads over sky and over ground alike.
+        drawList->AddText(ImVec2(at.x + 1.0f, at.y + 1.0f),
+                          IM_COL32(0, 0, 0, alpha * 2 / 3), line);
+        drawList->AddText(at, IM_COL32(255, 244, 195, alpha), line);
+        y += ImGui::GetFontSize() + 3.0f;
+    }
+#else
+    (void)inWorld; (void)safeAreaInset;
+#endif
 }
 
 // ============================================================

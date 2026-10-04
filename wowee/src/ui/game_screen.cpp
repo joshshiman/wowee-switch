@@ -113,6 +113,12 @@ namespace {
 
 namespace wowee { namespace ui {
 
+// game_screen_hud.cpp, where the other world overlays live. A free function
+// rather than a member because the only caller is the render pass below and it
+// has nothing of its own to put in the screen's header - not even its state,
+// which is a first-run answer rather than anything a second character resets.
+void drawPadControlHint(bool inWorld, float safeAreaInset);
+
 GameScreen::GameScreen() {
     loadSettings();
 }
@@ -846,6 +852,12 @@ void GameScreen::render(game::GameHandler& gameHandler) {
     settingsPanel_.renderSettingsWindow(chatPanel_, [this]() { saveSettings(); });
     toastManager_.renderLateToasts(gameHandler);
     renderWeatherOverlay(gameHandler);
+    // What the pad does. The local realm says it under its own action bar, and
+    // this screen is not drawn there, so on a remote realm - where R3 is the
+    // only way to get a pointer and the whole original interface is then
+    // reached by clicking - there was nothing at all to say it with.
+    drawPadControlHint(gameHandler.getState() == game::WorldState::IN_WORLD,
+                       static_cast<float>(settingsPanel_.pendingSafeArea) / 100.0f);
 
     // Always, because this is the only thing that feeds the map its data and
     // the only thing that draws it. Skipping it when FrameXML owns the map
