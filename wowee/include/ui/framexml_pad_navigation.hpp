@@ -4,6 +4,8 @@
 #include <cmath>
 #include <optional>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace wowee::ui {
 inline constexpr std::string_view kPadPanels[] = {
@@ -38,6 +40,14 @@ inline bool padWidgetShown(const WidgetTree& tree, const Widget* w) {
         w=tree.get(w->parent);
     }
     return false;
+}
+/// Whether a control is on screen to be aimed at: shown with every ancestor,
+/// visible itself, and with ink and a size. The one predicate both pad lanes
+/// ask before they take a widget, so a control one lane will walk to is never
+/// invisible to the lane that draws the outline on it.
+inline bool padControlVisible(const WidgetTree& tree, const Widget* w) {
+    return w && w->visible && w->alpha > .001f && w->rectW > 0 && w->rectH > 0 &&
+           padWidgetShown(tree, w);
 }
 inline const Widget* padOwningPanel(const WidgetTree& tree, const Widget* w) {
     for (int depth=0; w && depth<128; ++depth) {
@@ -119,5 +129,43 @@ inline std::optional<PadControlPoint> padControlPoint(const WidgetTree& tree, co
         if (tree.hitTest(p.x,p.y)==w->id) return p;
     }
     return {};
+}
+
+/// The original interface's micro buttons: the ones that open the character
+/// sheet, the spellbook, the quest log and the bags, plus the rest of the row.
+///
+/// One list, because two lanes walk it - the local realm's bar lane and the
+/// remote realm's - and a second copy of these names is a list that has drifted
+/// from the XML by the time anybody notices. Not every entry exists in every
+/// build; a name that is absent simply contributes nothing.
+inline constexpr std::string_view kPadMicroButtons[] = {
+    "CharacterMicroButton", "SpellbookMicroButton", "TalentMicroButton",
+    "AchievementMicroButton", "QuestLogMicroButton", "SocialsMicroButton",
+    "PVPMicroButton", "LFDMicroButton", "MainMenuMicroButton", "HelpMicroButton",
+    "MainMenuBarBackpackButton",
+    "CharacterBag0Slot", "CharacterBag1Slot", "CharacterBag2Slot", "CharacterBag3Slot"
+};
+
+/// The micro buttons that are on screen, left to right.
+///
+/// The order is read off the layout rather than off kPadMicroButtons, because
+/// the bag bar is authored right to left - MainMenuBarBackpackButton is its
+/// right-hand end and CharacterBag0Slot..3 hang leftwards off it - so stepping
+/// the list as written sent R2 leftwards across the bags and L2 rightwards, the
+/// opposite of the triggers, from the backpack onward. Sorting by position says
+/// "R2 moves right" once, for the micro buttons too, and keeps saying it if an
+/// addon rearranges the bar.
+inline std::vector<uint32_t> padMicroButtonRow(const WidgetTree& tree) {
+    std::vector<std::pair<float, uint32_t>> row;
+    for (const std::string_view name : kPadMicroButtons) {
+        const auto* w = tree.findByName(name);
+        if (padControlVisible(tree, w)) row.emplace_back(w->left, w->id);
+    }
+    std::stable_sort(row.begin(), row.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    std::vector<uint32_t> ids;
+    ids.reserve(row.size());
+    for (const auto& entry : row) ids.push_back(entry.second);
+    return ids;
 }
 } // namespace wowee::ui

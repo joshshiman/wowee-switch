@@ -293,6 +293,89 @@ bool LocalFrameXml::padWorldMapFrame() {
 #endif
 }
 
+/// The micro buttons, on a remote realm.
+///
+/// This is the one part of the bar lane that answers out of the interface alone,
+/// and on a remote realm it is the whole of the way in. Everything else in
+/// navigateBars() needs the local realm - the contextual Square, the vehicle,
+/// the target, the mailbox - and a remote realm has none of it, which is why
+/// that lane stops before it. But a remote realm does have the micro buttons,
+/// and nothing in kBindings produces TOGGLE_BAGS or TOGGLE_QUESTS, so without
+/// this the bags, the spellbook and the quest log are drawn on screen and cannot
+/// be opened from the pad at all: the row has to be walked and a panel pressed.
+///
+/// Shoulders only, and each one on its own, which is the whole of the design:
+///
+///  - L2 and R2 step the row. Alone they produce no key, because every row in
+///    their layers is a face button, and with a face button they are action
+///    slots 5-8 and 1-4 - so taking the shoulder without the layer is what keeps
+///    all twelve slots reachable. On a remote realm the face buttons are live:
+///    Cross jumps, Circle is the right click that interacts, Square is slot 1 and
+///    Triangle is target nearest, which is the last of them the most used
+///    binding on the pad. None of the four can carry this.
+///
+///  - R1 opens the chosen button, again alone so it costs no action slot.
+///    L1+R1 is chat and L1's own layer is the character keys, so a shoulder
+///    pressed beside L1 belongs to that and stands down here.
+///
+///  - L3 is free too - it is in no layer but Base - and is deliberately not used.
+///    It is the pad's only mode button, so a chord with it is the last shape a
+///    player would try, and the on-screen hint is what tells them this one.
+bool LocalFrameXml::padMicroMenuLane() {
+#ifdef WOWEE_SWITCH
+    const auto& io=ImGui::GetIO();
+    const auto& pad=platform::switchport::padSnapshot();
+    if(!pad.connected || io.WantTextInput)return false;
+    auto& tree=engine_->widgets();
+    // A panel on top owns the pad: its own lane has already given L1 and R1 to
+    // the scroll wheel and Square to the focused control, so the row would be a
+    // second answer to one press. The selection is kept rather than dropped -
+    // the local realm's lane keeps its own across an opening for the same
+    // reason - so closing the panel puts the pad back on the same icon.
+    if(panel(tree))return false;
+    const int step=((pad.pressed&ORBIS_PAD_BUTTON_R2)?1:0)-((pad.pressed&ORBIS_PAD_BUTTON_L2)?1:0);
+    const bool open=(pad.pressed&ORBIS_PAD_BUTTON_R1)!=0;
+    bool consumed=false;
+    if((step || open) && !(pad.buttons&ORBIS_PAD_BUTTON_L1)){
+        const auto ids=ui::padMicroButtonRow(tree);
+        if(!ids.empty()){
+            // An unknown selection lands on the end of the row rather than
+            // nowhere, so a first R1 press opens something instead of reading
+            // as a dead shoulder.
+            uint32_t chosen=ui::LocalPadFocus::step(ids,padFocus_.widget,step);
+            if(!chosen)chosen=ids.front();
+            padFocus_.select(ui::LocalPadFocus::Lane::Menus,chosen);
+            consumed=true;
+        }
+    }
+    if(consumed){
+        ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL2);
+        ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
+        ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR2);
+    }
+    // The outline outlives the press that chose it, exactly as the bar lane's
+    // does: a selection that vanished between two shoulder taps would be a
+    // selection nobody could aim at.
+    if(padFocus_.lane!=ui::LocalPadFocus::Lane::Menus)return consumed;
+    const auto* selected=tree.get(padFocus_.widget);
+    if(!ui::padControlVisible(tree,selected)){padFocus_.clear();return consumed;}
+    // Drawn before the press is spent, so the frame a panel opens on carries no
+    // outline left floating over it.
+    drawPadFocus(*selected,tree,tree.uiScale(),io.DisplaySize.y);
+    if(open && selected->enabled){
+        // The interface's own OnClick, so the toggle is the authored one - bags,
+        // spellbook, quest log, character sheet - and whatever it opens is then
+        // reachable by the D-pad like any other panel.
+        const uint32_t id=selected->id;
+        activatePadControl(id);
+        LOG_INFO("[PAD_UI] Micro button opened widget=",id);
+    }
+    return consumed;
+#else
+    return false;
+#endif
+}
+
 bool LocalFrameXml::navigateBars() {
 #ifdef WOWEE_SWITCH
     // Wherever this leaves the selection, that is where the carried icon is
@@ -362,7 +445,13 @@ bool LocalFrameXml::navigateBars() {
     // and stands down for its vehicle, target and mailbox. None of that exists
     // on a remote realm, and setInputActionBars above is still keyed on this
     // same answer, so the lane stops here.
-    if(!ready())return false;
+    //
+    // Except for the one part of it that does not: the walk along the micro
+    // buttons, which answers out of the interface alone. That is handed to
+    // padMicroMenuLane instead of being dropped, because on a remote realm it is
+    // the only way to reach its own bags, spellbook or quest log - see there for
+    // why it is bound to shoulders that are pressed on their own.
+    if(!ready())return padMicroMenuLane();
     const auto& io=ImGui::GetIO();const auto& pad=platform::switchport::padSnapshot();
     if(!pad.connected || io.WantTextInput)return false;
     auto& tree=engine_->widgets();
@@ -426,23 +515,10 @@ bool LocalFrameXml::navigateBars() {
     if(actions || menus){
         std::vector<uint32_t> ids;
         if(menus){
-            // Walked in the order they are on screen, not the order they are
-            // named. The bag bar is authored right to left -
-            // MainMenuBarBackpackButton is its right-hand end and
-            // CharacterBag0Slot..3 hang leftwards off it - so stepping the list
-            // as written sent R2 leftwards across the bags and L2 rightwards,
-            // the opposite of the triggers, from the backpack onward. Sorting
-            // by position says "R2 moves right" once, for the micro buttons
-            // too, and keeps saying it if an addon rearranges the bar.
-            std::vector<std::pair<float,uint32_t>> row;
-            for(const char* name:{"CharacterMicroButton","SpellbookMicroButton","TalentMicroButton",
-                "AchievementMicroButton","QuestLogMicroButton","SocialsMicroButton","PVPMicroButton",
-                "LFDMicroButton","MainMenuMicroButton","HelpMicroButton","MainMenuBarBackpackButton",
-                "CharacterBag0Slot","CharacterBag1Slot","CharacterBag2Slot","CharacterBag3Slot"})
-                if(const auto* w=tree.findByName(name);visible(w))row.emplace_back(w->left,w->id);
-            std::stable_sort(row.begin(),row.end(),
-                [](const auto& a,const auto& b){return a.first<b.first;});
-            for(const auto& entry:row)ids.push_back(entry.second);
+            // The shared row, walked in the order they are on screen rather than
+            // the order they are named - see ui::padMicroButtonRow for why the
+            // bag bar's authored order is the wrong one to step in.
+            ids=ui::padMicroButtonRow(tree);
         }else{
             for(const char* prefix:{"ActionButton","MultiBarBottomLeftButton","MultiBarBottomRightButton",
                 "MultiBarRightButton","MultiBarLeftButton"})for(int i=1;i<=12;++i){

@@ -1689,10 +1689,16 @@ void drawPadControlHint(bool inWorld, float safeAreaInset) {
     // remote realm, and nothing else is claimed: the shoulder rows below are
     // the modifier layers, which only stay live because FrameXML's own bar lane
     // is not running without a local realm behind it.
+    //
+    // L2 / R2 / R1 lead, because they are the three that were doing nothing at
+    // all here and now walk FrameXML's micro buttons - the only way on a remote
+    // realm into the bags, the spellbook or the quest log. A shoulder pressed
+    // with a face button is still an action slot, and that is what the third
+    // line is for.
     static constexpr const char* kLines[] = {
-        "R3: cursor / camera      +: menus      L3: autorun",
-        "A: jump / click      B: interact      Triangle: nearest target",
-        "X: ability 1      R2 + face: 1-4      L2 + face: 5-8      R1 + face: 9-12",
+        "L2 / R2: walk the menus      R1: open      -: world map      +: menus",
+        "R3: camera / cursor      L3: autorun      A: jump / click      B: interact",
+        "Triangle: target      X: ability 1      L2 / R2 / R1 + face: bars 5-8 / 1-4 / 9-12",
     };
     const ImGuiIO& io = ImGui::GetIO();
     // The title-safe margin the interface lays out inside, which the widget tree

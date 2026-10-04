@@ -7,6 +7,12 @@ local realm's Lua bridge, so the five pad lanes used to answer "nothing to
 drive" on the one realm the release has to work on. This reads the sources and
 asserts the wiring, because the regression is entirely in which question each
 of those functions asks.
+
+And the last of that gap: navigation is not opening. Nothing in kBindings
+produces TOGGLE_BAGS or TOGGLE_QUESTS, so the micro buttons have to be reachable
+from the pad on a remote realm or the panels they open stay unreachable. This
+asserts the lane that walks them, and that it is built out of controls nothing
+in-world needs.
 """
 from pathlib import Path
 import re
@@ -60,10 +66,10 @@ for signature in ('bool LocalFrameXml::activatePadControl(uint32_t id)',
 # may run, or the pad loses targeting and slot 1 casting to nothing.
 bars = body(input_cpp, 'bool LocalFrameXml::navigateBars()')
 assert 'platform::switchport::setInputActionBars(ready() || vehicleInput);' in bars
-assert bars.count('if(!ready())return false;') == 1, 'the bar lane must stop at exactly one gate'
+assert bars.count('if(!ready())return ') == 1, 'the bar lane must stop at exactly one gate'
 map_toggle = bars.index('if(padWorldMapToggle())return true;')
 map_frame = bars.index('if(padWorldMapFrame())return true;')
-bar_gate = bars.index('if(!ready())return false;')
+bar_gate = bars.index('if(!ready())return ')
 assert map_toggle < bar_gate and map_frame < bar_gate, 'the world map must be answered above the bar lane gate'
 # And it is answered once: padWorldMapToggle reads a raw press bit, so a second
 # call in the same frame would toggle the map straight back.
@@ -74,7 +80,37 @@ assert bars.count('if(padWorldMapFrame())return true;') == 1
 # way it always was; the cancel-cursor lane asks about the cursor, which a remote
 # realm has as well, so its local-realm gate is spelled out.
 assert 'if(auto* realm=realm_?realm_():nullptr) {' in bars, 'the corpse reclaim stays a local realm branch'
-assert 'if(ready() && carrying(engine_)' in bars, 'the cancel-cursor lane is local-realm-only'
+assert 'ready() && carrying(engine_)' in bars, 'the cancel-cursor lane is local-realm-only'
+
+# The gap this closes: a remote realm draws the bags, the spellbook and the quest
+# log and nothing in kBindings opens them, so the micro buttons have to be
+# reachable there. padMicroMenuLane is what makes them reachable, and it answers
+# out of the interface alone - asking about the local realm anywhere in it would
+# put the whole lane back behind the bridge it was written for.
+micro = body(input_cpp, 'bool LocalFrameXml::padMicroMenuLane()')
+for local_only in ('ready()', 'realm_', 'target_', 'carrying(', 'padPickup', 'install'):
+    assert local_only not in micro, f'padMicroMenuLane must not ask about {local_only}'
+assert 'panelTreeLive' not in micro, 'the caller already gated on the tree'
+assert 'ui::padMicroButtonRow' in micro, 'the row is the shared one, not a second list'
+assert 'ui::LocalPadFocus::step' in micro, 'stepping is the shared machinery'
+assert 'activatePadControl' in micro, 'the panel is opened by the interface own OnClick'
+# Two shoulders step it and one opens it, each read off the raw pad and each
+# alone - so no face button is taken and all twelve action slots stay reachable.
+assert micro.count('pad.pressed&ORBIS_PAD_BUTTON_') >= 3, micro
+for face in ('ORBIS_PAD_BUTTON_CROSS', 'ORBIS_PAD_BUTTON_CIRCLE',
+             'ORBIS_PAD_BUTTON_SQUARE', 'ORBIS_PAD_BUTTON_TRIANGLE'):
+    assert face not in micro, f'{face} is live in-world on a remote realm and must not be taken'
+# L1+R1 is chat and L1's layer is the character keys, so a shoulder beside L1 is
+# somebody reaching for those.
+assert 'ORBIS_PAD_BUTTON_L1' in micro
+# The gate hands over rather than dropping the part that is not local-realm-only.
+assert 'if(!ready())return padMicroMenuLane();' in bars
+assert bars.index('if(!ready())return padMicroMenuLane();') == bar_gate
+# And the local realm's own row reads the same shared list, so the two lanes can
+# never walk two different orders of the same bar.
+assert 'ui::padMicroButtonRow(tree)' in bars
+assert 'CharacterMicroButton' not in bars, 'the micro button names live in one list'
+assert 'kPadMicroButtons' in nav_hpp and 'padMicroButtonRow' in nav_hpp
 
 # toggleGameMenu() runs local GameMenuFrame Lua and is only called from the local
 # realm overlay, so it keeps asking the bridge.
@@ -108,5 +144,6 @@ assert 'setInputMenuNavigation' not in input_cpp, 'the bit is derived in render,
 assert 'WorldMapFrame' in nav_hpp and 'worldMapPanel' in input_cpp
 
 print('PASS FrameXML pad lanes are gated on the interface, not the local realm: '
-      'the five gates ask the tree, the bind precedes the local guard, and the '
-      'bar lane, cancel-cursor and corpse-reclaim stay behind the bridge')
+      'the five gates ask the tree, the bind precedes the local guard, the bar '
+      'lane, cancel-cursor and corpse-reclaim stay behind the bridge, and the '
+      'micro buttons are reachable on the realm that has no bridge')

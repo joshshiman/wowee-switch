@@ -254,6 +254,18 @@ private:
     /// The world map's own press: open it on the button below, close it again.
     /// Answers true when it spent the press, so nothing else reads it.
     bool padWorldMapToggle();
+    /// The micro buttons on a remote realm: the only way into a panel there.
+    ///
+    /// The rest of navigateBars() answers out of the local realm - its
+    /// contextual Square, its vehicle, its target and its mailbox - and none of
+    /// that exists on a remote realm, which is why the bar lane stops short of
+    /// this. What is left over is the one part that answers out of the interface
+    /// alone, and on a remote realm it is the whole of the way in: nothing in
+    /// kBindings produces TOGGLE_BAGS or TOGGLE_QUESTS, so without it the bags,
+    /// the spellbook and the quest log are drawn on screen and unreachable from
+    /// the pad. The local realm's own row is untouched - it is reached from
+    /// inside the bar lane, below this.
+    bool padMicroMenuLane();
     /// One frame of the map's own controls: the right stick's cursor over the
     /// map, and Cross where that cursor is. True whenever the map has the pad.
     bool padWorldMapFrame();

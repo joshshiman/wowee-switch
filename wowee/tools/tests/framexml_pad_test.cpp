@@ -4,6 +4,7 @@
 #include "game/auction_filters.hpp"
 #include <cstdlib>
 #include <limits>
+#include <vector>
 using namespace wowee::ui;
 static void require(bool ok,const char* text) { if(!ok){std::fprintf(stderr,"FAIL %s\n",text);std::exit(1);} }
 static uint32_t make(WidgetTree& tree,const char* name,uint32_t parent,float x,float y,float width=40,float height=40) {
@@ -157,4 +158,47 @@ int main() {
     make(live,"WorldMapFrame",0,0,0);
     require(padFrameXmlTreeLive(live),"an open panel does not disturb the gate");
     std::puts("PASS FrameXML tree liveness needs no local realm bridge");
+
+    // The micro row both pad lanes step, and the only way on a remote realm into
+    // the bags, the spellbook or the quest log. Order has to come off the layout:
+    // 3.3.5 authors the bag bar right to left, with the backpack at its right-hand
+    // end and CharacterBag0Slot..3 hanging leftwards off it, so stepping the names
+    // as written walked R2 the wrong way across four of the fifteen icons.
+    WidgetTree bar;
+    auto bag3=make(bar,"CharacterBag3Slot",0,10,0);
+    auto bag2=make(bar,"CharacterBag2Slot",0,20,0);
+    auto bag1=make(bar,"CharacterBag1Slot",0,30,0);
+    auto bag0=make(bar,"CharacterBag0Slot",0,40,0);
+    auto pack=make(bar,"MainMenuBarBackpackButton",0,50,0);
+    auto help=make(bar,"HelpMicroButton",0,60,0);
+    auto spellbook=make(bar,"SpellbookMicroButton",0,70,0);
+    auto character=make(bar,"CharacterMicroButton",0,80,0);
+    auto quests=make(bar,"QuestLogMicroButton",0,90,0);
+    const std::vector<uint32_t> icons=padMicroButtonRow(bar);
+    require(icons.size()==9,"every micro button on screen is in the row");
+    require(icons.front()==bag3 && icons.back()==quests,"the row runs left to right, not as named");
+    require(icons[4]==pack && icons[5]==help,"the backpack keeps its place between bags and micro buttons");
+    // Stepping it is the shared machinery, and it wraps. A selection that is not
+    // on the row lands on the end the direction names, which is why a first
+    // shoulder press reaches an icon rather than reaching nothing.
+    require(LocalPadFocus::step(icons,0,1)==icons.front(),"stepping right from nothing lands on the left end");
+    require(LocalPadFocus::step(icons,0,-1)==icons.back(),"stepping left from nothing lands on the right end");
+    require(LocalPadFocus::step(icons,icons[3],-1)==icons[2],"step back");
+    require(LocalPadFocus::step(icons,icons.front(),-1)==icons.back(),"stepping off the left end wraps round");
+    require(LocalPadFocus::step(icons,icons.back(),1)==icons.front(),"stepping off the right end wraps round");
+    require(LocalPadFocus::step(icons,icons[0],0)==icons[0],"no direction leaves the selection alone");
+    // A micro button the interface hid, or one with no ink, is not walkable: the
+    // outline would be drawn on something the player cannot see or click.
+    bar.get(help)->visible=false;
+    require(padMicroButtonRow(bar).size()==8,"a hidden micro button leaves the row");
+    bar.get(help)->visible=true;bar.get(help)->alpha=0.f;
+    require(padMicroButtonRow(bar).size()==8,"an invisible micro button leaves the row");
+    bar.get(help)->alpha=1.f;bar.get(help)->shown=false;
+    require(padMicroButtonRow(bar).size()==8,"a micro button under a hidden ancestor leaves the row");
+    bar.get(help)->shown=true;
+    require(padMicroButtonRow(bar).size()==9,"it comes back with its ancestor");
+    // A tree that never built them - a login screen, or FrameXML not loaded -
+    // gives an empty row rather than a row of nothing to aim at.
+    require(padMicroButtonRow(live).empty(),"no micro buttons means no row");
+    std::puts("PASS the micro row is walked left to right, wrapping, and skips what is not on screen");
 }
