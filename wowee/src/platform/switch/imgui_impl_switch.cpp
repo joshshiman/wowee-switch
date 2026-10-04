@@ -27,11 +27,21 @@ using wowee::platform::switchport::TextFieldHint;
 // key is down for that frame only if the last event queued for it was a press,
 // io.KeyCtrl is that same read, and IsKeyPressed reports only a key that is
 // still down (imgui.cpp bails on a negative DownDuration, which is what a press
-// and its release inside one frame leave behind). So Ctrl+A, Backspace and the
-// text pushed together - one call each, and all of them in the queue before the
-// next NewFrame - is a frame in which the select-all and the erase did not
-// happen at all, while the characters still arrive. That is why editing the
-// account name on the login screen appended to it and left "oldnamenew".
+// and its release inside one frame leave behind).
+//
+// So push the whole reply at once - Ctrl+A, Backspace and the text, one call
+// each - and whether the select-all and the erase happen at all comes down to
+// ImGui's input-queue trickling (io.ConfigInputTrickleEventQueue, on by
+// default, on every frame in NewFrame) breaking the burst into frames for us.
+// That flag exists so a flood of events does not all land in one frame; it is a
+// latency heuristic, not a promise about what a consumer sees, and with it off
+// the two key steps are a frame that never happened while the characters still
+// arrive - the field appends instead of replacing.
+//
+// One chord per frame does not depend on that flag: each step is a frame a
+// consumer can see, in the order a keyboard would deliver them. It is also what
+// the raw events now say - an ImGui InputText, a key binding, the Lua engine -
+// three steps in three frames rather than one burst to unpick.
 enum class ReplaceStep { Idle, SelectAll, Erase, Type };
 
 struct BackendData {
@@ -152,12 +162,12 @@ std::string focusedFieldKey(bool haveHint, const TextFieldHint& hint,
 // for the next NewFrame and is held across that frame - the only frame a consumer
 // can see a key in.
 //
-// One chord per frame is the whole of the fix, and it is what a keyboard does:
-// the field sees a select-all, then a backspace over that selection, then the
-// text, and anything reading the raw events - an ImGui InputText, a key binding
-// - sees the same three steps in the same order. The text rides with the erase
-// rather than following it, because PaperUI's field reads backspace before it
-// reads InputQueueCharacters within the one frame that carries both.
+// One chord per frame is what a keyboard does: the field sees a select-all,
+// then a backspace over that selection, then the text, and anything reading
+// the raw events - an ImGui InputText, a key binding - sees the same three
+// steps in the same order. The text rides with the erase rather than
+// following it, because PaperUI's field reads backspace before it reads
+// InputQueueCharacters within the one frame that carries both.
 void deliverReplacement(const std::string& field) {
     using namespace wowee::platform::switchport;
     // A reply belongs to the field that opened the keyboard. If the focus has
