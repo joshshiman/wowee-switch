@@ -205,7 +205,10 @@ bool takeKeyboardRequest();
 /// mapping uses (see switch_pad_buttons.h); sticks are -1..1 after the dead zone.
 struct PadSnapshot {
     bool connected = false;
-    uint32_t buttons = 0;    ///< held
+    /// Held. A button that was pressed and let go between two pumps is here for
+    /// exactly the one frame it happened in, so a tap is a click and a key press
+    /// - read pressed for anything that must happen once, never this.
+    uint32_t buttons = 0;
     uint32_t pressed = 0;    ///< went down this frame
     uint32_t released = 0;   ///< went up this frame
     float lx = 0.0f, ly = 0.0f;
