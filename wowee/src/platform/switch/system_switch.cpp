@@ -10,6 +10,7 @@
 // once initSystem has returned.
 
 #include "platform/switch/switch_platform.hpp"
+#include "platform/switch/input_switch.hpp"
 #include "core/env.hpp"
 #include "core/logger.hpp"
 
@@ -63,6 +64,11 @@ bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
 bool g_exitRequested = false;
 bool g_romfsMounted = false;
+// Whether the BSD socket service came up. Held rather than re-derived, because
+// socketInitializeDefault is called once here and its answer is the only thing
+// the client will ever know about it - a login that cannot connect has no other
+// way to tell "no server answered" from "this console has no sockets".
+bool g_socketsReady = false;
 // argv[0] as the launcher passed it, and the resource root resolved from it.
 std::string g_launchPath;
 std::string g_appRoot;
@@ -210,6 +216,8 @@ bool initSystem() {
     appletInitialize();
     if (R_FAILED(socketInitializeDefault())) {
         klog("socketInitializeDefault failed");
+    } else {
+        g_socketsReady = true;
     }
 
     // Opened as soon as the logs directory exists, so the directory failures
@@ -292,6 +300,31 @@ void hideSplashScreen() {
     // loading screen takes over presentation as soon as the first frame
     // is committed. There is no separate splash service to dismiss.
     g_splashHidden = true;
+}
+
+bool firstFramePresented() {
+    // The flag hideSplashScreen already sets, read back rather than answered a
+    // second time. VkContext calls it from a vkQueuePresentKHR that returned
+    // success, so this is the port's own proof that something reached the
+    // screen - which is what the self-test line reports as `renderer`. (The
+    // extraction progress dialog calls it too, when it takes the screen over;
+    // that path has no caller today.)
+    return g_splashHidden;
+}
+
+bool socketsReady() { return g_socketsReady; }
+
+bool padsReady() {
+    // The pad layer's own answer, not a second opinion: it is the module that
+    // called hidInitialize and it is the one that decides whether it worked.
+    return padConnected();
+}
+
+void reportBootVerdict(const BootChecks& checks) {
+    // The one line, in the same channel and the same format as every other
+    // breadcrumb - so `grep SELF-TEST logs/boot.log` needs nothing but the
+    // word, and the line that is missing says as much as the one that is there.
+    reportBootStage(formatBootVerdict(checks).c_str());
 }
 
 void setFrameTraceEnabled(bool enabled) { g_frameTraceEnabled = enabled; }
@@ -499,6 +532,14 @@ std::string appRoot() {
         }
     }
     return g_appRoot;
+}
+
+bool resourceAssetsPresent() {
+    // The marker appRoot() chose the root by: its assets/shaders directory.
+    // Answering "are the compiled shaders where the renderer reads them" with
+    // the check the root itself was selected on costs nothing, and keeps the
+    // self-test line from ever disagreeing with the root it was resolved from.
+    return holdsAssets(appRoot());
 }
 
 uint32_t resolveIPv4(const std::string& host) {

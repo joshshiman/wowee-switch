@@ -14,6 +14,8 @@
 #include <string>
 #include <functional>
 
+#include "platform/switch/boot_verdict.hpp"
+
 struct ImGuiContext;
 
 namespace wowee {
@@ -39,6 +41,20 @@ void hideSplashScreen();
 /// Main-thread startup checkpoints, written without a userspace buffer to
 /// logs/boot.log.
 void reportBootStage(const char* stage);
+
+/// The first-boot self-test line: every part that can be broken on its own, one
+/// line, in logs/boot.log beside the breadcrumbs. Read the parts off the state
+/// the startup path already keeps (see the getters below) rather than probing
+/// again - the verdict is a summary of the boot, not a second opinion on it.
+void reportBootVerdict(const BootChecks& checks);
+
+/// What the platform already knows, for the self-test line above. Each is the
+/// state the corresponding startup step left behind, so answering costs
+/// nothing and cannot disagree with the breadcrumbs.
+bool firstFramePresented();    ///< a frame reached the screen
+bool socketsReady();          ///< socketInitializeDefault succeeded
+bool padsReady();             ///< the pad layer opened HID
+bool resourceAssetsPresent(); ///< the resource root carries the compiled shaders
 // Main-thread scope: extend backend breadcrumbs through the first world frames.
 void setFrameTraceEnabled(bool enabled);
 bool frameTraceEnabled();

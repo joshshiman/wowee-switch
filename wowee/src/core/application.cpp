@@ -1391,6 +1391,16 @@ void Application::run() {
     // present, from boot.log alone.
     unsigned ps4FrameBreadcrumbs = 0;
     rendering::FrameTimingWindow ps4WorldTiming;
+    // The first-boot self-test, once. Reported on the first frame that reached
+    // the screen, or after the deadline below so that frames which keep coming
+    // and keep drawing to nothing still leave an answer behind. The deadline is
+    // far longer than a first frame should need - it has nothing but the login
+    // screen to build pipelines for - and it cannot catch a wedge inside one
+    // call, because the main thread is then not here at all; for that, the last
+    // breadcrumb in boot.log is the diagnosis.
+    bool bootVerdictReported = false;
+    const auto bootVerdictDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(30);
 #endif
     while (running && !window->shouldClose()) {
         const auto frameStart = std::chrono::steady_clock::now();
@@ -1906,6 +1916,35 @@ void Application::run() {
             std::snprintf(stage, sizeof(stage), "main loop: frame %u rendered", ps4FrameBreadcrumbs);
             platform::switchport::reportBootStage(stage);
             ++ps4FrameBreadcrumbs;
+        }
+        // The one line that says whether this launch worked, in the boot log
+        // and on the screen. Every part is read from state the startup path
+        // already left behind, so nothing here can contradict the breadcrumbs
+        // above it.
+        if (!bootVerdictReported) {
+            const bool presented = platform::switchport::firstFramePresented();
+            if (presented || std::chrono::steady_clock::now() >= bootVerdictDeadline) {
+                bootVerdictReported = true;
+                platform::switchport::BootChecks checks;
+                checks.renderer = presented;
+                checks.audio = audio::AudioEngine::instance().isInitialized();
+                checks.hid = platform::switchport::padsReady();
+                checks.net = platform::switchport::socketsReady();
+                checks.data = assetManager && assetManager->isInitialized();
+                checks.shaders = platform::switchport::resourceAssetsPresent();
+                platform::switchport::reportBootVerdict(checks);
+                const bool passed = platform::switchport::bootVerdictPassed(checks);
+                if (uiManager) {
+                    // The login screen's own status line, which is the one
+                    // thing readable without pulling the SD card. Set the way
+                    // a failure is set everywhere else: prominent, because
+                    // nothing the player did put it there. Cleared like any
+                    // other status - by typing, or by connecting.
+                    uiManager->getAuthScreen().setStatus(
+                        platform::switchport::formatBootVerdictOnScreen(checks),
+                        /*isError=*/!passed, /*prominent=*/!passed);
+                }
+            }
         }
 #endif
         // Swap buffers
