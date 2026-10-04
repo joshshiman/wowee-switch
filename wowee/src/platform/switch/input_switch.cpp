@@ -416,7 +416,7 @@ void finishKeyboard(bool accepted, const std::string& text) {
 // ---- pumpInput pieces ------------------------------------------------------------
 
 Layer activeLayer(uint32_t buttons) {
-    return padLayerFor(buttons, s_textFocus, s_inWorld, s_actionBarNavigation);
+    return padLayerFor(buttons, s_textFocus, s_inWorld, s_actionBarNavigation, s_menuOwners != 0);
 }
 
 // Whether libnx's per-frame readers may be called at all. hidGetNpadStates*

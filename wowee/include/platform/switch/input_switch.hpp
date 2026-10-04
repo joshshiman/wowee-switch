@@ -141,10 +141,16 @@ inline constexpr PadBinding kBindings[] = {
 };
 
 /// Which layer a set of held buttons selects. Pure, so the precedence - text
-/// focus first, then L1, R1, L2, R2 - can be stated once and asserted.
+/// focus first, then a menu that owns the pad, then L1, R1, L2, R2 - can be
+/// stated once and asserted.
 constexpr Layer padLayerFor(uint32_t buttons, bool textFocus, bool inWorld,
-                            bool actionBarNavigation) {
+                            bool actionBarNavigation, bool menuOwnsPad) {
     if (textFocus) return Layer::Text;
+    // A menu owns the pad, and its face buttons are accept and cancel. Checked
+    // before the shoulders, not after the table has been walked: a held L1 must
+    // not be able to turn Cross into a jump and Circle into a screenshot while
+    // a panel is up, whichever layer the rows were filtered at.
+    if (menuOwnsPad) return Layer::Base;
     // The original interface's own hotbars take the raw shoulder presses while
     // the player is in the world, so the modifier layers must not also claim
     // them and synthesise a second set of slot keys underneath.
