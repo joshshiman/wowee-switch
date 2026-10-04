@@ -852,6 +852,26 @@ void pumpInput() {
 
     if (s_menuOwners && !s_applicationKeyboardOpen)
         want[SDL_SCANCODE_ESCAPE] = (st.buttons & ORBIS_PAD_BUTTON_OPTIONS) != 0;
+    // Chat. No row in the table can reach it, because in the world nothing is
+    // free: the face buttons are the click, the interact, the target and the
+    // action bar, + is the game menu, - the world map, the D-pad zooms and
+    // turns, L3 is autorun and R3 the cursor. Both index shoulders together is
+    // the one gesture that is left, because the original interface's own
+    // hotbars read that press as L1 and R1 at once and step by zero
+    // (addons/local_framexml_input.cpp navigateBars) and the table's L1 layer
+    // leaves R1 unbound - a shoulder on its own walks the action bar or the
+    // menu icons, so it cannot have this.
+    //
+    // Return, not a new key: that is what the client's own chat key is
+    // (ui/game_screen.cpp:1384 opens the interface's box on Return and
+    // TOGGLE_CHAT defaults to Enter), and Enter is already how the box sends,
+    // so one key opens and one key sends. The 200ms grace and the keyboard's
+    // own ownership are above and are not touched by this.
+    if (s_inWorld && !s_menuOwners && !s_applicationKeyboardOpen && !s_textFocus &&
+        (gameplayButtons & (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1)) ==
+            (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1)) {
+        want[SDL_SCANCODE_RETURN] = true;
+    }
     if (!s_applicationKeyboardOpen && !s_menuOwners) applyLeftStick(want);
     applyRightStick(dt, right);
     if (!s_applicationKeyboardOpen) applyWheel(wheel);

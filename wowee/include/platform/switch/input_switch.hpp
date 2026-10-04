@@ -40,6 +40,14 @@ namespace switchport {
 // Slots on the action bar are the number row: 1-4 with R2, 5-8 with L2, 9 0
 // - = with R1. Square alone is slot 1, so the most-used ability is a single
 // button. L1 holds the character keys: jump, sit, reset camera, screenshot.
+//
+// Chat is the one thing with no row here, and it is not a gap in the table: in
+// the world the table has nothing left to give it. Every face button is the
+// click, the interact, the target or the action bar, the shoulders walk those
+// bars, and the middle, D-pad and stick clicks are already spoken for. Both
+// index shoulders at once is the one gesture nothing else claims, so that is
+// what asks for Return - see pumpInput, which is also where the table is
+// skipped and the rest of the world-only mapping lives.
 enum class Layer : uint8_t { Base, L1, R1, L2, R2, Text, Count };
 
 enum class Action : uint8_t {
