@@ -1,5 +1,6 @@
 #include "game/expansion_profile.hpp"
 #include "game/inventory_slots.hpp"
+#include "core/config_paths.hpp"
 #include "core/logger.hpp"
 #include <filesystem>
 #include <fstream>
@@ -110,8 +111,19 @@ size_t ExpansionRegistry::initialize(const std::string& dataRoot) {
     std::string expansionsDir = dataRoot + "/expansions";
     std::error_code ec;
     if (!std::filesystem::is_directory(expansionsDir, ec)) {
-        LOG_WARNING("ExpansionRegistry: no expansions/ directory at ", expansionsDir);
-        return 0;
+        // These profiles ship inside the bundled resources - inside the .nro's
+        // romfs on the console. Read them from there rather than having the
+        // caller copy them into the user's client directory: the game data is
+        // the user's, not ours, and nothing here should ever write to it.
+        const std::string bundled = core::resolveRelativeAssetPath("Data") + "/expansions";
+        std::error_code bundledEc;
+        if (std::filesystem::is_directory(bundled, bundledEc)) {
+            expansionsDir = bundled;
+        } else {
+            LOG_WARNING("ExpansionRegistry: no expansions/ directory at ", expansionsDir,
+                        " or in the bundled resources");
+            return 0;
+        }
     }
 
     for (auto& entry : std::filesystem::directory_iterator(expansionsDir, ec)) {

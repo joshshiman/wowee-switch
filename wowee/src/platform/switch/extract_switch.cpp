@@ -58,18 +58,12 @@ int threadBudget() {
     return kDefaultThreads;
 }
 
+// The bundled Data tree used to be copied into the user's client directory so
+// ExpansionRegistry would find expansions/*/expansion.json next to the MPQs.
+// It reads them out of the bundled resources instead, so the game data stays
+// read-only: nothing this title does should ever write into it.
 void mirrorBundledData() {
-    reportBootStage("assets: metadata sync begin");
-    std::string error;
-    const std::string bundled = core::resolveRelativeAssetPath("Data");
-    const int copied = tools::syncBundledData(bundled, dataRoot(), &error);
-    if (copied < 0) {
-        LOG_WARNING("Bundled Data tree not found at ", bundled, "; expansion profiles must be copied by hand");
-    } else if (copied > 0) {
-        LOG_INFO("Copied ", copied, " bundled Data file(s) from ", bundled, " to ", dataRoot());
-    }
-    if (!error.empty()) LOG_WARNING("Bundled Data copy: ", error);
-    reportBootStage(error.empty() && copied >= 0 ? "assets: metadata sync complete" : "assets: metadata sync incomplete");
+    reportBootStage("assets: bundled metadata (read-only)");
 }
 
 // ---- the system progress dialog ------------------------------------------------
