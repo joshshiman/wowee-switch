@@ -22,6 +22,7 @@
 #include "game/local_quest_dialogue.hpp"
 #include "core/logger.hpp"
 #include "ui/framexml_takeover.hpp"
+#include "ui/framexml_pad_navigation.hpp"
 #include <algorithm>
 #include <cmath>
 #include "core/app_clock.hpp"
@@ -93,8 +94,13 @@ platform::switchport::setInputActionBars(false);
 ui::frameXmlClearPadCursorAnchor();
 socialRevision_=UINT64_MAX;partyRevision_=partyRosterRevision_=0;partyInvite_=0;craftSkill_=0;handler_=nullptr;installed_=false;closing_=false;enabled_=false;focus_=0;padFocus_.clear();navigationRoot_=0;phase_=DialoguePhase::None;pendingQuest_=0;pendingTurnIn_=false;missingNpcSeconds_=pendingQuestSeconds_=merchantRefreshSeconds_=0;padCrossHandled_=false;engine_=nullptr;realm_={};target_={};logout_={};greeting_={};itemIcon_={};changes_={};npc_=lastTarget_=revision_=0;selected_=0;timer_=0;}
 bool LocalFrameXml::ready() const {
-    if(!ui::frameXmlActive() || !enabled_ || !engine_ || !realm_ || !realm_()) return false;
-    auto& tree=engine_->widgets();return tree.findByName("MainMenuBar") && tree.findByName("PlayerFrame");
+    if(!enabled_ || !realm_ || !realm_()) return false;
+    return panelTreeLive();
+}
+void LocalFrameXml::bindFrameXmlTree(LuaEngine& e) { engine_=&e; }
+bool LocalFrameXml::panelTreeLive() const {
+    if(!ui::frameXmlActive() || !engine_) return false;
+    return ui::padFrameXmlTreeLive(engine_->widgets());
 }
 void LocalFrameXml::publish() {
     if(!engine_ || !realm_) return;

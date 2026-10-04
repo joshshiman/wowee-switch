@@ -106,7 +106,7 @@ void LocalFrameXml::publishPadCursor() {
         ImGui::GetIO().DisplaySize.y-(w->bottom+w->rectH*.5f)*scale);
 }
 bool LocalFrameXml::activatePadControl(uint32_t id) {
-    if(!ready())return false;
+    if(!panelTreeLive())return false;
     auto& tree=engine_->widgets();const auto* w=tree.get(id);
     if(!ui::padControlPoint(tree,w,ImGui::GetIO().DisplaySize.x/tree.uiScale(),
         ImGui::GetIO().DisplaySize.y/tree.uiScale()))return false;
@@ -136,9 +136,9 @@ bool LocalFrameXml::activatePadControl(uint32_t id) {
     // complete press/release path as a mouse so IsMouseOver, checked state,
     // PreClick/PostClick and mouse-only handlers agree for every control.
     engine_->dispatchMouse(x,y,screenH,{false,false,false});
-    if(!ready())return true;
+    if(!panelTreeLive())return true;
     engine_->dispatchMouse(x,y,screenH,{true,false,false});
-    if(ready())engine_->dispatchMouse(x,y,screenH,{false,false,false});
+    if(panelTreeLive())engine_->dispatchMouse(x,y,screenH,{false,false,false});
     return true;
 }
 bool LocalFrameXml::padPickup(const std::string& name) {
@@ -196,7 +196,7 @@ bool LocalFrameXml::padDropCarried() {
     return true;
 }
 bool LocalFrameXml::worldMapOwnsPad() const {
-    return ready() && worldMapPanel(engine_->widgets())!=nullptr;
+    return panelTreeLive() && worldMapPanel(engine_->widgets())!=nullptr;
 }
 
 /// The map's own button.
@@ -208,7 +208,7 @@ bool LocalFrameXml::worldMapOwnsPad() const {
 /// down - Action::WorldMap, doing nothing on its own and saying who does.
 bool LocalFrameXml::padWorldMapToggle() {
 #ifdef WOWEE_SWITCH
-    if(!ready() || platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
+    if(!panelTreeLive() || platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
     const auto& pad=platform::switchport::padSnapshot();
     if(!pad.connected || ImGui::GetIO().WantTextInput)return false;
     if(!(pad.pressed&kPadWorldMapButton))return false;
@@ -273,9 +273,9 @@ bool LocalFrameXml::padWorldMapFrame() {
         ui::noteInterfaceConsumedKey(ImGuiKey_GamepadFaceRight);
         ui::noteInterfaceConsumedKey(ImGuiKey_Escape);
         engine_->dispatchMouse(-1,-1,io.DisplaySize.y,{false,false,false});
-        if(!ready())return true;
+        if(!panelTreeLive())return true;
         engine_->releaseMouseHover();
-        if(ready())engine_->executeString(
+        if(panelTreeLive())engine_->executeString(
             "if WorldMapFrame then if HideUIPanel then HideUIPanel(WorldMapFrame) "
             "else WorldMapFrame:Hide() end end");
         return true;
@@ -303,11 +303,21 @@ bool LocalFrameXml::navigateBars() {
         if(const auto* player=realm->localPlayer())vehicleInput=player->vehicleGuid!=0;
     // The native vehicle bar also consumes raw chords before FrameXML loads.
     // In particular R2+Cross must not synthesize the legacy key4/exit action.
+    //
+    // Still keyed on ready(), not on panelTreeLive(): this switch tells the pad
+    // layer that FrameXML's own hotbars own the raw shoulders, Square and
+    // Triangle in the world. That is only true once the bar lane below is
+    // actually running, and it answers out of the local realm (target_, vehicle,
+    // nearby mailbox), so turning it on for a remote realm would take Triangle
+    // away from TARGETNEAREST and Square away from action slot 1 to hand them
+    // to lanes that answer out of `realm_` and have none.
     platform::switchport::setInputActionBars(ready() || vehicleInput);
-    if(!ready() || platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
+    if(!panelTreeLive() || platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
     // A released spirit's Square is a corpse-reclaim request before any
     // action bar, spell cursor, mailbox, NPC or combat interaction. Mark both
     // raw and mapped actions consumed so the overlay cannot send it twice.
+    // Nothing to guard: the answer comes out of `realm_`, which a remote realm
+    // has not got, so this branch is already only a local realm's.
     if(auto* realm=realm_?realm_():nullptr) {
         if(const auto* player=realm->localPlayer();player && player->dead) {
             padFocus_.clear();
@@ -326,8 +336,12 @@ bool LocalFrameXml::navigateBars() {
         }
     }
     // Circle cancels a carried reference before closing a panel. Bag contents
-    // stay owned by inventory; cancelling never destroys the item.
-    if(carrying(engine_) && (platform::switchport::padSnapshot().pressed&ORBIS_PAD_BUTTON_CIRCLE)) {
+    // stay owned by inventory; cancelling never destroys the item. A local
+    // realm's lane, and unlike the reclaim above it needs the guard spelled
+    // out: what it asks about is the cursor, which a remote realm has too, and
+    // on a remote realm Circle is right click - interact, which must not be
+    // turned into a cancel.
+    if(ready() && carrying(engine_) && (platform::switchport::padSnapshot().pressed&ORBIS_PAD_BUTTON_CIRCLE)) {
         engine_->executeString("if ClearCursor then ClearCursor() end");
         ui::noteInterfaceConsumedKey(ImGuiKey_GamepadFaceRight);
         ui::noteInterfaceConsumedKey(ImGuiKey_Escape);
@@ -336,8 +350,19 @@ bool LocalFrameXml::navigateBars() {
     // Before the bars, and before the panel lane the caller runs after this
     // one: the map's button has to work from wherever the player is, and while
     // the map is up nothing else may read the pad.
+    //
+    // The map is one of kPadPanels and the addon engine draws it like any other,
+    // so it is reached above the local realm's gate rather than behind it: a
+    // remote realm has the map and none of the bridge, and with the map's own
+    // reads behind that gate Minus did nothing there at all.
     if(padWorldMapToggle())return true;
     if(padWorldMapFrame())return true;
+    // Everything below is the bar lane: it selects the original interface's
+    // action buttons, answers Square out of the local realm's contextual action,
+    // and stands down for its vehicle, target and mailbox. None of that exists
+    // on a remote realm, and setInputActionBars above is still keyed on this
+    // same answer, so the lane stops here.
+    if(!ready())return false;
     const auto& io=ImGui::GetIO();const auto& pad=platform::switchport::padSnapshot();
     if(!pad.connected || io.WantTextInput)return false;
     auto& tree=engine_->widgets();
@@ -477,7 +502,7 @@ bool LocalFrameXml::toggleGameMenu() {
     return engine_->executeString(ui::kToggleLocalGameMenuLua);
 }
 
-bool LocalFrameXml::panelOpen() const {return ready() && panel(engine_->widgets());}
+bool LocalFrameXml::panelOpen() const {return panelTreeLive() && panel(engine_->widgets());}
 bool LocalFrameXml::navigate() {
     // Same guard as the bar lane: every exit leaves the carried icon where the
     // focus ended up, and there are a dozen of them.
@@ -491,7 +516,7 @@ bool LocalFrameXml::navigate() {
     // reached only when the cursor is not over one of this client's own windows
     // and a panel closed behind the cursor's back used to leave the answer
     // standing for as long as nothing came back here to take it back.
-    auto* root=ready()?panel(engine_->widgets()):nullptr;
+    auto* root=panelTreeLive()?panel(engine_->widgets()):nullptr;
     if(!root){focus_=0;navigationRoot_=0;return false;}
 #ifdef WOWEE_SWITCH
     if(platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
@@ -512,7 +537,7 @@ bool LocalFrameXml::navigate() {
         // consumed through release so holding Cross cannot accept the quest.
         if(ImGui::IsKeyDown(ImGuiKey_GamepadFaceDown))padCrossHandled_=true;
         engine_->dispatchMouse(-1,-1,io.DisplaySize.y,{false,false,false});
-        if(!ready())return true;
+        if(!panelTreeLive())return true;
     }
     // Carrying makes the action bars part of the open panel's navigation space.
     // They are not descendants of it, so without this the D-pad could never
@@ -551,7 +576,7 @@ bool LocalFrameXml::navigate() {
         const float value=std::clamp(slider->barValue+dx*step,slider->barMin,slider->barMax);
         const auto sliderId=slider->id;slider->barValue=value;
         engine_->callFrameScriptNumber(sliderId,"OnValueChanged",value);
-        if (!ready()) return true;
+        if (!panelTreeLive()) return true;
         focused=tree.get(sliderId);if (!eligible(focused)) focused=nullptr;dx=0;
     }
     if(focused && (dx || dy)){
@@ -577,9 +602,9 @@ bool LocalFrameXml::navigate() {
         const std::string name=active?active->name:std::string{};
         focus_=0;
         engine_->dispatchMouse(-1,-1,io.DisplaySize.y,{false,false,false});
-        if (!ready()) return true;
+        if (!panelTreeLive()) return true;
         engine_->releaseMouseHover();
-        if (ready() && !name.empty()) {
+        if (panelTreeLive() && !name.empty()) {
             if (name.starts_with("StaticPopup")) {
                 // Match StaticPopup_EscapePressed's cancellation contract for
                 // this topmost popup only: Hide alone skips OnCancel, and some
@@ -667,7 +692,7 @@ bool LocalFrameXml::navigate() {
         ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
         // OnMouseWheel can create/reparent/hide controls. WidgetTree owns a
         // vector, so the pointer from before a Lua callback may be dangling.
-        if (!ready()) return true;
+        if (!panelTreeLive()) return true;
         focused=tree.get(focusedId);
         if (!eligible(focused)) {focus_=0;return true;}
     }

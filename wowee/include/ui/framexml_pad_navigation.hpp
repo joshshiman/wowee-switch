@@ -15,6 +15,19 @@ inline constexpr std::string_view kPadPanels[] = {
     "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4"
     , "DropDownList1", "DropDownList2", "DropDownList3"
 };
+/// Whether the widget tree holds the original interface.
+///
+/// The two frames this system already names everywhere else, asked of the tree
+/// alone and of nothing else. Deliberately NOT the local realm's Lua API bridge:
+/// the panels the pad drives - bags, spellbook, quest log, character sheet,
+/// vendor, game menu, world map - are FrameXML's own frames and the addon
+/// engine draws them on any realm. A remote realm has every one of them and none
+/// of the local bridge, so a gate that asked for the bridge reported "nothing to
+/// navigate" over a screen full of panels and left the D-pad, Cross, Square and
+/// Minus dead there.
+inline bool padFrameXmlTreeLive(const WidgetTree& tree) {
+    return tree.findByName("MainMenuBar") && tree.findByName("PlayerFrame");
+}
 inline bool padModalPanel(std::string_view name) {
     return name.starts_with("DropDownList") || name.starts_with("StaticPopup") || name.ends_with("OptionsFrame") || name=="GameMenuFrame";
 }

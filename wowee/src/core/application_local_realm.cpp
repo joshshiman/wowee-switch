@@ -414,7 +414,16 @@ bool Application::enterLocalRealmPortal(uint32_t portalId, bool privateInstance)
 }
 
 void Application::prepareLocalFrameXml() {
-    if (!localRealm_ || !addonManager_ || !gameHandler || !gameHandler->isLocalExploration()) return;
+    // The FrameXML pad lanes read the addon's widget tree, and that tree is the
+    // interface: the bags, spellbook, quest log, character sheet, vendor, game
+    // menu and world map the pad navigates are drawn from it on any realm. So it
+    // is bound before the guard below, which is about the local realm's Lua API
+    // bridge and nothing else - a remote realm has every one of those panels on
+    // screen and never installs that bridge, and gating the pad on it left the
+    // D-pad, Cross, Square and Minus dead over a screen full of them.
+    if (addonManager_ && addonManager_->getLuaEngine())
+        localFrameXml_.bindFrameXmlTree(*addonManager_->getLuaEngine());
+    if (!localRealm_ || !gameHandler || !gameHandler->isLocalExploration()) return;
     localFrameXml_.install(*addonManager_->getLuaEngine(), [this]{return localRealm_.get();},
         [this]{return localRealmTarget_;}, [this]{logoutToLogin();}, [this](uint64_t guid){
             if(localRealm_ && gameHandler) for(const auto& n:localRealm_->npcs())

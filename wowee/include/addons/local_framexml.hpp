@@ -203,6 +203,13 @@ public:
     void update(float dt);
     bool open(uint64_t npc);
     bool ready() const;
+    /// Point the pad lanes at the addon's FrameXML tree, and nothing else.
+    ///
+    /// install() does this too, and additionally installs the local realm's Lua
+    /// API bridge on top. That bridge is local-realm-only; the tree is not. This
+    /// is how the pad reaches the interface on a remote realm, which draws every
+    /// panel the pad navigates and has no local bridge to find.
+    void bindFrameXmlTree(LuaEngine& engine);
     void reset();
     void activate(bool enabled);
     bool panelOpen() const;
@@ -221,6 +228,16 @@ private:
     static int command(lua_State* L);
     static int partyCommand(lua_State* L);
     static int socialCommand(lua_State* L);
+    /// Whether FrameXML's widget tree is there for the pad to drive.
+    ///
+    /// NOT ready(), and the difference is the whole point: ready() also demands
+    /// the local realm's Lua API bridge, which install() only puts in on a local
+    /// exploration session. The panels the pad lanes navigate above are the
+    /// original interface's own frames and are drawn by the addon engine on any
+    /// realm, so on a remote realm those five gates answered "no" over a screen
+    /// full of panels and the pad could not operate one of them. This asks the
+    /// question those lanes actually have: is the tree there?
+    bool panelTreeLive() const;
     bool act(const std::string& name, uint32_t id, uint32_t quantity = 0);
     bool openAuctionHouse(uint64_t npc);
     void publish();

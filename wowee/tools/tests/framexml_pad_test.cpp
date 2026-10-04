@@ -143,4 +143,18 @@ int main() {
     require(padInitialControl(g,modal,modalEligible)->id==yes,"NPC preferences cannot escape modal");
     require(!padInitialControl(g,0,modalEligible),"missing root has no initial focus");
     std::puts("PASS NPC initial focus preserves modal ownership");
+
+    // The gate the pad lanes read. It has to be true of a tree that only ever
+    // saw retail FrameXML, because that is exactly what a remote realm loads -
+    // the local realm's Lua bridge adds no widget of its own, so "the bar and
+    // the player frame are there" is the whole of what it can ask.
+    WidgetTree live;
+    require(!padFrameXmlTreeLive(live),"an empty tree is not the interface");
+    make(live,"MainMenuBar",0,0,0);
+    require(!padFrameXmlTreeLive(live),"a bar alone is not the interface");
+    make(live,"PlayerFrame",0,0,0);
+    require(padFrameXmlTreeLive(live),"bar and player frame means the interface is up");
+    make(live,"WorldMapFrame",0,0,0);
+    require(padFrameXmlTreeLive(live),"an open panel does not disturb the gate");
+    std::puts("PASS FrameXML tree liveness needs no local realm bridge");
 }
