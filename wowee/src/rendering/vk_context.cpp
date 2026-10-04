@@ -1909,10 +1909,50 @@ VkSampleCountFlagBits VkContext::getMaxUsableSampleCount() const {
 #endif
 }
 
+// A sample count the device does not advertise is not a smaller-than-maximum
+// one, it is an impossible one: the multisampled image and the render pass are
+// both created with it, creation succeeds, and then every draw into the scene
+// pass and the resolve out of it are dropped. The swapchain image keeps
+// whatever it held - for a world entry, that is the last loading-screen frame,
+// so the world is "loaded" (thousands of terrain chunks recorded) and never
+// appears. Comparing the enum values cannot catch it either: they are ordered
+// powers of two, so an unsupported 2x compares below a supported 4x and passes
+// the clamp below. Test the advertised bits instead, and take the largest
+// supported count that does not exceed the request - 1x rather than silently
+// giving more anti-aliasing than was asked for.
+VkSampleCountFlagBits VkContext::nearestUsableSampleCount(VkSampleCountFlagBits requested) const {
+#if defined(WOWEE_SWITCH)
+    // nxvk reports 2x/4x/8x as usable but creating such an image fails, and the
+    // failed-then-recovered sequence takes the device down. See the same note
+    // in getMaxUsableSampleCount().
+    (void)requested;
+    return VK_SAMPLE_COUNT_1_BIT;
+#else
+    if (physicalDevice == VK_NULL_HANDLE) return VK_SAMPLE_COUNT_1_BIT;
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(physicalDevice, &props);
+    const VkSampleCountFlags usable = props.limits.framebufferColorSampleCounts &
+        props.limits.framebufferDepthSampleCounts;
+    static constexpr VkSampleCountFlagBits kDescending[] = {
+        VK_SAMPLE_COUNT_8_BIT, VK_SAMPLE_COUNT_4_BIT,
+        VK_SAMPLE_COUNT_2_BIT, VK_SAMPLE_COUNT_1_BIT};
+    for (const VkSampleCountFlagBits candidate : kDescending) {
+        if (candidate <= requested && (usable & candidate)) return candidate;
+    }
+    return VK_SAMPLE_COUNT_1_BIT;
+#endif
+}
+
 void VkContext::setMsaaSamples(VkSampleCountFlagBits samples) {
+    const VkSampleCountFlagBits requested = samples;
+    samples = nearestUsableSampleCount(samples);
     // Clamp to max supported
     VkSampleCountFlagBits maxSamples = getMaxUsableSampleCount();
     if (samples > maxSamples) samples = maxSamples;
+    if (samples != requested) {
+        LOG_WARNING("MSAA ", static_cast<unsigned>(requested), "x is not supported by this device; using ",
+                    static_cast<unsigned>(samples), "x");
+    }
     msaaSamples_ = samples;
     swapchainDirty = true;
 }

@@ -569,6 +569,10 @@ private:
     bool createDepthResolveImage();
     void destroyDepthResolveImage();
 
+    /// The largest sample count this device can actually render into that is
+    /// no larger than the one asked for, or 1x when it supports none of them.
+    [[nodiscard]] VkSampleCountFlagBits nearestUsableSampleCount(VkSampleCountFlagBits requested) const;
+
     // Actual Vulkan API version the instance was created with (gates core 1.2 calls)
     uint32_t instanceApiVersion_ = VK_API_VERSION_1_1;
     /// What the physical device reports, which is not what the instance was
