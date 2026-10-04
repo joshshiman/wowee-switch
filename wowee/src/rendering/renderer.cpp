@@ -1503,6 +1503,26 @@ void Renderer::beginFrame() {
     }
     rpInfo.pClearValues = clearValues;
 
+#if !defined(WOWEE_SWITCH)
+    // WOWEE_DEBUG_SCENE_CLEAR=1 clears the scene pass magenta instead of black.
+    //
+    // One question, three answers that look the same on screen: "the 3D world
+    // is black and the interface is not" is what you get when the world draws
+    // nothing, when the lit shaders multiply their result by zero, and when the
+    // scene reaches the swapchain and the post-process composite replaces it.
+    // Magenta survives the first two and is replaced by the third, so one run
+    // with it on says which of the three this is. Off unless asked for, and not
+    // compiled into the console port at all.
+    static const bool debugSceneClear = [] {
+        const char* v = std::getenv("WOWEE_DEBUG_SCENE_CLEAR");
+        return v && v[0] != '\0' && v[0] != '0';
+    }();
+    if (debugSceneClear) {
+        clearValues[0].color = {{1.0f, 0.0f, 1.0f, 1.0f}};
+        clearValues[2].color = {{1.0f, 0.0f, 1.0f, 1.0f}};
+    }
+#endif
+
     // Cache render pass state for secondary command buffer inheritance
     activeRenderPass_ = rpInfo.renderPass;
     activeFramebuffer_ = rpInfo.framebuffer;
@@ -1561,6 +1581,7 @@ void Renderer::endFrame() {
     if (!vkCtx || currentCmd == VK_NULL_HANDLE) return;
 
     logViewDistanceDiag();
+    logSceneRouteDiag();
 
     // Post-process execution (§4.3 - delegates to PostProcessPipeline). Whether
     // it swapped the scene pass for an INLINE one no longer matters to the
@@ -4005,6 +4026,85 @@ void Renderer::logViewDistanceDiag() {
                 ", tiles loaded to ", getTerrainLoadRadius(),
                 " (", static_cast<int>(getTerrainLoadRadius() *
                                        core::coords::TILE_SIZE), ")");
+}
+
+// One line naming the route the scene took and the numbers every lit shader
+// multiplies by.
+//
+// "The world is black but the interface is not" has three answers that look
+// identical from outside: the 3D draws never happened, they happened and the
+// lit shaders multiplied their result by zero, or the scene reached the
+// swapchain and the post-process composite replaced it. The per-frame state
+// that separates them was all at INFO (the [WORLD_PERF]/[WORLD_SCENE] lines),
+// which a release build drops - so on a desktop run the log showed the terrain
+// streaming warnings and nothing at all about the picture. At warning level,
+// every 120 frames, with:
+//   route        which post-process path is live, i.e. where the scene landed
+//   chunks       resident / drawn / culled - "drawn=0" is the first answer
+//   proj         the projection terms the vertex stage actually reads
+//   light/fog    ambient and diffuse colour, and fogEnd vs fogStart, which is
+//                the term terrain.frag divides by (see its fog line)
+// WOWEE_DEBUG_SCENE_CLEAR=1 clears the scene pass magenta instead of black and
+// answers the third of the three from the same run.
+void Renderer::logSceneRouteDiag() {
+    static const bool enabled = std::getenv("WOWEE_SCENE_ROUTE_DIAG") != nullptr;
+    if (!enabled) return;
+    static uint32_t frameCount = 0;
+    if ((++frameCount % 120u) != 1u) return;
+
+    const char* route = "swapchain-direct";
+    VkExtent2D sceneExtent{};
+    if (postProcessPipeline_) {
+        const VkFramebuffer fb = postProcessPipeline_->getSceneFramebuffer();
+        sceneExtent = postProcessPipeline_->getSceneRenderExtent();
+        if (fb != VK_NULL_HANDLE) {
+            route = postProcessPipeline_->isFSR2Enabled() ? "fsr2"
+                   : postProcessPipeline_->isFSREnabled()  ? "fsr1" : "fxaa";
+        }
+    }
+    if (!sceneExtent.width) sceneExtent = vkCtx->getSwapchainExtent();
+    const VkExtent2D swapExtent = vkCtx->getSwapchainExtent();
+
+    const glm::mat4 proj = camera ? camera->getProjectionMatrix() : glm::mat4(1.0f);
+    const glm::vec3 camPos = camera ? camera->getPosition() : glm::vec3(0.0f);
+
+    // fogEnd <= fogStart makes terrain.frag's fog term divide by zero, which
+    // SPIR-V leaves undefined for a NaN, and the whole screen then takes fogColor.
+    // Both are zero when there is no lighting manager, because the frame UBO is
+    // only filled from one when it exists - and zero light and ambient is what
+    // every lit shader then multiplies the scene by.
+    const bool noLighting = lightingManager == nullptr;
+    const bool fogRangeInverted = currentFrameData.fogParams.y <= currentFrameData.fogParams.x;
+
+    LOG_WARNING("[SCENE_ROUTE] route=", route,
+                " scene=", sceneExtent.width, "x", sceneExtent.height,
+                " swap=", swapExtent.width, "x", swapExtent.height,
+                " msaa=", static_cast<unsigned>(vkCtx->getMsaaSamples()),
+                " fxaa=", postProcessPipeline_ && postProcessPipeline_->isFXAAEnabled() ? 1 : 0,
+                " fsr1=", postProcessPipeline_ && postProcessPipeline_->isFSREnabled() ? 1 : 0,
+                " fsr2=", postProcessPipeline_ && postProcessPipeline_->isFSR2Enabled() ? 1 : 0,
+                " volQ=", postProcessPipeline_ ? postProcessPipeline_->getVolumetricQuality() : -1,
+                " bloom=", postProcessPipeline_ && postProcessPipeline_->isBloomActive() ? 1 : 0);
+    LOG_WARNING("[SCENE_ROUTE] chunks resident=", terrainRenderer ? terrainRenderer->getChunkCount() : 0,
+                " drawn=", terrainRenderer ? terrainRenderer->getRenderedChunkCount() : 0,
+                " culled=", terrainRenderer ? terrainRenderer->getCulledChunkCount() : 0,
+                " cam=(", camPos.x, ",", camPos.y, ",", camPos.z, ")",
+                " near=", camera ? camera->getNearPlane() : 0.0f,
+                " far=", camera ? camera->getFarPlane() : 0.0f,
+                " proj00=", proj[0][0], " proj11=", proj[1][1],
+                " proj22=", proj[2][2], " proj32=", proj[3][2]);
+    LOG_WARNING("[SCENE_ROUTE] lightDir=", currentFrameData.lightDir.x, ",", currentFrameData.lightDir.y,
+                ",", currentFrameData.lightDir.z,
+                " light=", currentFrameData.lightColor.r, ",", currentFrameData.lightColor.g,
+                ",", currentFrameData.lightColor.b,
+                " ambient=", currentFrameData.ambientColor.r, ",", currentFrameData.ambientColor.g,
+                ",", currentFrameData.ambientColor.b,
+                " fogStart=", currentFrameData.fogParams.x,
+                " fogEnd=", currentFrameData.fogParams.y,
+                (fogRangeInverted ? " FOG_RANGE_INVERTED" : ""),
+                (noLighting ? " NO_LIGHTING_MANAGER" : ""),
+                " fogColor=", currentFrameData.fogColor.r, ",", currentFrameData.fogColor.g,
+                ",", currentFrameData.fogColor.b);
 }
 
 void Renderer::setSharpStars(bool enabled) {

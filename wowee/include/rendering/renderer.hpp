@@ -395,6 +395,10 @@ public:
     /// WOWEE_VIEW_DIAG=1: one line naming how far terrain and doodads each
     /// actually drew, so the two can be compared rather than reasoned about.
     void logViewDistanceDiag();
+    /// WOWEE_SCENE_ROUTE_DIAG=1: one warning every 120 frames naming which
+    /// post-process route the scene took and the lighting/fog numbers every lit
+    /// shader multiplies by. At warning level, so a release build keeps it.
+    void logSceneRouteDiag();
     void setSharpStars(bool enabled);
     bool areSharpStars() const { return sharpStars_; }
     int getTerrainLoadRadius() const;
