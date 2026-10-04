@@ -122,6 +122,30 @@ bool blockCompressionSupported() {
     return g_blockCompressionSupported;
 }
 
+size_t BLPLoader::requiredSourceBytes(BLPCompression compression, int width, int height,
+                                      uint8_t alphaDepth) {
+    if (width <= 0 || height <= 0) return 0;
+    const size_t w = static_cast<size_t>(width);
+    const size_t h = static_cast<size_t>(height);
+    switch (compression) {
+        case BLPCompression::DXT1:
+            return ((w + 3) / 4) * ((h + 3) / 4) * 8;
+        case BLPCompression::DXT3:
+        case BLPCompression::DXT5:
+            return ((w + 3) / 4) * ((h + 3) / 4) * 16;
+        case BLPCompression::ARGB8888:
+            return w * h * 4;
+        case BLPCompression::PALETTE:
+            // One index byte a pixel, then the alpha plane at its own depth.
+            if (alphaDepth == 8) return w * h * 2;
+            if (alphaDepth == 4) return w * h + (w * h + 1) / 2;
+            if (alphaDepth == 1) return w * h + (w * h + 7) / 8;
+            return w * h;
+        default:
+            return 0;
+    }
+}
+
 BLPImage BLPLoader::load(const std::vector<uint8_t>& blpData, bool keepCompressed) {
     if (blpData.size() < 8) {  // Minimum: magic + first field
         LOG_ERROR("BLP data too small");
@@ -193,6 +217,16 @@ BLPImage BLPLoader::loadBLP1(std::span<const uint8_t> data) {
 
     if (image.width <= 0 || image.height <= 0 || image.width > 4096 || image.height > 4096) {
         LOG_ERROR("BLP1 dimensions out of range: ", image.width, "x", image.height);
+        return BLPImage();
+    }
+    // The only level this path keeps has to be complete: decompressPalette
+    // reads through a checked accessor, so a short one decodes to whatever
+    // padding follows rather than failing.
+    const size_t needBase = requiredSourceBytes(image.compression, image.width, image.height,
+                                                static_cast<uint8_t>(header.alphaBits));
+    if (mipSize < needBase) {
+        LOG_ERROR("BLP1 mip 0 holds ", mipSize, " bytes, needs ", needBase, " for ",
+                  image.width, "x", image.height);
         return BLPImage();
     }
     uint32_t pixelCount = static_cast<uint32_t>(image.width) * static_cast<uint32_t>(image.height);
@@ -272,10 +306,18 @@ BLPImage BLPLoader::loadBLP2(std::span<const uint8_t> data, bool keepCompressed)
     }
     uint32_t pixelCount = static_cast<uint32_t>(image.width) * static_cast<uint32_t>(image.height);
     uint32_t requiredArgb = pixelCount * 4;
-    // For ARGB8888 the source must be at least pixelCount*4 bytes; for DXT/palette
-    // the source is smaller but the decompressors have their own internal bounds.
-    if (image.compression == BLPCompression::ARGB8888 && mipSize < requiredArgb) {
-        LOG_ERROR("BLP2 ARGB8888 mipSize (", mipSize, ") < required (", requiredArgb, ")");
+    // Every decoder reads through a bounds check of its own, so a level that is
+    // short of what its format needs does not fail here - it decodes to
+    // whatever bytes happen to follow, and a block upload cannot be handed a
+    // level the GPU cannot address at all. Mip 0 is the whole image for the
+    // decode paths and the base of the chain for the block one, so it has to be
+    // complete whichever path is taken.
+    const size_t needBase = requiredSourceBytes(image.compression, image.width, image.height,
+                                                header.alphaDepth);
+    if (mipSize < needBase) {
+        LOG_ERROR("BLP2 mip 0 holds ", mipSize, " bytes, needs ", needBase, " for a ",
+                  image.width, "x", image.height, " ", getCompressionName(image.compression),
+                  " texture");
         return BLPImage();
     }
     const bool isDxt = image.compression == BLPCompression::DXT1 ||
@@ -293,6 +335,36 @@ BLPImage BLPLoader::loadBLP2(std::span<const uint8_t> data, bool keepCompressed)
             if (static_cast<uint64_t>(levelOffset) + levelSize > size) {
                 LOG_WARNING("BLP2 mip ", level, " runs past the file - keeping ",
                             image.mipmaps.size(), " level(s)");
+                break;
+            }
+            // A mip level has to be as many blocks as its extent covers, or the
+            // region the GPU copies it into cannot be filled. 3.3.5a's encoder
+            // sizes a level from floor(w/4)*floor(h/4), clamped up to one block,
+            // which under-counts as soon as a level's extent is not a multiple of
+            // four in both axes: an 8x2 level of a 128x32 DXT1 gets one block
+            // where two are needed, and a 2x8 level of a 16x64 gets one as well.
+            // Half of a 128x32 - a texture whose own dimensions are perfectly
+            // ordinary - reaches 8x2 on its way down to 1x1, so the tail of the
+            // chain is short in 462 of the 45541 mipped DXT textures in the 3.3.5a
+            // data, across DXT1, DXT3 and DXT5 alike.
+            //
+            // The level cannot be reconstructed, and nothing needs it to be: a
+            // prefix of a mip chain is a mip chain. Stop where the data stops,
+            // so the upload carries every level it can actually fill, and say so
+            // once rather than dropping the texture on the floor.
+            const size_t needLevel = requiredSourceBytes(image.compression,
+                                                        static_cast<int>(levelW),
+                                                        static_cast<int>(levelH),
+                                                        header.alphaDepth);
+            if (levelSize < needLevel) {
+                static int truncatedChainWarnings = 0;
+                if (truncatedChainWarnings < 8) {
+                    truncatedChainWarnings++;
+                    LOG_WARNING("BLP2 mip ", level, " is ", levelSize, " bytes, needs ",
+                                needLevel, " for ", levelW, "x", levelH, "; uploading this ",
+                                image.width, "x", image.height, " ", getCompressionName(image.compression),
+                                " texture with its ", level, " complete level(s)");
+                }
                 break;
             }
             const auto* first = data.data() + levelOffset;

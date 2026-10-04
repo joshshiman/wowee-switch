@@ -185,7 +185,15 @@ private:
     static void decompressPalette(std::span<const uint8_t> src, uint8_t* dst, const uint32_t* palette, int width, int height, uint8_t alphaDepth = 8);
 
     /// Bytes a mip level must hold for the given format and dimensions.
-    /// Returns 0 when the product would overflow.
+    ///
+    /// The floor every BLP level has to clear to be decodable and, for a
+    /// block-compressed one, to be uploadable: a BC level occupies
+    /// ceil(w/4)*ceil(h/4) blocks whatever the file says it holds, and a level
+    /// under that cannot fill the region the GPU copies it into. Returns 0 when
+    /// the dimensions are not positive.
+    ///
+    /// 3.3.5a does not always meet this below mip 0 - see loadBLP2 - so this is
+    /// what the loader checks each level against rather than trusting mipSizes.
     static size_t requiredSourceBytes(BLPCompression compression, int width, int height,
                                       uint8_t alphaDepth);
 };
