@@ -21,6 +21,19 @@ namespace {
 using Clock = std::chrono::steady_clock;
 using wowee::platform::switchport::TextFieldHint;
 
+// The keyboard's answer to a field, handed over a chord per frame.
+//
+// ImGui reads the key state when NewFrame runs, not when the event arrives: a
+// key is down for that frame only if the last event queued for it was a press,
+// io.KeyCtrl is that same read, and IsKeyPressed reports only a key that is
+// still down (imgui.cpp bails on a negative DownDuration, which is what a press
+// and its release inside one frame leave behind). So Ctrl+A, Backspace and the
+// text pushed together - one call each, and all of them in the queue before the
+// next NewFrame - is a frame in which the select-all and the erase did not
+// happen at all, while the characters still arrive. That is why editing the
+// account name on the login screen appended to it and left "oldnamenew".
+enum class ReplaceStep { Idle, SelectAll, Erase, Type };
+
 struct BackendData {
     bool initialised = false;
     Clock::time_point lastFrame{};
@@ -37,6 +50,12 @@ struct BackendData {
     bool wasWantingText = false;
     std::string focusedField;     // identifies the field that had focus last frame
     bool inWorld = false;
+
+    // The answer in flight - see deliverReplacement.
+    ReplaceStep replaceStep = ReplaceStep::Idle;
+    std::string replaceText;
+    std::string replaceField;      // the field it was for; a different one abandons it
+    SDL_Scancode replaceHeld[2] = {SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN};
 };
 
 BackendData g_bd;
@@ -128,13 +147,65 @@ std::string focusedFieldKey(bool haveHint, const TextFieldHint& hint,
     return std::string();
 }
 
+// One frame of a queued keyboard answer, and let go of whatever the frame before
+// it was holding. Called from EndFrame, so what this pushes is in the event queue
+// for the next NewFrame and is held across that frame - the only frame a consumer
+// can see a key in.
+//
+// One chord per frame is the whole of the fix, and it is what a keyboard does:
+// the field sees a select-all, then a backspace over that selection, then the
+// text, and anything reading the raw events - an ImGui InputText, a key binding
+// - sees the same three steps in the same order. The text rides with the erase
+// rather than following it, because PaperUI's field reads backspace before it
+// reads InputQueueCharacters within the one frame that carries both.
+void deliverReplacement(const std::string& field) {
+    using namespace wowee::platform::switchport;
+    // A reply belongs to the field that opened the keyboard. If the focus has
+    // moved since - another box was tapped, or the world was left - the rest of
+    // it is not that field's to receive, and letting the held keys go is the end
+    // of it. Without this a select-all lands on whatever took the focus.
+    if (g_bd.replaceStep != ReplaceStep::Idle && g_bd.replaceField != field) {
+        g_bd.replaceStep = ReplaceStep::Idle;
+        g_bd.replaceText.clear();
+    }
+    SDL_Scancode hold[2] = {SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN};
+    bool type = false;
+    switch (g_bd.replaceStep) {
+        case ReplaceStep::SelectAll:
+            hold[0] = SDL_SCANCODE_LCTRL; hold[1] = SDL_SCANCODE_A;
+            break;
+        case ReplaceStep::Erase:
+            hold[0] = SDL_SCANCODE_BACKSPACE;
+            type = true;
+            break;
+        case ReplaceStep::Type:
+        case ReplaceStep::Idle:
+            // Nothing held, which is what releases the backspace.
+            break;
+    }
+    for (SDL_Scancode sc : g_bd.replaceHeld) {
+        if (sc != SDL_SCANCODE_UNKNOWN && sc != hold[0] && sc != hold[1])
+            pushKeyEvent(sc, false);
+    }
+    for (SDL_Scancode sc : hold)
+        if (sc != SDL_SCANCODE_UNKNOWN) pushKeyEvent(sc, true);
+    g_bd.replaceHeld[0] = hold[0]; g_bd.replaceHeld[1] = hold[1];
+    if (type) { pushTextInput(g_bd.replaceText); g_bd.replaceText.clear(); }
+    switch (g_bd.replaceStep) {
+        case ReplaceStep::SelectAll: g_bd.replaceStep = ReplaceStep::Erase; break;
+        case ReplaceStep::Erase:     g_bd.replaceStep = ReplaceStep::Type;  break;
+        default:                     g_bd.replaceStep = ReplaceStep::Idle;  break;
+    }
+}
+
 // Open the on-screen keyboard for the focused field and deliver its answer
 // as input. A FrameXML edit box gets the text appended and Enter (the
 // dialog's button says Send, and that is the chat line going out). Every
 // other field gets select-all, backspace, then the text: the dialog offered
-// the field's contents for editing, so what comes back replaces them. ImGui
-// trickles the key events over successive frames on its own.
-void openKeyboardFor(bool haveHint, const TextFieldHint& hint, bool interfaceWantsText) {
+// the field's contents for editing, so what comes back replaces them - one
+// chord per frame, because ImGui cannot see a burst (see deliverReplacement).
+void openKeyboardFor(bool haveHint, const TextFieldHint& hint, bool interfaceWantsText,
+                     const std::string& fieldKey) {
     using namespace wowee::platform::switchport;
     KeyboardOptions options;
     const bool frameXml = !haveHint && interfaceWantsText;
@@ -157,21 +228,24 @@ void openKeyboardFor(bool haveHint, const TextFieldHint& hint, bool interfaceWan
             }
         }
     }
-    showKeyboardEx(options, [frameXml](const std::string& text, bool accepted) {
+    showKeyboardEx(options, [frameXml, fieldKey](const std::string& text, bool accepted) {
         if (!accepted) return;
         if (frameXml) {
+            // Both in one frame on purpose. A FrameXML edit box reads the raw
+            // SDL events rather than ImGui's key state, so a press and its
+            // release together are one press to it, and its text arrives the
+            // same way whether it is paced or not.
             pushTextInput(text);
             pushKeyEvent(SDL_SCANCODE_RETURN, true);
             pushKeyEvent(SDL_SCANCODE_RETURN, false);
             return;
         }
-        pushKeyEvent(SDL_SCANCODE_LCTRL, true);
-        pushKeyEvent(SDL_SCANCODE_A, true);
-        pushKeyEvent(SDL_SCANCODE_A, false);
-        pushKeyEvent(SDL_SCANCODE_LCTRL, false);
-        pushKeyEvent(SDL_SCANCODE_BACKSPACE, true);
-        pushKeyEvent(SDL_SCANCODE_BACKSPACE, false);
-        pushTextInput(text);
+        // Queued rather than pushed: deliverReplacement() has the rest of it,
+        // one frame at a time, and the frame that queues this is the frame the
+        // first chord goes out in.
+        g_bd.replaceStep = ReplaceStep::SelectAll;
+        g_bd.replaceText = text;
+        g_bd.replaceField = fieldKey;
     });
 }
 
@@ -353,7 +427,7 @@ void ImGui_ImplSwitch_EndFrame(bool interfaceWantsText) {
     // open a second system IME over that field, including its closing frame.
     const bool characterName = haveHint && hint.title == "Character name";
     if (!characterName && (newField || (asked && wantsText)) && !keyboardCapturesInput()) {
-        openKeyboardFor(haveHint, hint, interfaceWantsText);
+        openKeyboardFor(haveHint, hint, interfaceWantsText, field);
     }
 
     // Keep the origin field latched while the modal temporarily takes focus.
@@ -364,4 +438,7 @@ void ImGui_ImplSwitch_EndFrame(bool interfaceWantsText) {
         g_bd.wasWantingText = wantsText; g_bd.focusedField = field;
     }
     renderKeyboard();
+    // After it: a keyboard closed on this frame has its answer queued by now,
+    // and this is the frame that pushes the first of its three chords.
+    deliverReplacement(field);
 }
