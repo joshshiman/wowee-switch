@@ -577,6 +577,11 @@ private:
     float grassDensityScale_ = 1.0f;
     float grassHeightScale_ = 1.0f;
     float grassDistance_ = 150.0f;
+    /// Blades the grass source buffer was allocated for, sized from the grass
+    /// sliders at start-up. The population builder is capped at the same
+    /// number, so the buffer and the generator cannot disagree about how many
+    /// blades exist. See GrassRenderer::capacityFor.
+    uint32_t grassCapacity_ = 0;
     // (biome, effectId) -> index into the profile table, built as effects are
     // met. Grass profiles are a blend of five categories crossed with the
     // biome overrides, so distinct ones stay far fewer than the hundreds of

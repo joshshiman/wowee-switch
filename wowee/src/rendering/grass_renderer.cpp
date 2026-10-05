@@ -1,7 +1,9 @@
 #include "rendering/grass_renderer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <vector>
 
@@ -78,50 +80,123 @@ bool createMappedBuffer(VmaAllocator allocator, VkDeviceSize size, VkBufferUsage
 
 } // namespace
 
+uint32_t GrassRenderer::capacityFor(float densityScale, float cullDistanceYards) {
+    // The generator's own numbers, mirrored: the lattice pitch and the octave
+    // layout belong to GrassPopulationParams, and begin() sums the rings
+    // exactly this way. If they move, this estimate is wrong by whatever they
+    // moved - and it is only a thinning factor for the generator rather than a
+    // cut, so the field stays whole either way.
+    constexpr float kLatticePitch = 0.20f;   // GrassPopulationParams::spacing
+    constexpr float kFullDensityRadius = kCullDistance;
+    // The window reaches a rebuild step past the cull distance, so the player
+    // riding toward it never outruns the field. Renderer::updateGrassPopulation.
+    constexpr float kWindowMargin = 24.0f;
+
+    const float radius = std::max(cullDistanceYards, 1.0f) + kWindowMargin;
+    int rings = 0;
+    for (float edge = kFullDensityRadius; edge < radius && rings < 24; edge *= 2.0f) ++rings;
+
+    // Cells the window walks, one lattice cell per candidate blade. Ring k is an
+    // annulus of radius [r0*2^(k-1), r0*2^k) on a lattice 2^k times coarser, so
+    // the area it covers and the area each of its cells covers both grow by 4^k
+    // and the count is flat in the ring: every octave costs about the same.
+    double candidates = 0.0;
+    for (int k = 0; k <= rings; ++k) {
+        const double inner = (k == 0) ? 0.0
+                                      : static_cast<double>(kFullDensityRadius) * (1u << (k - 1));
+        const double outer = std::min(static_cast<double>(kFullDensityRadius) * (1u << k),
+                                      static_cast<double>(radius));
+        const double pitch = static_cast<double>(kLatticePitch) * (1u << k);
+        if (outer > inner) {
+            candidates += 3.14159265 * (outer * outer - inner * inner) / (pitch * pitch);
+        }
+    }
+    // Times the density setting, which is the share of candidates a cell has to
+    // beat to survive, and by the same 0.9 the builder uses: the sum above is the
+    // mean of a hash-driven draw, and a cap's fluctuation is a few percent of
+    // itself, which a cap this close needs to absorb or it gets hit anyway.
+    const double wanted = 0.9 * candidates * std::max(densityScale, 0.0f);
+    const double affordable = static_cast<double>(kMaxSourceBytes) / sizeof(GrassBladeGPU);
+    return std::clamp(static_cast<uint32_t>(std::min(wanted, affordable)), 1u, kMaxBlades);
+}
+
 GrassRenderer::~GrassRenderer() {
     shutdown();
 }
 
-bool GrassRenderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout) {
-    if (!ctx) return false;
+bool GrassRenderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout,
+                               uint32_t bladeCapacity) {
+    if (!ctx || bladeCapacity == 0) return false;
     vkCtx_ = ctx;
+    capacity_ = bladeCapacity;
 
-    if (!createSourceBuffer()) {
-        LOG_ERROR("GrassRenderer: failed to create source buffers");
+    // Nothing in here may throw. Grass is the one sub-renderer this client
+    // treats as optional everywhere else - a failure is a warning and the
+    // client carries on - and its buffers are the largest of the lot, so it is
+    // the one most likely to meet a heap that has nothing left to give.
+    // uploadBuffer throws by contract, which is right for the hundreds of
+    // callers that cannot render without their buffer and wrong here, where
+    // the answer is a thinner field. So the throw stops at this boundary and
+    // comes back as the false every caller already handles.
+    try {
+        if (!createSourceBuffer()) {
+            LOG_ERROR("GrassRenderer: failed to create source buffers");
+            shutdown();
+            return false;
+        }
+        if (!createPerFrameBuffers()) {
+            LOG_ERROR("GrassRenderer: failed to create per-frame buffers");
+            shutdown();
+            return false;
+        }
+        if (!createCullPipeline()) {
+            LOG_ERROR("GrassRenderer: failed to create cull pipeline");
+            shutdown();
+            return false;
+        }
+        if (!createDrawPipeline(perFrameLayout)) {
+            LOG_ERROR("GrassRenderer: failed to create draw pipeline");
+            shutdown();
+            return false;
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("GrassRenderer: ", e.what(), " - grass stays off this session");
         shutdown();
         return false;
-    }
-    if (!createPerFrameBuffers()) {
-        LOG_ERROR("GrassRenderer: failed to create per-frame buffers");
-        shutdown();
-        return false;
-    }
-    if (!createCullPipeline()) {
-        LOG_ERROR("GrassRenderer: failed to create cull pipeline");
-        shutdown();
-        return false;
-    }
-    if (!createDrawPipeline(perFrameLayout)) {
-        LOG_ERROR("GrassRenderer: failed to create draw pipeline");
+    } catch (...) {
+        LOG_ERROR("GrassRenderer: unknown failure - grass stays off this session");
         shutdown();
         return false;
     }
 
-    LOG_INFO("GrassRenderer initialized (GPU-driven, capacity ", kMaxBlades,
-             " blades) - population arrives once terrain has loaded");
+    LOG_INFO("GrassRenderer initialized (GPU-driven, capacity ", capacity_, " blades, ",
+             sizeof(GrassBladeGPU) * capacity_, " bytes) - population arrives once "
+             "terrain has loaded");
     return true;
 }
 
 bool GrassRenderer::createSourceBuffer() {
-    // Allocated once at full capacity and never resized. The population is
-    // replaced whenever the player leaves the window it was generated for, and
-    // reallocating a device-local buffer on that cadence would mean stalling
-    // the queue or deferring a destroy on every rebuild.
-    const std::vector<GrassBladeGPU> empty(kMaxBlades);
-    AllocatedBuffer source = uploadBuffer(*vkCtx_, empty.data(),
-                                          sizeof(GrassBladeGPU) * kMaxBlades,
-                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    if (source.buffer == VK_NULL_HANDLE) return false;
+    // Allocated once at the capacity the settings ask for and never resized. The
+    // population is replaced whenever the player leaves the window it was
+    // generated for, and reallocating a device-local buffer on that cadence
+    // would mean stalling the queue or deferring a destroy on every rebuild.
+    //
+    // Nothing is uploaded into it here. This used to stage a vector of a million
+    // zeroed blades into it through uploadBuffer, which cost a second buffer of
+    // the same size for the copy and threw std::bad_alloc when the first one was
+    // refused - and the contents were never read: the blade count is zero until
+    // setPopulation copies a population in, and both the cull dispatch and the
+    // draw return early while it is. The copy only ever said "empty" in the most
+    // expensive way available.
+    AllocatedBuffer source = createBuffer(vkCtx_->getAllocator(),
+                                          sizeof(GrassBladeGPU) * capacity_,
+                                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                          VMA_MEMORY_USAGE_GPU_ONLY);
+    if (source.buffer == VK_NULL_HANDLE) {
+        LOG_ERROR("GrassRenderer: no source buffer for ", capacity_, " blades (",
+                  sizeof(GrassBladeGPU) * capacity_, " bytes)");
+        return false;
+    }
     sourceBuffer_ = source.buffer;
     sourceAlloc_ = source.allocation;
     bladeCount_ = 0;
@@ -164,8 +239,8 @@ bool GrassRenderer::createSourceBuffer() {
 bool GrassRenderer::setPopulation(const pipeline::GrassBladeSample* blades, size_t count) {
     if (!vkCtx_ || sourceBuffer_ == VK_NULL_HANDLE) return false;
 
-    const bool complete = count <= kMaxBlades;
-    count = std::min<size_t>(count, kMaxBlades);
+    const bool complete = count <= capacity_;
+    count = std::min<size_t>(count, capacity_);
     if (count == 0) {
         bladeCount_ = 0;
         return complete;
@@ -228,7 +303,7 @@ bool GrassRenderer::createPerFrameBuffers() {
     // count is zero here - the population arrives later, once terrain has
     // loaded - and it changes on every rebuild, while this buffer is written
     // once and must hold the worst case: every blade surviving the cull.
-    const VkDeviceSize visibleSize = sizeof(uint32_t) * kMaxBlades;
+    const VkDeviceSize visibleSize = sizeof(uint32_t) * capacity_;
 
     for (uint32_t i = 0; i < kFrames; ++i) {
         if (!createMappedBuffer(allocator, sizeof(GrassCullUniformsGPU),

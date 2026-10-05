@@ -684,6 +684,39 @@ void Renderer::updatePerFrameUBO() {
     std::memcpy(perFrameUBOMapped[frame], &currentFrameData, sizeof(GPUPerFrameData));
 }
 
+namespace {
+
+/// One number out of the saved settings, or `fallback`.
+///
+/// The grass sliders live in settings.cfg (grass_density, grass_distance,
+/// grass_enabled) and the renderer is built long before anything reads that
+/// file, so the only way to size a buffer against the settings the player
+/// actually left behind is to read them here. One key=value per line, which is
+/// the shape GameScreen::saveSettings writes. A file that is not there, or a
+/// line that is not a number, is the shipped default and nothing else - the
+/// same answer a fresh profile gets.
+float savedSetting(const char* key, float fallback) {
+    // SettingsPanel::getSettingsPath(), spelled without the header: that one
+    // includes vulkan.h, and this is the layer the renderer is built under.
+    std::ifstream in(core::getConfigRoot() + "/settings.cfg");
+    if (!in.is_open()) return fallback;
+    const std::string wanted = key;
+    std::string line;
+    while (std::getline(in, line)) {
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos || eq == 0) continue;
+        if (line.compare(0, eq, wanted) != 0) continue;
+        try {
+            return std::stof(line.substr(eq + 1));
+        } catch (const std::exception&) {
+            return fallback;
+        }
+    }
+    return fallback;
+}
+
+}  // namespace
+
 bool Renderer::initialize(core::Window* win) {
     // Fixed stack buffer + the boot writer keep the last attempted subsystem
     // visible even if the normal C++ logger cannot allocate during bad_alloc.
@@ -870,10 +903,26 @@ bool Renderer::initialize(core::Window* win) {
 
     // Non-fatal like the effects above: a device that cannot build the compute
     // pipeline still gets everything else, and isReady() gates both call sites.
+    //
+    // The source buffer is sized against the grass settings rather than at the
+    // largest field the generator could ever be asked for, and the generator is
+    // capped at the same number - so a setting that wants more blades than the
+    // buffer holds comes out as an evenly thinned field rather than as an
+    // allocation. Grass being off at the moment does not skip this: the
+    // checkbox can be ticked at any time and there is no second chance to
+    // allocate once the session is running.
     checkpoint("grass");
+    const float grassDensity = std::clamp(savedSetting("grass_density", 100.0f) / 100.0f, 0.0f, 3.0f);
+    const float grassYards = std::clamp(savedSetting("grass_distance", grassDistance_), 30.0f, 2000.0f);
+    grassCapacity_ = GrassRenderer::capacityFor(grassDensity, grassYards);
     grassRenderer_ = std::make_unique<GrassRenderer>();
-    if (!grassRenderer_->initialize(vkCtx, perFrameSetLayout))
+    if (!grassRenderer_->initialize(vkCtx, perFrameSetLayout, grassCapacity_))
         LOG_WARNING("Grass renderer initialization failed (non-fatal)");
+    else
+        LOG_INFO("Grass: ", grassCapacity_, " blades (",
+                 sizeof(GrassBladeGPU) * grassCapacity_, " bytes) for density ",
+                 grassDensity, " at ", grassYards, " yards, grass_enabled=",
+                 savedSetting("grass_enabled", 0.0f));
     // The distance setting may have been applied before this existed.
     grassRenderer_->setCullDistance(grassDistance_);
 
@@ -2835,8 +2884,11 @@ void Renderer::updateGrassPopulation() {
         }
         grassClearing_.build(std::move(clearings), winMinX, winMinY, winMaxX, winMaxY);
 
-        grassBuilder_.begin(center.x, center.y, windowRadius, params,
-                            GrassRenderer::kMaxBlades);
+        // The source buffer's capacity, which is what the settings asked for at
+        // start-up. Passing anything larger produced a population the renderer
+        // then had to drop on the floor, which is the same thinning expressed
+        // as a cut instead of as the cap.
+        grassBuilder_.begin(center.x, center.y, windowRadius, params, grassCapacity_);
         grassBuildCenter_ = center;
     }
 

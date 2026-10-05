@@ -37,7 +37,11 @@ public:
     GrassRenderer(const GrassRenderer&) = delete;
     GrassRenderer& operator=(const GrassRenderer&) = delete;
 
-    bool initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout);
+    /// `bladeCapacity` is how many blades the source buffer is allocated for,
+    /// from capacityFor below. Grass is optional, so nothing in here may throw:
+    /// a failed allocation comes back as false and grass is skipped.
+    bool initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout,
+                    uint32_t bladeCapacity);
     void shutdown();
 
     /// Rebuild the graphics pipeline against the current render pass. Called
@@ -62,7 +66,8 @@ public:
     /// blades changes every time the player leaves the generated window, and
     /// reallocating a device-local buffer on that cadence would mean either
     /// stalling the queue or deferring destruction on every rebuild.
-    /// Blades beyond kMaxBlades are dropped, and the caller is told.
+    /// Blades beyond the source buffer's capacity are dropped, and the caller
+    /// is told.
     bool setPopulation(const pipeline::GrassBladeSample* blades, size_t count);
 
     /// Replace the vegetation profile table the shaders index by blade.
@@ -81,12 +86,40 @@ public:
     [[nodiscard]] bool isReady() const { return pipeline_ != VK_NULL_HANDLE; }
     [[nodiscard]] uint32_t bladeCount() const { return bladeCount_; }
 
-    /// Capacity of the source buffer, in blades. Sized for the largest window
-    /// the grass distance setting allows: past the full-density radius the
-    /// generator thins with distance, so a window's total grows with the log
-    /// of its radius and a million covers the slider's whole range. 64 MB of
-    /// source buffer, allocated once.
+    /// Blades the source buffer holds, from the capacity initialize() was
+    /// given, and the most setPopulation will take.
+    [[nodiscard]] uint32_t capacity() const { return capacity_; }
+
+    /// How many blades one configuration needs, which is what the source buffer
+    /// is sized for.
+    ///
+    /// Sized from the grass sliders rather than at the largest field the
+    /// generator could ever be asked for. The fixed 1,000,000 this replaced was
+    /// 64 MB of source buffer, allocated once at start-up whether grass was on
+    /// or not, and it was far more than the widest field can hold: the octave
+    /// rings past the first hold about as many lattice cells as the one inside
+    /// them, so a window's total grows with the log of its radius and not with
+    /// its area - 387,182 candidates at the default 150 yards, 794,245 at the
+    /// 2000 the slider allows. Both are under a million, so the number was never
+    /// the binding constraint; the memory it stood for was.
+    ///
+    /// Clamped to kMaxSourceBytes, because the size it used to ask for is one
+    /// the console has already refused: 64 MB was the last thing a Switch boot
+    /// did before it died, on a driver that reports a single 2.25 GB
+    /// host-visible heap and no device-local memory at all.
+    static uint32_t capacityFor(float densityScale, float cullDistanceYards);
+
+    /// Ceiling on the source buffer, in blades, whatever the sliders ask for.
+    /// A bound and not a target: the widest window the slider reaches is under
+    /// it, and the byte budget below is what normally binds first.
     static constexpr uint32_t kMaxBlades = 1000000;
+
+    /// Ceiling on the source buffer's size, and so on its capacity: 16 MiB is a
+    /// quarter of the 64 MB that was refused, and 0.7% of the one heap the
+    /// console reports. A field thinned to fit this is whole and evenly sparse,
+    /// because the generator's own cap thins every candidate by the same
+    /// factor rather than cutting one side of the window off.
+    static constexpr uint32_t kMaxSourceBytes = 16u * 1024u * 1024u;
 
     /// Default draw distance, and the radius inside which density never
     /// thins. The grass distance setting replaces the former at runtime via
@@ -114,6 +147,7 @@ private:
     VkContext* vkCtx_ = nullptr;
     VkDescriptorSetLayout perFrameLayout_ = VK_NULL_HANDLE;
     uint32_t bladeCount_ = 0;
+    uint32_t capacity_ = 0;
     float cullDistance_ = kCullDistance;
     bool cullReported_ = false;
     uint32_t framesSincePopulated_ = 0;
