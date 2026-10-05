@@ -131,6 +131,11 @@ struct MpqHeaderCounts {
     uint32_t blockEntries = 0;
 };
 
+// Defined below; the header dump in readMpqHeaderCounts needs it, and a failed
+// log must never be the thing that kills a boot.
+template <typename... Args>
+void warnBestEffort(Args&&... args);
+
 // The first 32 bytes of a classic (format 0/1) archive, big-endian, laid out as
 // the packed TMPQHeader in StormLib.h: signature, header size, archive size,
 // format version, sector size, hash table position, block table position, hash
@@ -151,6 +156,28 @@ bool readMpqHeaderCounts(const std::string& path, MpqHeaderCounts& out) {
     // malformed header carries.
     out.hashEntries = be32(0x18) & BLOCK_INDEX_MASK;
     out.blockEntries = be32(0x1C) & BLOCK_INDEX_MASK;
+
+    // Once per process, and only for a header that really is an MPQ: the raw
+    // bytes, so a wrong parse on the console can be read rather than inferred.
+    // The console said common.MPQ needed 22 GB of tables when the host computes
+    // 23 MB from these same fields, and the difference was only visible in what
+    // the device actually read.
+    static bool dumped = false;
+    if (!dumped) {
+        dumped = true;
+        std::string hex;
+        hex.reserve(sizeof header * 2);
+        char nibble[3] = {0, 0, 0};
+        for (unsigned char byte : header) {
+            std::snprintf(nibble, sizeof nibble, "%02x", byte);
+            hex += nibble;
+        }
+        warnBestEffort("MpqAssetSource: header ", path, " raw=", hex,
+                       " headerSize=", be32(0x04), " archiveSize=", be32(0x08),
+                       " fmt=", be32(0x0C), " hashTableSize=", be32(0x18),
+                       " blockTableSize=", be32(0x1C),
+                       " -> hashEntries=", out.hashEntries, " blockEntries=", out.blockEntries);
+    }
     return true;
 }
 
@@ -305,12 +332,24 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
             const uint64_t freeBytes = largestFreeBlockBytes();
             const uint64_t room = freeBytes ? freeBytes : kArchiveTableCeilingBytes;
             if (budget.neededBytes > room) {
-                reportArchiveStage("over budget", path, budget.neededBytes);
-                warnBestEffort("MpqAssetSource: not opening ", path, "; its tables need ",
-                               budget.neededBytes, " bytes at the open's peak and the largest free "
-                               "block was ", room, " bytes, so files only in it will be missing");
-                if (firstFailure.empty()) firstFailure = path;
-                continue;
+                // The prediction is for the log, not for the decision.
+                //
+                // On the console this number came out three orders of magnitude
+                // too large while the header read and the model were each
+                // individually correct on the host, and every one of the
+                // eighteen archives was refused on the strength of it - which
+                // removed the whole game and reported it as "no recognised
+                // client archives". A wrong refusal is far worse than a wrong
+                // prediction.
+                //
+                // So the decision belongs to the allocation itself, which is
+                // checked (StormLib returns ERROR_NOT_ENOUGH_MEMORY rather
+                // than writing through a null pointer), and to the post-open
+                // check below, which closes anything that turns out to be too
+                // big and says so. Both are real measurements.
+                warnBestEffort("MpqAssetSource: ", path, " predicts ", budget.neededBytes,
+                               " bytes of tables against ", room,
+                               " free; opening anyway and letting the allocation decide");
             }
         }
         reportArchiveStage("opening", path, bytes);
