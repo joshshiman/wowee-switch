@@ -1068,7 +1068,24 @@ static DWORD BuildFileTableFromBlockTable(
         // free some memory by shrinking the file table
         if(ha->dwFileTableSize > ha->dwMaxFileCount)
         {
-            ha->pFileTable = STORM_REALLOC(TFileEntry, ha->pFileTable, ha->dwMaxFileCount);
+            // wowee (console port): do not write through the result of a failed
+            // realloc. Upstream stores the pointer and indexes it on the next
+            // line, so a malloc that returned NULL is a NULL dereference in the
+            // middle of an archive open - a SIGSEGV the caller has no way to
+            // see, catch or skip, which is how this file was reached. Report the
+            // exhaustion instead: BuildFileTable turns a non-success result
+            // into a read-only archive and the open then fails with an error
+            // code the caller already handles. The old block is still ours and
+            // still valid - realloc only frees it on success - so it is left in
+            // place for FreeArchiveTables to release, and the translation table
+            // this scope owns is released here rather than leaked.
+            TFileEntry * pNewFileTable = STORM_REALLOC(TFileEntry, ha->pFileTable, ha->dwMaxFileCount);
+            if(pNewFileTable == NULL)
+            {
+                STORM_FREE(DefragmentTable);
+                return ERROR_NOT_ENOUGH_MEMORY;
+            }
+            ha->pFileTable = pNewFileTable;
             ha->pHeader->BlockTableSize64 = ha->dwMaxFileCount * sizeof(TMPQBlock);
             ha->pHeader->dwBlockTableSize = ha->dwMaxFileCount;
             ha->dwFileTableSize = ha->dwMaxFileCount;
