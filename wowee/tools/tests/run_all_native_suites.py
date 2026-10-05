@@ -34,7 +34,8 @@ for script in sorted((root / "tools/tests").glob("run_*_tests.sh")):
                  else "client-data" if needs_other else ""))
 
 python_suites = ["local_snapshot_reuse", "package_staging", "controller_p02_regression",
-                 "intro_spawn_return", "entity_residency", "character_residency"]
+                 "intro_spawn_return", "entity_residency", "character_residency",
+                 "mpq_table_prescreen"]
 for name in python_suites:
     script = root / "tools/tests" / (name + "_test.py")
     if script.exists() and (not selected or name in selected):

@@ -8,6 +8,7 @@
 #include <new>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <system_error>
 #include <utility>
 #ifdef WOWEE_SWITCH
@@ -77,19 +78,36 @@ uint64_t archiveBytesOnDisk(const std::string& path) {
 // handle and keeps them for as long as the handle lives, and MpqAssetSource
 // holds every handle for the whole session - so an archive's tables are a
 // permanent charge, not a spike, and the charge is paid once per archive in the
-// user's set. The file table alone is 64 bytes an entry and is sized from the
-// header's block/hash table counts rather than from the file's length, so retail
-// archives of very different sizes cost the same order of tens of megabytes
-// each. Across a full retail set that is hundreds of megabytes, which is more
-// than a console title heap holds, and StormLib's own failure mode for it is a
-// plain malloc returning NULL - reported, handled, and logged - so the set looks
-// like it opened fine right up until the point where there is no heap left.
+// user's set. Every one of those three tables is sized from the header's own
+// table counts rather than from the file's length, so a 2.9 GB common.MPQ and a
+// 0.6 GB patch.MPQ differ by less than an order of magnitude in what the open
+// asks the heap for.
 //
-// So the cost is charged per archive, measured from StormLib's own counts after
-// the open, and an archive whose tables this console cannot afford is given
-// back and named. Opening is priority order, so what gets dropped when the
-// budget runs out is the least specific content - the base archives - and the
-// newest patches, which are the ones that shadow everything, stay.
+// What the retail Data set asks for, from the headers on disk and the sizes
+// StormLib actually allocates in this tree (sizeof(TFileEntry) is 64, not the
+// ~272 an entry costs in a StormLib that stores the name inline - this fork
+// keeps a pointer and no name, because MpqAssetSource opens with
+// MPQ_OPEN_NO_LISTFILE and never builds one):
+//
+//   common.MPQ    hash 131072 block 83672   10.0 MiB held, 11.3 MiB at the peak
+//   patch.MPQ     hash  65536 block 41162    5.0 MiB held,  5.6 MiB at the peak
+//   common-2.MPQ  hash  65536 block 43085    5.0 MiB held,  5.7 MiB at the peak
+//   lichking.MPQ  hash  32768 block 16181    2.5 MiB held,  2.8 MiB at the peak
+//   expansion.MPQ hash  16384 block 11873    1.3 MiB held,  1.4 MiB at the peak
+//   patch-2.MPQ   hash  16384 block 11813    1.3 MiB held,  1.4 MiB at the peak
+//   patch-3.MPQ   hash   4096 block  2996    0.3 MiB held,  0.4 MiB at the peak
+//   the set as opened by the seven that exist in a WotLK install  25.3 MiB
+//
+// So the set is affordable on its own terms and the arithmetic above is not by
+// itself an explanation for a console dying inside the first open. It is still
+// the only thing that decides whether an open is safe, because it is the one
+// number available *before* the open, and the open is where the heap is spent.
+//
+// So the cost is charged twice. Once from the 32-byte header, before the open,
+// against the largest block the console's allocator will actually hand back at
+// that moment; and once from StormLib's own counts after the open, against a
+// static ceiling. Either check can refuse an archive, and either refusal names
+// the archive and both numbers and carries on with the rest of the set.
 constexpr uint64_t kArchiveTableCeilingBytes = 48ull * 1024 * 1024;
 constexpr uint64_t kTotalTableCeilingBytes = 96ull * 1024 * 1024;
 
@@ -104,6 +122,125 @@ uint64_t archiveTableBytes(void* archive) {
     }
     return bytes;
 }
+
+// The two table counts a classic MPQ header carries, and nothing else. Read
+// here rather than through StormLib because the whole point is to know what the
+// open will cost before spending it.
+struct MpqHeaderCounts {
+    uint32_t hashEntries = 0;
+    uint32_t blockEntries = 0;
+};
+
+// The first 32 bytes of a classic (format 0/1) archive, big-endian, laid out as
+// the packed TMPQHeader in StormLib.h: signature, header size, archive size,
+// format version, sector size, hash table position, block table position, hash
+// table entries, block table entries. The retail Data set is entirely this
+// shape; StormLib converts it to its own format-4 header afterwards.
+bool readMpqHeaderCounts(const std::string& path, MpqHeaderCounts& out) {
+    unsigned char header[32] = {};
+    std::ifstream file(path, std::ios::binary);
+    if (!file.read(reinterpret_cast<char*>(header), sizeof header)) return false;
+    if (header[0] != 'M' || header[1] != 'P' || header[2] != 'Q' || header[3] != 0x1A) return false;
+    const auto be32 = [&header](size_t at) {
+        return (static_cast<uint32_t>(header[at]) << 24) | (static_cast<uint32_t>(header[at + 1]) << 16) |
+               (static_cast<uint32_t>(header[at + 2]) << 8) | static_cast<uint32_t>(header[at + 3]);
+    };
+    // Masked because SFileOpenArchive masks these two fields itself before it
+    // allocates anything out of them (BLOCK_INDEX_MASK), so the estimate has to
+    // be of the table StormLib will really ask for rather than of the number a
+    // malformed header carries.
+    out.hashEntries = be32(0x18) & BLOCK_INDEX_MASK;
+    out.blockEntries = be32(0x1C) & BLOCK_INDEX_MASK;
+    return true;
+}
+
+// What one archive's tables cost, split by when the money is spent.
+struct ArchiveTableBudget {
+    uint64_t retainedBytes = 0;  ///< Held for as long as the handle is open.
+    uint64_t peakBytes = 0;      ///< Live at the open's high-water mark.
+    uint64_t neededBytes = 0;    ///< peakBytes doubled - see below.
+};
+
+// From the header's two counts, without opening anything.
+//
+// Three allocations, in the order BuildFileTable makes them, all of them live
+// together at the moment the block table has been read and the file table has
+// not yet been filled:
+//
+//   hash table   hashEntries * sizeof(TMPQHash)      16 an entry, retained
+//   file table   max(hash, block) * sizeof(TFileEntry)  64 an entry, retained,
+//                sized by the block count too because StormLib sizes it
+//                max(dwBlockTableSize, dwMaxFileCount) and dwMaxFileCount is
+//                the hash table size
+//   block table  blockEntries * sizeof(TMPQBlock)     16 an entry, released
+//                once the file table is built
+//
+// That is the peak. The multiplier on it is StormLib's own growth: the table is
+// grown by realloc doubling, so the transient high-water mark of a table that
+// ends up at S bytes is about 2S, and the cost of an open that the heap cannot
+// absorb is paid at that doubling rather than at the final size. Requiring
+// twice the peak against one contiguous block is what leaves room for it.
+//
+// The block table also covers the one allocation the file itself asks for and
+// the model above does not name: when StormLib finds a table cut short by the
+// end of the file it builds a block-table-sized translation table (4 bytes an
+// entry) alongside the file table, which is well inside the doubling's spare
+// half.
+ArchiveTableBudget archiveTableBudgetFor(uint32_t hashEntries, uint32_t blockEntries) {
+    const uint64_t entries = hashEntries > blockEntries ? hashEntries : blockEntries;
+    ArchiveTableBudget budget;
+    budget.retainedBytes = static_cast<uint64_t>(hashEntries) * sizeof(TMPQHash) +
+                           entries * sizeof(TFileEntry);
+    budget.peakBytes = budget.retainedBytes +
+                       static_cast<uint64_t>(blockEntries) * sizeof(TMPQBlock);
+    budget.neededBytes = budget.peakBytes * 2;
+    return budget;
+}
+
+// The largest contiguous block the CPU heap will hand back right now, or 0
+// where there is no such measurement to ask for. A ladder of real
+// allocations, one short-lived probe per rung, so the answer is about the same
+// mechanism that fails: one contiguous mapping of exactly this many bytes, or
+// null.
+uint64_t largestFreeBlockBytes() {
+#ifdef WOWEE_SWITCH
+    return static_cast<uint64_t>(platform::switchport::queryAvailableCpuMemory().bytes);
+#else
+    return 0;
+#endif
+}
+
+// StormLib's own step-by-step trace of an archive open, into the boot log, and
+// only for the duration of the open loop.
+//
+// A boot that died inside SFileOpenArchive left the log ending at the
+// breadcrumb that announced the open and nothing else: no exception, no signal
+// marker, and no way to tell a failed table allocation from a failed header
+// read. The trace is StormLib's own answer to that - every fstat, lseek, read
+// and every named stage of the open - it is already used this way by the
+// extractor's --diagnostic, and it formats into a fixed buffer, so it is safe
+// to have armed on the one heap that has just been found short.
+//
+// Twenty-odd lines per archive, once per boot, and off the console it compiles
+// away: there the open either succeeds or reports an error code.
+#ifdef WOWEE_SWITCH
+void forwardOpenTrace(const char* message) {
+    char line[576];
+    std::snprintf(line, sizeof line, "assets: storm %s", message ? message : "");
+    platform::switchport::reportBootStage(line);
+}
+
+// Armed for the open loop and disarmed on the way out, including on the way out
+// of an exception: a trace left armed would follow every later MPQ read into
+// the boot log, one line per sector read.
+struct OpenTraceScope {
+    OpenTraceScope() { SErrSetOpenTrace(&forwardOpenTrace); }
+    ~OpenTraceScope() { SErrSetOpenTrace(nullptr); }
+};
+#define WOWEE_OPEN_TRACE_ON OpenTraceScope openTraceScope
+#else
+#define WOWEE_OPEN_TRACE_ON
+#endif
 
 // A warning about giving something up must not itself be the thing that fails.
 // Logger formats the line into an ostringstream, keeps a copy in its dedupe
@@ -145,6 +282,7 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
     source->locale_ = locale;
     std::string firstFailure;
     uint64_t tablesTotal = 0;
+    WOWEE_OPEN_TRACE_ON;
     for (const auto& path : archives) {
         HANDLE h = nullptr;
         // No (listfile)/(attributes) parsing at open: name lookups go through
@@ -152,6 +290,29 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
         // retail archives cost 45 s on the console (B4 test 7). listFiles()
         // loads the listfiles on first use.
         const uint64_t bytes = archiveBytesOnDisk(path);
+        // Ask the header what this open would cost before spending it. Both
+        // numbers in the refusal below are then known on this side of the
+        // SFileOpenArchive call rather than inferred from a heap that died.
+        MpqHeaderCounts counts;
+        if (readMpqHeaderCounts(path, counts)) {
+            const ArchiveTableBudget budget = archiveTableBudgetFor(counts.hashEntries, counts.blockEntries);
+            // Where the console cannot measure a free block, the same static
+            // per-archive ceiling the post-open check uses is the whole of the
+            // policy. Where it can, the measurement is the tighter of the two
+            // and the ceiling does not apply - an archive that fits in what
+            // the heap will really hand back is worth opening even if it is a
+            // large one.
+            const uint64_t freeBytes = largestFreeBlockBytes();
+            const uint64_t room = freeBytes ? freeBytes : kArchiveTableCeilingBytes;
+            if (budget.neededBytes > room) {
+                reportArchiveStage("over budget", path, budget.neededBytes);
+                warnBestEffort("MpqAssetSource: not opening ", path, "; its tables need ",
+                               budget.neededBytes, " bytes at the open's peak and the largest free "
+                               "block was ", room, " bytes, so files only in it will be missing");
+                if (firstFailure.empty()) firstFailure = path;
+                continue;
+            }
+        }
         reportArchiveStage("opening", path, bytes);
         if (!SFileOpenArchive(path.c_str(), 0, MPQ_OPEN_READ_ONLY | MPQ_OPEN_NO_LISTFILE | MPQ_OPEN_NO_ATTRIBUTES, &h)) {
             const unsigned code = SErrGetLastError();
@@ -168,10 +329,10 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
         if (overOne || overAll) {
             SFileCloseArchive(h);
             reportArchiveStage("skipped", path, tables);
-            warnBestEffort("MpqAssetSource: skipped ", path, "; its tables need ", tables,
+            warnBestEffort("MpqAssetSource: skipped ", path, "; its tables hold ", tables,
                            " bytes, over the ", (overOne ? "per-archive" : "whole-set"),
                            " budget of ", (overOne ? kArchiveTableCeilingBytes : kTotalTableCeilingBytes),
-                           " bytes, and the heap this console had left was smaller; files only in it will be missing");
+                           " bytes that the archives in this set are allowed between them; files only in it will be missing");
             if (firstFailure.empty()) firstFailure = path;
             continue;
         }
