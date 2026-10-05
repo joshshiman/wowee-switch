@@ -77,6 +77,19 @@ std::string formatBootVerdict(const BootChecks& checks) {
     return line;
 }
 
+std::string formatBootVerdictOnAbort() {
+    // Same field order as the judged line, so a reader who has seen one knows
+    // where to look, and no `ok` anywhere: nothing about which parts would have
+    // come up is known at this point.
+    std::string line = "SELF-TEST: FAIL  ";
+    for (std::size_t part = 0; part < kPartCount; ++part) {
+        line += kParts[part].key;
+        line += "=not-reached ";
+    }
+    line += "failed=startup-abort";
+    return line;
+}
+
 std::string formatBootVerdictOnScreen(const BootChecks& checks) {
     std::string missing;
     for (std::size_t part = 0; part < kPartCount; ++part) {

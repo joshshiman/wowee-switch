@@ -149,12 +149,26 @@ void lineCarriesNoPaths() {
     }
 }
 
+// A boot that stopped before it could be judged still has to leave a verdict
+// behind, and must not claim any part came up: it cannot know.
+void anAbortedBootStillLeavesAVerdict() {
+    const std::string line = formatBootVerdictOnAbort();
+    require(line ==
+            "SELF-TEST: FAIL  renderer=not-reached audio=not-reached hid=not-reached "
+            "net=not-reached data=not-reached shaders=not-reached failed=startup-abort",
+            line, "an aborted boot reads FAIL with every part not-reached");
+    require(line.find('\n') == std::string::npos, "the line is a single line");
+    require(line.find("=ok ") == std::string::npos,
+            "nothing is claimed to have come up");
+}
+
 }  // namespace
 
 int main() {
     passesReadAsOneLine();
     oneDownPartIsNamedWithItsReason();
     severalDownPartsKeepFieldOrder();
+    anAbortedBootStillLeavesAVerdict();
     screenTextSaysItInWords();
     lineCarriesNoPaths();
     std::printf("boot verdict: all checks passed\n");

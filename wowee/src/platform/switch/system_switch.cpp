@@ -10,6 +10,7 @@
 // once initSystem has returned.
 
 #include "platform/switch/switch_platform.hpp"
+#include "platform/switch/boot_verdict.hpp"
 #include "platform/switch/input_switch.hpp"
 #include "core/env.hpp"
 #include "core/logger.hpp"
@@ -385,11 +386,32 @@ void registerCrashReportingThread(const char* /*name*/) {
 }
 
 void showStartupError(const char* message) {
-    // The fatal service is the Switch's system error dialog: it shows the
-    // error code on screen and writes a report. The full diagnosis stays in
-    // the boot log, which is why the text is logged here first.
+    // The fatal service is the Switch's system error dialog: it shows the error
+    // code on screen and writes a report. The full diagnosis stays in the boot
+    // log, which is why the text is logged here first.
+    //
+    // Into the boot log, not stderr. stderr on this platform goes to the
+    // service manager's log and is not something anyone launching the title can
+    // read; the boot log is the file they pull off the SD card, and this used to
+    // write only "fatal: startup error" to it - so a boot that died at the grass
+    // allocation said nothing about a 64 MB buffer on either channel and the
+    // diagnosis cost a hardware run to find. The system dialog shows an error
+    // code and a report, neither of which names the failure, so this line is the
+    // only place the reason exists at all.
+    //
+    // The system dialog shows an error code and a report, neither of which names
+    // the failure, so this line is the only place the reason exists at all. It
+    // comes first of the three because it is the diagnosis the other two are a
+    // summary of.
+    reportBootStage(message && *message ? message : "(no message given)");
     std::fprintf(stderr, "[wowee/switch] FATAL: %s\n", message ? message : "(null)");
     reportBootStage("fatal: startup error");
+    // Last, so the log a console user pulls off the SD card ends with a verdict
+    // rather than with the generic line above: `tail -1 logs/boot.log` is the
+    // one command that has to answer "did it come up", and on an aborted boot
+    // there is no presented frame and no deadline to reach, so the judged line
+    // is never written at all.
+    reportBootStage(formatBootVerdictOnAbort().c_str());
     fatalThrow(MAKERESULT(Module_Libnx, LibnxError_ShouldNotHappen));
 }
 

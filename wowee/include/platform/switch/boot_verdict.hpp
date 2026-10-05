@@ -49,6 +49,20 @@ bool bootVerdictPassed(const BootChecks& checks);
 /// one word gets `failed=hid` rather than six fields to compare.
 std::string formatBootVerdict(const BootChecks& checks);
 
+/// The verdict line for a boot that stopped before it could be judged.
+///
+/// `SELF-TEST: FAIL  renderer=not-reached audio=not-reached ... failed=startup-abort`
+///
+/// The line above needs state the startup path gathers as it goes, and a boot
+/// that dies part-way through renderer initialisation never reaches any of it -
+/// which used to mean a failed boot printed no verdict at all, and the last line
+/// in the log was a stage breadcrumb rather than an answer. Nothing here claims
+/// a part came up or stayed down: every field reads `not-reached`, because a
+/// boot that stopped at the grass allocation cannot say whether sound would have
+/// worked. What it does say is that it stopped, and the stage it stopped at is
+/// the breadcrumb immediately above.
+std::string formatBootVerdictOnAbort();
+
 /// The same verdict in words, for the login screen - the one thing a player can
 /// read without pulling the SD card:
 ///
