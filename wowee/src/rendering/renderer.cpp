@@ -912,8 +912,12 @@ bool Renderer::initialize(core::Window* win) {
     // checkbox can be ticked at any time and there is no second chance to
     // allocate once the session is running.
     checkpoint("grass");
-    const float grassDensity = std::clamp(savedSetting("grass_density", 100.0f) / 100.0f, 0.0f, 3.0f);
-    const float grassYards = std::clamp(savedSetting("grass_distance", grassDistance_), 30.0f, 2000.0f);
+    // Clamped to the ranges the panel's own sliders use, so a settings.cfg
+    // edited by hand cannot ask for a field the generator has no path to.
+    const float grassDensity =
+        std::clamp(savedSetting("grass_density", 100.0f) / 100.0f, 0.0f, 3.0f);
+    const float grassYards =
+        std::clamp(savedSetting("grass_distance", grassDistance_), 30.0f, 2000.0f);
     grassCapacity_ = GrassRenderer::capacityFor(grassDensity, grassYards);
     grassRenderer_ = std::make_unique<GrassRenderer>();
     if (!grassRenderer_->initialize(vkCtx, perFrameSetLayout, grassCapacity_))
@@ -923,6 +927,10 @@ bool Renderer::initialize(core::Window* win) {
                  sizeof(GrassBladeGPU) * grassCapacity_, " bytes) for density ",
                  grassDensity, " at ", grassYards, " yards, grass_enabled=",
                  savedSetting("grass_enabled", 0.0f));
+    // And when the memory budget, rather than the settings, is what set the
+    // capacity: the field is about to be thinned, and that is the one thing
+    // about it a player cannot see.
+    reportGrassCapacity(grassDensity, grassYards, "the saved settings");
     // The distance setting may have been applied before this existed.
     grassRenderer_->setCullDistance(grassDistance_);
 
@@ -2580,6 +2588,17 @@ void Renderer::setGrassEnabled(bool enabled) {
     grassWindowValid_ = false;
 }
 
+void Renderer::reportGrassCapacity(float densityScale, float cullDistanceYards,
+                                   const char* changed) {
+    if (grassCapacity_ == 0) return;
+    const uint32_t wanted = GrassRenderer::bladesFor(densityScale, cullDistanceYards);
+    if (wanted <= grassCapacity_) return;
+    LOG_WARNING("Grass: ", changed, " wants ", wanted, " blades and the source "
+                "buffer holds ", grassCapacity_, " (",
+                sizeof(GrassBladeGPU) * grassCapacity_, " bytes). The field is "
+                "thinned evenly to fit until the client restarts.");
+}
+
 void Renderer::setGrassScales(float density, float height) {
     // Up to triple. Density past 1 costs generation time and can meet the
     // blade cap, which thins the whole window rather than cutting a side off
@@ -2594,6 +2613,7 @@ void Renderer::setGrassScales(float density, float height) {
     // so does a build in progress, which froze them when it began.
     grassBuilder_ = pipeline::GrassPopulationBuilder{};
     grassWindowValid_ = false;
+    reportGrassCapacity(grassDensityScale_, grassDistance_, "density");
 }
 
 void Renderer::setGrassDistance(float yards) {
@@ -2610,6 +2630,7 @@ void Renderer::setGrassDistance(float yards) {
     // matches it any more.
     grassBuilder_ = pipeline::GrassPopulationBuilder{};
     grassWindowValid_ = false;
+    reportGrassCapacity(grassDensityScale_, grassDistance_, "distance");
 }
 
 uint32_t Renderer::grassProfileFor(uint32_t effectId, uint32_t areaId) {

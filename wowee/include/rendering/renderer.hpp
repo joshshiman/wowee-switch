@@ -589,6 +589,14 @@ private:
     std::unordered_map<uint64_t, uint32_t> grassProfileIndex_;
     std::vector<pipeline::GrassProfile> grassProfiles_;
     uint32_t grassProfileFor(uint32_t effectId, uint32_t areaId);
+    /// Say so when a grass configuration wants more blades than the source
+    /// buffer holds. The buffer is allocated once, so raising the sliders after
+    /// start-up can only thin the field - the builder's cap does that evenly,
+    /// which keeps the window whole, but the slider then does not mean what its
+    /// own tooltip says and that is worth a line rather than a silent sparser
+    /// meadow. `changed` is what asked for it.
+    void reportGrassCapacity(float densityScale, float cullDistanceYards,
+                             const char* changed);
     // The per-zone look table from assets/grass_biomes.json, loaded on first
     // use, and a memo of which biome each area resolved to - resolution walks
     // AreaTable parentage and runs per blade sample without it.

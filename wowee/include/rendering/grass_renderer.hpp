@@ -90,18 +90,27 @@ public:
     /// given, and the most setPopulation will take.
     [[nodiscard]] uint32_t capacity() const { return capacity_; }
 
-    /// How many blades one configuration needs, which is what the source buffer
-    /// is sized for.
+    /// How many blades one configuration wants, before any memory budget is
+    /// applied: what the generator would produce over a whole window of
+    /// uniformly suitable ground.
+    ///
+    /// Mirrors the generator's own octave arithmetic. Each ring past the first
+    /// holds about as many lattice cells as the one inside it, so a window's
+    /// total grows with the log of its radius and not with its area - 387,182
+    /// candidates at the default 150 yards, 794,245 at the 2000 the slider
+    /// allows. Times the density setting, which is the share of candidates a
+    /// cell has to beat to survive.
+    static uint32_t bladesFor(float densityScale, float cullDistanceYards);
+
+    /// How many blades to allocate: bladesFor, clamped to kMaxSourceBytes and
+    /// kMaxBlades.
     ///
     /// Sized from the grass sliders rather than at the largest field the
     /// generator could ever be asked for. The fixed 1,000,000 this replaced was
     /// 64 MB of source buffer, allocated once at start-up whether grass was on
-    /// or not, and it was far more than the widest field can hold: the octave
-    /// rings past the first hold about as many lattice cells as the one inside
-    /// them, so a window's total grows with the log of its radius and not with
-    /// its area - 387,182 candidates at the default 150 yards, 794,245 at the
-    /// 2000 the slider allows. Both are under a million, so the number was never
-    /// the binding constraint; the memory it stood for was.
+    /// or not, and it was far more than the widest field can hold: both figures
+    /// above are under a million, so the number was never the binding
+    /// constraint, the memory it stood for was.
     ///
     /// Clamped to kMaxSourceBytes, because the size it used to ask for is one
     /// the console has already refused: 64 MB was the last thing a Switch boot

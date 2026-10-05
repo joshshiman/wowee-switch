@@ -80,7 +80,7 @@ bool createMappedBuffer(VmaAllocator allocator, VkDeviceSize size, VkBufferUsage
 
 } // namespace
 
-uint32_t GrassRenderer::capacityFor(float densityScale, float cullDistanceYards) {
+uint32_t GrassRenderer::bladesFor(float densityScale, float cullDistanceYards) {
     // The generator's own numbers, mirrored: the lattice pitch and the octave
     // layout belong to GrassPopulationParams, and begin() sums the rings
     // exactly this way. If they move, this estimate is wrong by whatever they
@@ -116,8 +116,13 @@ uint32_t GrassRenderer::capacityFor(float densityScale, float cullDistanceYards)
     // mean of a hash-driven draw, and a cap's fluctuation is a few percent of
     // itself, which a cap this close needs to absorb or it gets hit anyway.
     const double wanted = 0.9 * candidates * std::max(densityScale, 0.0f);
+    return static_cast<uint32_t>(std::clamp(wanted, 1.0, static_cast<double>(kMaxBlades)));
+}
+
+uint32_t GrassRenderer::capacityFor(float densityScale, float cullDistanceYards) {
     const double affordable = static_cast<double>(kMaxSourceBytes) / sizeof(GrassBladeGPU);
-    return std::clamp(static_cast<uint32_t>(std::min(wanted, affordable)), 1u, kMaxBlades);
+    return std::max(1u, std::min(bladesFor(densityScale, cullDistanceYards),
+                                 static_cast<uint32_t>(affordable)));
 }
 
 GrassRenderer::~GrassRenderer() {
