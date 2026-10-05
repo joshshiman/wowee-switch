@@ -5,6 +5,7 @@
 #include "core/logger.hpp"
 #include <cstring>
 #include <algorithm>
+#include <new>
 
 namespace wowee {
 namespace pipeline {
@@ -92,8 +93,21 @@ std::vector<uint8_t> BLPLoader::decodeBaseLevel(const BLPImage& image) {
     if (image.width <= 0 || image.height <= 0) return {};
 
     const std::span<const uint8_t> blocks(image.mipmaps[0].data(), image.mipmaps[0].size());
-    std::vector<uint8_t> rgba(static_cast<size_t>(image.width) *
-                              static_cast<size_t>(image.height) * 4ull);
+    // Uncompressed RGBA for the base level: 64 MiB for the largest texture the
+    // format allows, which is most of a console title heap's free space. Every
+    // caller treats an empty result as "no base level" and drops the texture,
+    // so an allocation that cannot be met degrades the same way a DXT1 file
+    // with no alpha does - quietly, but by dropping one texture rather than by
+    // taking the process with it.
+    std::vector<uint8_t> rgba;
+    try {
+        rgba.resize(static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4ull);
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING("BLPLoader: no memory for the ", image.width, "x", image.height,
+                    " base level (", static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4ull,
+                    " bytes); the texture is dropped");
+        return {};
+    }
     switch (image.compression) {
         case BLPCompression::DXT1:
             decompressDXT1(blocks, rgba.data(), image.width, image.height);

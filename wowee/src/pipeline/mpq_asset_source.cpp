@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <system_error>
+#include <utility>
 #ifdef WOWEE_SWITCH
 #include "platform/switch/cpu_memory.hpp"
 #include "platform/switch/switch_platform.hpp"
@@ -71,6 +72,52 @@ uint64_t archiveBytesOnDisk(const std::string& path) {
     const auto size = std::filesystem::file_size(path, ec);
     return ec ? 0 : static_cast<uint64_t>(size);
 }
+
+// StormLib builds an archive's hash, block and file tables when it opens the
+// handle and keeps them for as long as the handle lives, and MpqAssetSource
+// holds every handle for the whole session - so an archive's tables are a
+// permanent charge, not a spike, and the charge is paid once per archive in the
+// user's set. The file table alone is 64 bytes an entry and is sized from the
+// header's block/hash table counts rather than from the file's length, so retail
+// archives of very different sizes cost the same order of tens of megabytes
+// each. Across a full retail set that is hundreds of megabytes, which is more
+// than a console title heap holds, and StormLib's own failure mode for it is a
+// plain malloc returning NULL - reported, handled, and logged - so the set looks
+// like it opened fine right up until the point where there is no heap left.
+//
+// So the cost is charged per archive, measured from StormLib's own counts after
+// the open, and an archive whose tables this console cannot afford is given
+// back and named. Opening is priority order, so what gets dropped when the
+// budget runs out is the least specific content - the base archives - and the
+// newest patches, which are the ones that shadow everything, stay.
+constexpr uint64_t kArchiveTableCeilingBytes = 48ull * 1024 * 1024;
+constexpr uint64_t kTotalTableCeilingBytes = 96ull * 1024 * 1024;
+
+uint64_t archiveTableBytes(void* archive) {
+    uint64_t bytes = 0;
+    DWORD entries = 0;
+    if (SFileGetFileInfo(archive, SFileMpqFileTableSize, &entries, sizeof entries, nullptr)) {
+        bytes += static_cast<uint64_t>(entries) * sizeof(TFileEntry);
+    }
+    if (SFileGetFileInfo(archive, SFileMpqHashTableSize, &entries, sizeof entries, nullptr)) {
+        bytes += static_cast<uint64_t>(entries) * sizeof(TMPQHash);
+    }
+    return bytes;
+}
+
+// A warning about giving something up must not itself be the thing that fails.
+// Logger formats the line into an ostringstream, keeps a copy in its dedupe
+// cache, and may open the log file; all of that allocates, and the skip below
+// is the one place in the open where the heap is known to be short. The
+// breadcrumb already recorded the same fact without allocating, so a dropped
+// warning costs the log a duplicate and nothing else.
+template <typename... Args>
+void warnBestEffort(Args&&... args) {
+    try {
+        LOG_WARNING(std::forward<Args>(args)...);
+    } catch (...) {
+    }
+}
 } // namespace
 
 std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveDir, std::string* error) {
@@ -97,6 +144,7 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
     source->expansion_ = expansion;
     source->locale_ = locale;
     std::string firstFailure;
+    uint64_t tablesTotal = 0;
     for (const auto& path : archives) {
         HANDLE h = nullptr;
         // No (listfile)/(attributes) parsing at open: name lookups go through
@@ -108,10 +156,26 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
         if (!SFileOpenArchive(path.c_str(), 0, MPQ_OPEN_READ_ONLY | MPQ_OPEN_NO_LISTFILE | MPQ_OPEN_NO_ATTRIBUTES, &h)) {
             const unsigned code = SErrGetLastError();
             reportArchiveStage("failed", path, code);
-            LOG_WARNING("MpqAssetSource: cannot open ", path, " (StormLib error ", code, "); files only in it will be missing");
+            warnBestEffort("MpqAssetSource: cannot open ", path, " (StormLib error ", code, "); files only in it will be missing");
             if (firstFailure.empty()) firstFailure = path + " (error " + std::to_string(code) + ")";
             continue;
         }
+        // Already open, so already paid for. Decide now whether it is
+        // affordable, before the next one is added on top of it.
+        const uint64_t tables = archiveTableBytes(h);
+        const bool overOne = tables > kArchiveTableCeilingBytes;
+        const bool overAll = !overOne && tablesTotal + tables > kTotalTableCeilingBytes;
+        if (overOne || overAll) {
+            SFileCloseArchive(h);
+            reportArchiveStage("skipped", path, tables);
+            warnBestEffort("MpqAssetSource: skipped ", path, "; its tables need ", tables,
+                           " bytes, over the ", (overOne ? "per-archive" : "whole-set"),
+                           " budget of ", (overOne ? kArchiveTableCeilingBytes : kTotalTableCeilingBytes),
+                           " bytes, and the heap this console had left was smaller; files only in it will be missing");
+            if (firstFailure.empty()) firstFailure = path;
+            continue;
+        }
+        tablesTotal += tables;
         reportArchiveStage("opened", path, bytes);
         source->archives_.push_back(h);
         source->paths_.push_back(path);
@@ -124,10 +188,10 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
     // archive that did not open is missing every file only it holds, and how
     // many that is decides whether the session is worth starting.
     if (source->archives_.size() != archives.size()) {
-        LOG_WARNING("MpqAssetSource: ", source->archives_.size(), "/", archives.size(),
-                    " archive(s) open; files only in the other ",
-                    archives.size() - source->archives_.size(),
-                    " will be missing");
+        warnBestEffort("MpqAssetSource: ", source->archives_.size(), "/", archives.size(),
+                       " archive(s) open; files only in the other ",
+                       archives.size() - source->archives_.size(),
+                       " will be missing");
     }
     LOG_INFO("MpqAssetSource: ", source->archives_.size(), "/", archives.size(), " archive(s) open under ",
              archiveDir, " (", expansion, ", ", locale.empty() ? "no locale" : locale, ")");
