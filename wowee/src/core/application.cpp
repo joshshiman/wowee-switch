@@ -1293,14 +1293,27 @@ bool Application::initialize() {
         {
             const char* dataPathEnv = std::getenv("WOW_DATA_PATH");
             const std::string dataRoot = dataPathEnv ? dataPathEnv : "(unset)";
-            std::string message = "Your game data was not found.\n\n"
-                "Expected the WotLK client Data directory at:\n  " + dataRoot +
+            // What actually went wrong, when the asset manager knows. It is
+            // the difference between "your data is not where I looked" and "your
+            // archives are there and this console could not open them", which
+            // are different problems with different fixes and which used to
+            // produce the same screen - so the one case where the diagnosis was
+            // available on the device was the one case that discarded it.
+            const std::string& reason = assetManager ? assetManager->startupError()
+                                                    : std::string();
+            const std::string headline = reason.empty()
+                ? std::string("Your game data was not found.")
+                : std::string("Your game data could not be read.\n\nReason: ") + reason;
+            std::string message = headline +
+                "\n\nExpected the WotLK client Data directory at:\n  " + dataRoot +
                 "/Data\n\nPut your own client's Data directory there, or point"
                 " somewhere else by creating this file:\n  " +
                 platform::switchport::writableRoot() + "/config/paths.cfg\n\n"
                 "containing:\n  data_path=<folder holding Data>\n\n"
+                "The full detail is in sdmc:/wowps/wowps/logs/boot.log\n\n"
                 "Then start WoWee again.";
-            LOG_ERROR("No game data: looked in ", dataRoot, "/Data");
+            LOG_ERROR("No usable game data at ", dataRoot, "/Data: ",
+                      reason.empty() ? "not found" : reason);
             platform::switchport::showStartupError(message.c_str());
             return false;
         }

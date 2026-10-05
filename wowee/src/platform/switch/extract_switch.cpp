@@ -171,7 +171,13 @@ bool runExtraction(std::function<void(const std::string& stage, float progress)>
 
 void prepareAssetMetadata() {
     mirrorBundledData();
-    const auto plan = makePlan();
+    // Before and after the plan, because the plan is the last thing that runs
+    // before Application::initialize() opens the archives themselves, and it
+    // walks the SD card listing every .mpq under Data. A boot that died in
+    // either of those left the log ending at "assets: streaming from archives"
+    // or "assets_prepare" and nothing in between.
+    reportBootStage("assets: planning the first launch");
+    auto plan = makePlan();
     if (!plan.hasArchives) {
         LOG_WARNING("No MPQ archives under ", dataRoot(), "/Data (", plan.reason, "); the client cannot stream game data");
         reportBootStage("assets: no archives to stream from");
@@ -179,6 +185,11 @@ void prepareAssetMetadata() {
     }
     LOG_INFO("Streaming game data from ", plan.archives.size(), " archive(s) under ", plan.mpqDir, " (",
              plan.expansion, ", ", plan.locale.empty() ? "no locale" : plan.locale, "); no extraction");
+    char stage[128];
+    std::snprintf(stage, sizeof stage, "assets: plan found %zu archive(s), expansion '%s', locale '%s'",
+                  plan.archives.size(), plan.expansion.c_str(),
+                  plan.locale.empty() ? "none" : plan.locale.c_str());
+    reportBootStage(stage);
     reportBootStage("assets: streaming from archives");
 }
 

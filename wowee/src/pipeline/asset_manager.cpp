@@ -28,6 +28,22 @@ namespace wowee {
 namespace pipeline {
 
 namespace {
+#ifdef WOWEE_SWITCH
+// A checkpoint on the asset path, for the boot log only. The console pins the
+// log level to WARNING, so the LOG_INFO lines around this phase never reach
+// wowps.log, and a boot that died inside it left the log ending at whatever
+// breadcrumb came before - which is what a hardware run cannot be diagnosed
+// from. Fixed buffer and no allocation, deliberately: these run either side of
+// the phase most likely to have exhausted the heap.
+void assetStage(const char* what, const std::string& subject, size_t count) {
+    char line[320];
+    std::snprintf(line, sizeof line, "assets: %s %s (%zu)", what, subject.c_str(), count);
+    platform::switchport::reportBootStage(line);
+}
+#else
+void assetStage(const char*, const std::string&, size_t) {}
+#endif
+
 size_t parseEnvSizeMB(const char* name) {
     const char* v = std::getenv(name);
     if (!v || !*v) {
@@ -71,6 +87,7 @@ bool AssetManager::initialize(const std::string& dataPath_) {
 
     dataPath = dataPath_;
     overridePath_ = dataPath + "/override";
+    startupError_.clear();
     LOG_INFO("Initializing asset manager with data path: ", dataPath);
 
     setupFileCacheBudget();
@@ -81,18 +98,49 @@ bool AssetManager::initialize(const std::string& dataPath_) {
     // fallback for a build with no MPQ reader linked in.
     {
         std::string error;
+        // The whole block is one operation to the log's reader and the last
+        // thing that happens before the first frame: without a checkpoint on
+        // each side of it, a boot that dies here names neither the cause nor
+        // the phase. Fixed buffers, so they cost nothing and survive a heap
+        // that has already run short.
+        assetStage("opening the archives under", dataPath, 0);
+        bool opened = false;
         for (const std::string& dir : {dataPath + "/Data", dataPath}) {
             std::error_code ec;
             if (!std::filesystem::is_directory(dir, ec)) continue;
-            mpqSource_ = MpqAssetSource::open(dir, &error);
-            if (mpqSource_) break;
+            // MpqAssetSource::open() allocates a std::string per archive and a
+            // vector of handles, and StormLib allocates its own tables from
+            // each archive's header. None of that is expected to throw - a
+            // failed StormLib allocation returns an error code the caller
+            // already skips - but the throwing form is a std::bad_alloc out of
+            // a C++ container, and there is no catch between here and main().
+            // main() does catch it and show the reason, which is the difference
+            // between a readable startup error and a silent death, so this
+            // catches it here instead and turns it into the same answer the
+            // caller already has a path for.
+            try {
+                mpqSource_ = MpqAssetSource::open(dir, &error);
+            } catch (const std::bad_alloc&) {
+                mpqSource_.reset();
+                error = "ran out of memory opening the archives under " + dir +
+                        " (the client needs several hundred megabytes of CPU " +
+                        "memory for their tables, and this console had less)";
+            } catch (const std::exception& e) {
+                mpqSource_.reset();
+                error = std::string("opening the archives under ") + dir +
+                        " threw: " + e.what();
+            }
+            if (mpqSource_) { opened = true; break; }
         }
-        if (!mpqSource_) {
+        if (!opened) {
+            assetStage("could not open the archives under", dataPath, 0);
             LOG_ERROR("No readable MPQ archives under ", dataPath, "/Data (", error, ")");
             LOG_ERROR("Put your WotLK client's Data directory, locale folder included, at that path");
+            startupError_ = error;
             return false;
         }
         initialized = true;
+        assetStage("streaming from archive(s) under", dataPath, mpqSource_->archiveCount());
         LOG_INFO("Asset manager streaming from ", mpqSource_->archiveCount(), " archive(s) (",
                  mpqSource_->expansion(), ", ", mpqSource_->locale(), "; file cache ",
                  fileCacheBudget / (1024 * 1024), " MB)");

@@ -58,6 +58,10 @@ public:
      */
     [[nodiscard]] bool isInitialized() const { return initialized; }
     [[nodiscard]] const std::string& getDataPath() const { return dataPath; }
+    /// Why initialize() answered false, in a form the startup-error screen can
+    /// show: "none of the archives could be opened", a StormLib error code, or
+    /// an out-of-memory message. Empty when it succeeded or has not run.
+    [[nodiscard]] const std::string& startupError() const { return startupError_; }
     [[nodiscard]] const AssetManifest& getManifest() const { return manifest_; }
 
     /**
@@ -266,6 +270,10 @@ private:
     // vector reaches every caller as "this asset is not in the archives".
     mutable std::atomic<size_t> readAllocationFailures_{0};
     mutable std::atomic<size_t> optionalReadsDeclined_{0};
+    // Why initialize() failed, kept so the startup-error screen can name the
+    // reason rather than only saying the data was not found. The screen is the
+    // one artefact a console user can actually read.
+    std::string startupError_;
 
     void setupFileCacheBudget();
 #ifdef WOWEE_SWITCH

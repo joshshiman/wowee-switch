@@ -6,8 +6,12 @@
 #include <set>
 #include <limits>
 #include <new>
+#include <cstdio>
+#include <filesystem>
+#include <system_error>
 #ifdef WOWEE_SWITCH
 #include "platform/switch/cpu_memory.hpp"
+#include "platform/switch/switch_platform.hpp"
 #endif
 
 #if defined(WOWEE_MPQ_SOURCE_AVAILABLE)
@@ -33,6 +37,40 @@ std::string lowerBackslash(std::string s) {
     }
     return s;
 }
+
+// One breadcrumb per archive open, and one per open attempt's outcome. Fixed
+// buffer, no allocation, and at most a couple of lines per archive, so the whole
+// set costs a few dozen writes once per boot.
+//
+// This exists because the log level on the console is pinned to WARNING, so
+// every LOG_INFO below - including the count of what opened - is suppressed and
+// a boot that died between two archives left nothing at all between them. The
+// breadcrumb goes through reportBootStage, which writes the boot log's open
+// descriptor with snprintf and no lock, so it is still available when the heap
+// is what has run out. Off the console there is a log file the user reads, so
+// the breadcrumbs would be noise there and compile away.
+void reportArchiveStage(const char* stage, const std::string& path, uint64_t bytes) {
+#ifdef WOWEE_SWITCH
+    char line[320];
+    std::snprintf(line, sizeof line, "assets: archive %s %s (%llu bytes)", stage,
+                  path.c_str(), static_cast<unsigned long long>(bytes));
+    platform::switchport::reportBootStage(line);
+#else
+    (void)stage; (void)path; (void)bytes;
+#endif
+}
+
+// The archive's size on the SD card, for the breadcrumb. Worth its own stat
+// because the outcome line says nothing about what the open is about to ask
+// for: StormLib sizes its file table from the header's table counts, not from
+// the file's length, so two archives of very different size can cost the same
+// and the interesting question - is this one missing, or is this one large -
+// needs the number.
+uint64_t archiveBytesOnDisk(const std::string& path) {
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(path, ec);
+    return ec ? 0 : static_cast<uint64_t>(size);
+}
 } // namespace
 
 std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveDir, std::string* error) {
@@ -54,6 +92,7 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
         if (error) *error = "no archives in the client's load order under " + archiveDir;
         return nullptr;
     }
+    reportArchiveStage("discovered", archiveDir, archives.size());
     std::unique_ptr<MpqAssetSource> source(new MpqAssetSource());
     source->expansion_ = expansion;
     source->locale_ = locale;
@@ -64,18 +103,31 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
         // the hash tables and need neither, and parsing them for eighteen
         // retail archives cost 45 s on the console (B4 test 7). listFiles()
         // loads the listfiles on first use.
+        const uint64_t bytes = archiveBytesOnDisk(path);
+        reportArchiveStage("opening", path, bytes);
         if (!SFileOpenArchive(path.c_str(), 0, MPQ_OPEN_READ_ONLY | MPQ_OPEN_NO_LISTFILE | MPQ_OPEN_NO_ATTRIBUTES, &h)) {
             const unsigned code = SErrGetLastError();
+            reportArchiveStage("failed", path, code);
             LOG_WARNING("MpqAssetSource: cannot open ", path, " (StormLib error ", code, "); files only in it will be missing");
             if (firstFailure.empty()) firstFailure = path + " (error " + std::to_string(code) + ")";
             continue;
         }
+        reportArchiveStage("opened", path, bytes);
         source->archives_.push_back(h);
         source->paths_.push_back(path);
     }
     if (source->archives_.empty()) {
         if (error) *error = "none of the archives could be opened; first failure: " + firstFailure;
         return nullptr;
+    }
+    // The shortfall in numbers as well as in the per-archive warnings: an
+    // archive that did not open is missing every file only it holds, and how
+    // many that is decides whether the session is worth starting.
+    if (source->archives_.size() != archives.size()) {
+        LOG_WARNING("MpqAssetSource: ", source->archives_.size(), "/", archives.size(),
+                    " archive(s) open; files only in the other ",
+                    archives.size() - source->archives_.size(),
+                    " will be missing");
     }
     LOG_INFO("MpqAssetSource: ", source->archives_.size(), "/", archives.size(), " archive(s) open under ",
              archiveDir, " (", expansion, ", ", locale.empty() ? "no locale" : locale, ")");
