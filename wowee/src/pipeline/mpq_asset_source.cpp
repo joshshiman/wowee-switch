@@ -141,21 +141,28 @@ void warnBestEffort(Args&&... args);
 // format version, sector size, hash table position, block table position, hash
 // table entries, block table entries. The retail Data set is entirely this
 // shape; StormLib converts it to its own format-4 header afterwards.
-bool readMpqHeaderCounts(const std::string& path, MpqHeaderCounts& out) {
+bool readMpqHeaderCounts(const std::string& path, MpqHeaderCounts& out, uint64_t onDiskBytes) {
     unsigned char header[32] = {};
     std::ifstream file(path, std::ios::binary);
     if (!file.read(reinterpret_cast<char*>(header), sizeof header)) return false;
     if (header[0] != 'M' || header[1] != 'P' || header[2] != 'Q' || header[3] != 0x1A) return false;
-    const auto be32 = [&header](size_t at) {
-        return (static_cast<uint32_t>(header[at]) << 24) | (static_cast<uint32_t>(header[at + 1]) << 16) |
-               (static_cast<uint32_t>(header[at + 2]) << 8) | static_cast<uint32_t>(header[at + 3]);
+    // The MPQ header stores every field LITTLE-endian, which is the one thing
+    // that is easy to get backwards: reading these bytes big-endian parses
+    // cleanly and silently returns nonsense. On the console it turned
+    // hashTableSize 131072 into 512 and blockTableSize 83672 into 3628466432,
+    // because the bytes are 00 00 02 00 and d8 46 01 00. The raw dump below is
+    // what proved it, and it is why the header is checked against the file's
+    // own length rather than trusted.
+    const auto le32 = [&header](size_t at) {
+        return static_cast<uint32_t>(header[at]) | (static_cast<uint32_t>(header[at + 1]) << 8) |
+               (static_cast<uint32_t>(header[at + 2]) << 16) | (static_cast<uint32_t>(header[at + 3]) << 24);
     };
     // Masked because SFileOpenArchive masks these two fields itself before it
     // allocates anything out of them (BLOCK_INDEX_MASK), so the estimate has to
     // be of the table StormLib will really ask for rather than of the number a
     // malformed header carries.
-    out.hashEntries = be32(0x18) & BLOCK_INDEX_MASK;
-    out.blockEntries = be32(0x1C) & BLOCK_INDEX_MASK;
+    out.hashEntries = le32(0x18) & BLOCK_INDEX_MASK;
+    out.blockEntries = le32(0x1C) & BLOCK_INDEX_MASK;
 
     // Once per process, and only for a header that really is an MPQ: the raw
     // bytes, so a wrong parse on the console can be read rather than inferred.
@@ -173,10 +180,26 @@ bool readMpqHeaderCounts(const std::string& path, MpqHeaderCounts& out) {
             hex += nibble;
         }
         warnBestEffort("MpqAssetSource: header ", path, " raw=", hex,
-                       " headerSize=", be32(0x04), " archiveSize=", be32(0x08),
-                       " fmt=", be32(0x0C), " hashTableSize=", be32(0x18),
-                       " blockTableSize=", be32(0x1C),
+                       " headerSize=", le32(0x04), " archiveSize=", le32(0x08),
+                       " fmt=", le32(0x0C), " hashTableSize=", le32(0x18),
+                       " blockTableSize=", le32(0x1C),
+                       " onDisk=", onDiskBytes,
                        " -> hashEntries=", out.hashEntries, " blockEntries=", out.blockEntries);
+    }
+
+    // The header has to agree with the file it came from. A retail archive's
+    // dwArchiveSize is its length, and the two matching is a cheap proof that
+    // the fields above were read out of this file and parsed the right way
+    // round - which is the check that would have caught the endianness slip
+    // immediately instead of three runs later. A header that disagrees is not
+    // trusted at all: the caller then simply opens the archive and lets the
+    // allocation decide.
+    const uint64_t declared = le32(0x08);
+    const uint64_t slack = 0x10000;  // StormLib allows a short archive for an appended header
+    if (onDiskBytes && (declared + slack < onDiskBytes || declared > onDiskBytes + slack)) {
+        warnBestEffort("MpqAssetSource: ignoring ", path, "'s header; it declares ",
+                       declared, " bytes but the file is ", onDiskBytes);
+        return false;
     }
     return true;
 }
@@ -321,7 +344,7 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
         // numbers in the refusal below are then known on this side of the
         // SFileOpenArchive call rather than inferred from a heap that died.
         MpqHeaderCounts counts;
-        if (readMpqHeaderCounts(path, counts)) {
+        if (readMpqHeaderCounts(path, counts, bytes)) {
             const ArchiveTableBudget budget = archiveTableBudgetFor(counts.hashEntries, counts.blockEntries);
             // Where the console cannot measure a free block, the same static
             // per-archive ceiling the post-open check uses is the whole of the
