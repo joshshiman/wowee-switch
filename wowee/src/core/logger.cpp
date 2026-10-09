@@ -24,8 +24,16 @@ namespace wowee {
 namespace core {
 
 Logger& Logger::getInstance() {
-    static Logger instance;
-    return instance;
+    // Deliberately leaked. A function-local static is destroyed during exit, and
+    // this one holds an ofstream whose fclose then runs after the C++ runtime has
+    // already torn the stream's own internals down - which is a data abort inside
+    // _close_r at address 0x18, reached from the Logger's static destructor after
+    // the app has already logged "shutdown". Leaking it means the destructor never
+    // runs, so the file is flushed by the explicit close on the shutdown path and
+    // the exit path stays clean. The process is ending anyway, so the few hundred
+    // KB of stream buffers are reclaimed by the kernel with it.
+    static Logger* instance = new Logger();
+    return *instance;
 }
 
 namespace {

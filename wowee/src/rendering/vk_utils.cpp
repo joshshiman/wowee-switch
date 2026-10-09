@@ -34,6 +34,21 @@ void reportAllocationState(const char* what, VkDeviceSize size) {
 }
 
 #ifdef WOWEE_SWITCH
+// VMA's own account of its blocks. The driver reports 2.25 GiB free while
+// refusing a 1.4 MB allocation, and the bisection only says where the line is -
+// it cannot say why a heap with that much free space will not hand over a
+// contiguous block. This can: block count, bytes used and free per block, and
+// the largest free region VMA itself can see.
+void reportVmaLayout(VmaAllocator allocator) {
+    char* stats = nullptr;
+    vmaBuildStatsString(allocator, &stats, 1);
+    if (stats) {
+        LOG_ERROR("probe: vma layout: ", stats);
+        vmaFreeStatsString(allocator, stats);
+    }
+}
+#endif
+#ifdef WOWEE_SWITCH
 // Discriminate "the heap is full" from "this particular request cannot be
 // served". A 1.4 MiB buffer failing while ~95 MiB is live on a heap reported
 // as 2.25 GiB does not add up, and the two causes need opposite fixes, so
@@ -124,6 +139,7 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
         reportAllocationState("VMA buffer", size);
 #ifdef WOWEE_SWITCH
         reportAllocationProbe(allocator, usage, memoryUsage, size);
+        reportVmaLayout(allocator);
 #endif
         result = {};
         return result;
@@ -341,12 +357,15 @@ AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
         LOG_ERROR("Failed to create VMA image (", width, "x", height, ") result=", static_cast<int>(imageResult));
         reportAllocationState("VMA image", static_cast<VkDeviceSize>(width) * height);
 #ifdef WOWEE_SWITCH
+        reportVmaLayout(allocator);
+#endif
         // Images have never been probed, only buffers, so the image ceiling is
         // unknown. A 256x512 RGBA image is 128 KiB and it failed while about
         // 93 MiB was live across 89 buffers and 30 images on a heap the driver
         // reports as 2.25 GiB - the same shape as the buffer mystery, and this
         // measures it instead of assuming the two share a ceiling. Halve the
         // extent until the allocation succeeds.
+#ifdef WOWEE_SWITCH
         for (uint32_t w = std::max(1u, width), h = std::max(1u, height);;) {
             const uint32_t pw = w > 1 ? w / 2 : 1;
             const uint32_t ph = h > 1 ? h / 2 : 1;
