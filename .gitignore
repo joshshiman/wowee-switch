@@ -1,3 +1,15 @@
 references/
 build-*/
 *.oelf
+
+# local-only: console-shaped runtime tree and workspace notes
+wowps/
+WORKSPACE.md
+
+# local-only: host-build Vulkan headers (not vendored in the repo)
+deps/
+
+# local-only: console logs pulled off the Switch (realmlist/account details)
+logs/console/
+
+
