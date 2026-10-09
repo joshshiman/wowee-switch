@@ -1110,12 +1110,13 @@ bool VkContext::createAllocator() {
                  VK_VERSION_MAJOR(vmaCeiling), ".", VK_VERSION_MINOR(vmaCeiling),
                  "; the allocator is told the lower one");
     }
-    // VMA's default preferred block is 256 MiB, and this driver cannot provide
-    // one. Measured: the allocator's blocks came out [32, 32, 16, 16, 8, 8, 4]
-    // MiB - a fallback ladder, because 32 MiB was refused and it walked down
-    // until 8 MiB worked. So 32 MiB is too big a request to make on every new
-    // block, and 8 MiB is where this driver reliably answers.
-    allocInfo.preferredLargeHeapBlockSize = 8u * 1024 * 1024;
+    // VMA's default is 256 MiB; this driver never provides one. 32 MiB is the
+    // best measured value: a 1,398,100-byte transfer succeeded with it and failed
+    // at 8 MiB, because smaller blocks fragment the pool into pieces too small
+    // for the larger transfers the M2 loader needs. The driver hands over 32 MiB
+    // sometimes, so the allocator sometimes cannot grow - but 32 MiB is still
+    // the most workable ceiling found so far.
+    allocInfo.preferredLargeHeapBlockSize = 32u * 1024 * 1024;
 
     if (vmaCreateAllocator(&allocInfo, &allocator) != VK_SUCCESS) {
         LOG_ERROR("Failed to create VMA allocator");
