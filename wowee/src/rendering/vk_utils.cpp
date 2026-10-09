@@ -340,6 +340,47 @@ AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
     if (imageResult != VK_SUCCESS) {
         LOG_ERROR("Failed to create VMA image (", width, "x", height, ") result=", static_cast<int>(imageResult));
         reportAllocationState("VMA image", static_cast<VkDeviceSize>(width) * height);
+#ifdef WOWEE_SWITCH
+        // Images have never been probed, only buffers, so the image ceiling is
+        // unknown. A 256x512 RGBA image is 128 KiB and it failed while about
+        // 93 MiB was live across 89 buffers and 30 images on a heap the driver
+        // reports as 2.25 GiB - the same shape as the buffer mystery, and this
+        // measures it instead of assuming the two share a ceiling. Halve the
+        // extent until the allocation succeeds.
+        for (uint32_t w = std::max(1u, width), h = std::max(1u, height);;) {
+            const uint32_t pw = w > 1 ? w / 2 : 1;
+            const uint32_t ph = h > 1 ? h / 2 : 1;
+            VkImageCreateInfo probeInfo{};
+            probeInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            probeInfo.imageType = VK_IMAGE_TYPE_2D;
+            probeInfo.format = format;
+            probeInfo.extent = {.width = pw, .height = ph, .depth = 1};
+            probeInfo.mipLevels = 1;
+            probeInfo.arrayLayers = 1;
+            probeInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+            probeInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+            probeInfo.usage = usage;
+            probeInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            probeInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            VmaAllocationCreateInfo ac{};
+            ac.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+            VkImage pi = VK_NULL_HANDLE;
+            VmaAllocation pa = VK_NULL_HANDLE;
+            const VkResult rc = vmaCreateImage(allocator, &probeInfo, &ac, &pi, &pa, nullptr);
+            LOG_ERROR("probe: image ", pw, "x", ph, " -> VkResult=", static_cast<int>(rc));
+            if (rc == VK_SUCCESS) {
+                vmaDestroyImage(allocator, pi, pa);
+                LOG_ERROR("probe: image ceiling is about ", pw, "x", ph,
+                          " (", static_cast<uint64_t>(pw) * ph * 4, " bytes)");
+                break;
+            }
+            if (pw <= 1 && ph <= 1) {
+                LOG_ERROR("probe: even a 1x1 image fails - the device is out of image memory");
+                break;
+            }
+            w = pw; h = ph;
+        }
+#endif
         return result;
     }
     gImageCount.fetch_add(1, std::memory_order_relaxed);
