@@ -1116,13 +1116,22 @@ bool VkContext::createAllocator() {
                  VK_VERSION_MAJOR(vmaCeiling), ".", VK_VERSION_MINOR(vmaCeiling),
                  "; the allocator is told the lower one");
     }
-    // VMA's default is 256 MiB; this driver never provides one. 32 MiB is the
-    // best measured value: a 1,398,100-byte transfer succeeded with it and failed
-    // at 8 MiB, because smaller blocks fragment the pool into pieces too small
-    // for the larger transfers the M2 loader needs. The driver hands over 32 MiB
-    // sometimes, so the allocator sometimes cannot grow - but 32 MiB is still
-    // the most workable ceiling found so far.
-    allocInfo.preferredLargeHeapBlockSize = 32u * 1024 * 1024;
+    // VMA's default preferred block is 256 MiB, and this driver never provides
+    // one. The measured ladder of blocks it actually created is
+    // [32, 32, 16, 16, 8, 8, 4] MiB - a fallback: 32 MiB succeeded twice early
+    // and every later attempt walked down until 4 MiB worked.
+    //
+    // The lesson is not which size is best, it is that a small block is still
+    // creatable when the heap is fragmented and a large one is not. The heap
+    // reports 1843 MiB of budget with 122 MiB used and cannot serve a 65,536
+    // byte image, because the largest hole left in the existing blocks is
+    // 13,632 bytes. Asking for small blocks means the allocator can grow into
+    // that state instead of failing outright.
+    //
+    // Allocations larger than the preferred size still get a block sized to
+    // themselves - VMA takes max(preferred, allocation) - so a large transfer
+    // is unaffected.
+    allocInfo.preferredLargeHeapBlockSize = 4u * 1024 * 1024;
 
     if (vmaCreateAllocator(&allocInfo, &allocator) != VK_SUCCESS) {
         LOG_ERROR("Failed to create VMA allocator");        return false;
