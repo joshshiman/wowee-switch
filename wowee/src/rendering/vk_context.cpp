@@ -1110,6 +1110,15 @@ bool VkContext::createAllocator() {
                  VK_VERSION_MAJOR(vmaCeiling), ".", VK_VERSION_MINOR(vmaCeiling),
                  "; the allocator is told the lower one");
     }
+    // VMA's default preferred block is 256 MiB, and this driver cannot provide
+    // one: it allocated a 64 MiB block and a 32 MiB block across the whole
+    // session and nothing larger, so a request that needs a new block fails
+    // even with the heap reporting 2.25 GiB free. Those two blocks filled to
+    // within 0.2 MiB and the largest gap left in them was 51,872 bytes, which is
+    // why a 1,398,100-byte texture buffer - a 512x512 RGBA mip chain - was
+    // refused while the heap claimed 2.25 GiB free. Asking for 32 MiB blocks,
+    // which this driver has provably handed over, lets the allocator grow.
+    allocInfo.preferredLargeHeapBlockSize = 32u * 1024 * 1024;
 
     if (vmaCreateAllocator(&allocInfo, &allocator) != VK_SUCCESS) {
         LOG_ERROR("Failed to create VMA allocator");
