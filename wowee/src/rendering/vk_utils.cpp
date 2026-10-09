@@ -32,6 +32,58 @@ void reportAllocationState(const char* what, VkDeviceSize size) {
               " liveImages=", gImageCount.load(std::memory_order_relaxed),
               " liveImageBytes=", gImageBytes.load(std::memory_order_relaxed));
 }
+
+#ifdef WOWEE_SWITCH
+// Discriminate "the heap is full" from "this particular request cannot be
+// served". A 1.4 MiB buffer failing while ~95 MiB is live on a heap reported
+// as 2.25 GiB does not add up, and the two causes need opposite fixes, so
+// probe with the same request at smaller sizes. If a small one succeeds the
+// heap has room and the failure is specific to the size, the count or the
+// type mask; if everything fails the device really is out of memory.
+void reportAllocationProbe(VmaAllocator allocator, VkBufferUsageFlags usage,
+                           VmaMemoryUsage memoryUsage, VkDeviceSize size) {
+    VkPhysicalDeviceProperties props{};
+    VmaAllocatorInfo info{};
+    vmaGetAllocatorInfo(allocator, &info);  // returns void
+    if (info.physicalDevice) {
+        vkGetPhysicalDeviceProperties(info.physicalDevice, &props);
+        LOG_ERROR("probe: maxMemoryAllocationCount=", props.limits.maxMemoryAllocationCount,
+                  " device=", props.deviceName);
+    }
+    for (const VkDeviceSize probe : {VkDeviceSize{2048}, VkDeviceSize{65536},
+                                     VkDeviceSize{1048576}}) {
+        if (probe >= size) continue;
+        VkBufferCreateInfo buf{};
+        buf.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buf.size = probe;
+        buf.usage = usage;
+        buf.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VmaAllocationCreateInfo ac{};
+        ac.usage = memoryUsage;
+        if (memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU ||
+            memoryUsage == VMA_MEMORY_USAGE_CPU_ONLY) {
+            ac.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        }
+        VkBuffer b = VK_NULL_HANDLE;
+        VmaAllocation a = VK_NULL_HANDLE;
+        const VkResult rc = vmaCreateBuffer(allocator, &buf, &ac, &b, &a, nullptr);
+        LOG_ERROR("probe: ", probe, " B -> VkResult=", static_cast<int>(rc));
+        if (rc == VK_SUCCESS) vmaDestroyBuffer(allocator, b, a);
+    }
+    const VkPhysicalDeviceMemoryProperties* mem = nullptr;
+    vmaGetMemoryProperties(allocator, &mem);  // returns void
+    if (mem) {
+        for (uint32_t i = 0; i < mem->memoryHeapCount; ++i) {
+            LOG_ERROR("probe: heap ", i, " size=", mem->memoryHeaps[i].size,
+                      " flags=0x", static_cast<int>(mem->memoryHeaps[i].flags));
+        }
+        for (uint32_t i = 0; i < mem->memoryTypeCount; ++i) {
+            LOG_ERROR("probe: type ", i, " heap=", mem->memoryTypes[i].heapIndex,
+                      " flags=0x", static_cast<int>(mem->memoryTypes[i].propertyFlags));
+        }
+    }
+}
+#endif
 }  // namespace
 
 AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
@@ -60,6 +112,9 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
         LOG_ERROR("Failed to create VMA buffer (size=", size, ") result=",
                   static_cast<int>(rc));
         reportAllocationState("VMA buffer", size);
+#ifdef WOWEE_SWITCH
+        reportAllocationProbe(allocator, usage, memoryUsage, size);
+#endif
         result = {};
         return result;
     }

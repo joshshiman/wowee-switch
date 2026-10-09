@@ -237,7 +237,12 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   buffer fails with `VK_ERROR_OUT_OF_DEVICE_MEMORY` while only ~95 MB is live
   across 59 buffers and 41 images, on a heap the driver reports as 2.25 GiB.
   11 identical failures; the login menu's `login_sidemtn01/03.blp` draw
-  untextured as a result. Not understood yet, and do not guess at a fix for it.
+  untextured as a result. **Not understood yet.** The arithmetic does not add
+  up, and the causes need opposite fixes: genuine exhaustion means raising the
+  ceiling, a per-allocation cap means splitting the upload. `createBuffer` now
+  probes with the same request at 2 KiB/64 KiB/1 MiB and logs the VkResult for
+  each, plus `maxMemoryAllocationCount` and the heap/type table, on the first
+  failure. Deploy that build and the log says which it is. Do not guess.
 - **The card's clock runs ~4 h ahead of the client's log clock.** The crash and
   fatal reports map one-for-one onto the runs in `boot.log` at exactly
   `FS mtime − 4 h`. Read file mtimes with that offset in mind.
