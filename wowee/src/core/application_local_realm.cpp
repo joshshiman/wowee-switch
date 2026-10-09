@@ -153,20 +153,28 @@ void Application::localRealmStatus(const std::string& message, bool isError) {
     uiManager->getAuthScreen().setStatus(message, isError);
 }
 
+std::shared_ptr<game::LocalWorldContent> Application::ensureLocalContent(std::string& error) {
+    if (cachedLocalContent_) {
+        error.clear();
+        return cachedLocalContent_;
+    }
+    game::LocalGameplay loader;
+    if (!loader.loadContent(localContentPath(), error)) return nullptr;
+    cachedLocalContent_ = loader.sharedContent();
+    return cachedLocalContent_;
+}
+
 void Application::refreshLocalCharacterList() {
     localSlotCharacters_.clear();
     std::vector<game::Character> list;
     const auto savedCharacters = lanCharacterFlowActive()
         ? (localRealm_ ? localRealm_->remoteCharacters() : std::vector<game::LocalSavedCharacter>{})
         : game::LocalRealm::savedCharacters(localSaveDirectory());
-    game::LocalGameplay previewContent;
     const game::LocalWorldContent* content = nullptr;
     if (lanCharacterFlowActive() && localRealm_) content = &localRealm_->content();
     else if (!savedCharacters.empty()) {
         std::string error;
-        // Read once for this list refresh. This does not start a realm or
-        // initialize/migrate a saved player, and honors the same world override.
-        if (previewContent.loadContent(localContentPath(), error)) content = &previewContent.content();
+        if (auto shared = ensureLocalContent(error)) content = shared.get();
         else LOG_WARNING("[LOCAL_REALM] saved equipment preview unavailable: ", error);
     }
     for (const auto& saved : savedCharacters) {
@@ -507,13 +515,16 @@ void Application::updateLocalRealm(float deltaTime) {
         if (authHandler) authHandler->disconnect();
         localRealm_ = std::make_unique<game::LocalRealm>();
         const std::string contentPath = localContentPath();
-        if (!localRealm_->loadContent(contentPath) ||
+        std::string contentErr;
+        auto sharedContent = ensureLocalContent(contentErr);
+        if (!sharedContent || !localRealm_->useContent(sharedContent) ||
             !localRealm_->setCharacterOptions(request.race, request.classId, request.gender) ||
             !localRealm_->setCharacterAppearance(request.skin, request.face, request.hairStyle,
                                                  request.hairColor, request.facialHair, request.useFemaleModel) ||
             !localRealm_->setCharacterSlot(request.characterSlot)) {
-            LOG_ERROR("[LOCAL_GAMEPLAY] content/character rejected: ", localRealm_->error());
-            localRealmStatus(localRealm_->error(), true);
+            const std::string err = !sharedContent ? ("Local world content: " + contentErr) : localRealm_->error();
+            LOG_ERROR("[LOCAL_GAMEPLAY] content/character rejected: ", err);
+            localRealmStatus(err, true);
             return;
         }
         LOG_INFO("[LOCAL_GAMEPLAY] content=", contentPath, " NPC spawns=", localRealm_->content().spawns.size(),
@@ -550,7 +561,18 @@ void Application::updateLocalRealm(float deltaTime) {
         // before terrain decoding competes for the console's CPU heap.
         spellDb.reset();
         assetManager->evictDBC("Spell.dbc");
-        LOG_INFO("[LOCAL_SPELLS] released Spell.dbc import cache before terrain loading");
+        assetManager->evictDBC("SpellRange.dbc");
+        assetManager->evictDBC("SpellCastTimes.dbc");
+        assetManager->evictDBC("SpellDuration.dbc");
+        assetManager->evictDBC("SpellIcon.dbc");
+        assetManager->evictDBC("SpellRuneCost.dbc");
+        assetManager->evictDBC("SpellRadius.dbc");
+        assetManager->evictDBC("SkillLineAbility.dbc");
+        assetManager->evictDBC("SkillLine.dbc");
+        assetManager->evictDBC("Talent.dbc");
+        assetManager->evictDBC("TalentTab.dbc");
+        assetManager->evictDBC("SummonProperties.dbc");
+        LOG_INFO("[LOCAL_SPELLS] released Spell.dbc and spell import DBC caches");
 #endif
         if (importedSpells.spells.empty()) {
             localRealmStatus(importedSpells.diagnostic, true);stopLocalRealm();return;
@@ -701,6 +723,19 @@ void Application::updateLocalRealm(float deltaTime) {
         // flight masters and no ships; everything else in the realm is
         // unaffected, so the world still opens.
         loadLocalTravelNetwork();
+#ifdef WOWEE_SWITCH
+        assetManager->evictDBC("ChrRaces.dbc");
+        assetManager->evictDBC("FactionTemplate.dbc");
+        assetManager->evictDBC("Faction.dbc");
+        assetManager->evictDBC("Holidays.dbc");
+        assetManager->evictDBC("QuestFactionReward.dbc");
+        assetManager->evictDBC("AreaTrigger.dbc");
+        assetManager->evictDBC("TaxiNodes.dbc");
+        assetManager->evictDBC("TaxiPath.dbc");
+        assetManager->evictDBC("TaxiPathNode.dbc");
+        assetManager->trimFileCache(0);
+        LOG_INFO("[LOCAL_WORLD] evicted world setup DBC caches and trimmed file cache");
+#endif
 
         const auto saveDir = localSaveDirectory();
         // Content, catalog, faction templates and the imported starter spells
@@ -730,6 +765,9 @@ void Application::updateLocalRealm(float deltaTime) {
             // the list with the new hero selected; Enter World starts it again.
             localRealm_->stop();
             localRealm_.reset();
+#ifdef WOWEE_SWITCH
+            assetManager->trimFileCache(0);
+#endif
             refreshLocalCharacterList();
             if (uiManager) {
                 uiManager->getCharacterScreen().reset();
@@ -774,6 +812,10 @@ void Application::updateLocalRealm(float deltaTime) {
             logoutToLoginPending_=true;
             return;
         }
+        if (uiManager) uiManager->releaseFrontendScenes();
+#ifdef WOWEE_SWITCH
+        assetManager->trimFileCache(0);
+#endif
         localRealm_->setWorldLoading(true);
         localRealmEntered_ = true;
         localRealmPositionRevision_ = player->positionRevision;

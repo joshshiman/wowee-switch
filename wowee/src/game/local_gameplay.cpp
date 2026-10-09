@@ -3168,6 +3168,8 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             if(talkLength<=0 || talkLength>8*1024*1024)throw std::runtime_error("Creature talk companion must be 1 byte to 8 MiB");
             std::string talkText(size_t(talkLength),'\0');talkInput.seekg(0);
             if(!talkInput.read(talkText.data(),talkLength))throw std::runtime_error("Cannot read creature talk companion");
+            for(unsigned char b:talkText)c->fingerprint=(c->fingerprint^b)*16777619U;
+#ifndef WOWEE_SWITCH
             const auto talk=Json::parse(talkText);
             if(!talk.is_object() || number(talk,"schemaVersion",0)<1 || number(talk,"schemaVersion",0)>3 || label(talk,"kind",64)!="original-creature-talk")
                 throw std::runtime_error("Unsupported creature talk schema");
@@ -3265,7 +3267,7 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             std::sort(c->creatureTextGroups.begin(),c->creatureTextGroups.end(),[](const auto& a,const auto& b){return a.entry!=b.entry?a.entry<b.entry:a.group<b.group;});
             if(std::adjacent_find(c->creatureTextGroups.begin(),c->creatureTextGroups.end(),[](const auto& a,const auto& b){return a.entry==b.entry&&a.group==b.group;})!=c->creatureTextGroups.end())
                 throw std::runtime_error("Duplicate creature text group");
-            for(unsigned char b:talkText)c->fingerprint=(c->fingerprint^b)*16777619U;
+#endif
         }
         std::set<uint32_t> seen;
         for(const auto& v:array(j,"items",16384)) {

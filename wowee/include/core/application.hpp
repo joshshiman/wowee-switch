@@ -278,6 +278,8 @@ private:
     std::unique_ptr<auth::AuthHandler> authHandler;
     std::unique_ptr<game::GameHandler> gameHandler;
     std::unique_ptr<game::LocalRealm> localRealm_;
+    std::shared_ptr<game::LocalWorldContent> cachedLocalContent_;
+    std::shared_ptr<game::LocalWorldContent> ensureLocalContent(std::string& error);
     addons::LocalFrameXml localFrameXml_;
     void prepareLocalFrameXml();
     std::unique_ptr<game::LocalSpellImport> localSpellImport_;

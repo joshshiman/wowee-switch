@@ -50,6 +50,8 @@ public:
     // A host and singleplayer share their saved realm. Each joining console keeps
     // its identity in profileDirectory; its character is saved on the host.
     bool loadContent(const std::string& path);
+    bool useContent(std::shared_ptr<LocalWorldContent> content);
+    std::shared_ptr<LocalWorldContent> sharedContent() const;
     bool loadCatalog(const std::string& directory);
     bool setStarterSpells(const std::vector<LocalSpellDefinition>& spells, const std::string& diagnostic);
     bool setAreaTriggers(const std::vector<LocalAreaTriggerVolume>& volumes);

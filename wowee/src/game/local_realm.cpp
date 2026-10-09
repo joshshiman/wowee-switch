@@ -3919,6 +3919,19 @@ bool LocalRealm::loadContent(const std::string& path) {
     LOG_INFO("[local_realm] Content loaded path=", path, " spawns=", content().spawns.size(), " quests=", content().quests.size());
     return true;
 }
+bool LocalRealm::useContent(std::shared_ptr<LocalWorldContent> worldContent) {
+    if (ready() || state() == LocalRealmState::Connecting) { impl_->error = "Stop the realm before changing world content"; return false; }
+    if (!worldContent) { impl_->error = "Invalid world content"; return false; }
+    const size_t spawns = worldContent->spawns.size();
+    const size_t quests = worldContent->quests.size();
+    impl_->gameplay.useContent(std::move(worldContent));
+    impl_->error.clear();
+    LOG_INFO("[local_realm] Content attached spawns=", spawns, " quests=", quests);
+    return true;
+}
+std::shared_ptr<LocalWorldContent> LocalRealm::sharedContent() const {
+    return impl_->gameplay.sharedContent();
+}
 bool LocalRealm::loadCatalog(const std::string& directory) {
     if (ready() || state() == LocalRealmState::Connecting) { impl_->error = "Stop the realm before changing the catalog"; return false; }
     if (impl_->gameplay.content().catalog) return true;

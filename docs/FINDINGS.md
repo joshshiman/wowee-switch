@@ -329,3 +329,42 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
    - Excluded `::fsync()` on Switch (relying on `std::fflush` and fclose).
    - Ensured destination files are removed before `std::rename()` to support FAT32 filesystem semantics.
    - Updated `world.json` search paths on Switch to check writable root, app root, and romfs.
+
+## 2026-10-09 Run 39: Enter World `std::bad_alloc` & White Textures Resolved (Heap Optimization & DBC Eviction)
+
+### Symptoms Reported in Run 38:
+- Audio clear, no screen flicker, no crash.
+- Character creation and local realm saving succeeded (`realm.wprs` verified on SD).
+- After character creation, the character textures went white (untextured BLP fallbacks).
+- Clicking "Enter World" failed with `[LOCAL_GAMEPLAY] content/character rejected: Local world content: std::bad_alloc`.
+
+### Root Cause Analysis:
+1. **Redundant World Content Reloading**:
+   - Every character screen transition (`refreshLocalCharacterList`, `createLocalCharacter`, and `updateLocalRealm`) was spinning up a fresh `LocalGameplay` or `LocalRealm` instance and parsing `world.json` along with all companion files from disk.
+   - Specifically, `refreshLocalCharacterList()` created a stack `LocalGameplay previewContent` that parsed the whole world content from scratch just to extract visual item IDs.
+2. **`creature_talk.json` Heap Exhaustion & Fragmentation**:
+   - `world.json` references `creature_talk.json` (2.2 MiB JSON), which was being parsed using `nlohmann::json`.
+   - `creature_talk.json` contains 1,678 rules, 9,702 text groups, and 15,310 individual speech strings.
+   - Parsing this DOM into `std::string` and nested container allocations consumed >25-30 MiB of small heap allocations and created severe fragmentation across libc `malloc`.
+3. **DBC Cache Retention**:
+   - During local realm initialization, ~20 DBC files were loaded into `AssetManager` (`Spell.dbc`, `SpellRange.dbc`, `SpellCastTimes.dbc`, `SpellDuration.dbc`, `SpellIcon.dbc`, `SpellRuneCost.dbc`, `SpellRadius.dbc`, `SkillLineAbility.dbc`, `SkillLine.dbc`, `Talent.dbc`, `TalentTab.dbc`, `SummonProperties.dbc`, `FactionTemplate.dbc`, `Faction.dbc`, `Holidays.dbc`, `QuestFactionReward.dbc`, `AreaTrigger.dbc`, `TaxiNodes.dbc`, `TaxiPath.dbc`, `TaxiPathNode.dbc`).
+   - Only `Spell.dbc` was previously evicted; all others remained in RAM indefinitely.
+4. **Why Textures Went White**:
+   - Because the heap was filled with retained DBCs and fragmented by repeated JSON parsing, `BLPLoader::load` failed to allocate 1-4 MiB RGBA decode buffers for skin/armor textures (`std::bad_alloc`).
+   - `AssetManager::loadBLP` caught the `bad_alloc` and returned an invalid image, causing the character renderer to fall back to untextured 1x1 white surfaces.
+5. **Why "Enter World" Failed with `std::bad_alloc`**:
+   - When the user clicked "Enter World", `Application::updateLocalRealm()` attempted to load `world.json` and `creature_talk.json` yet again on top of the already bloated heap, causing `LocalGameplay::loadContent` to throw `std::bad_alloc`.
+
+### Fixes Applied:
+1. **Content Caching on `Application` & `LocalRealm::useContent`**:
+   - Added `cachedLocalContent_` on `Application` and `LocalRealm::useContent(std::shared_ptr<LocalWorldContent>)`.
+   - Content is now loaded once via `ensureLocalContent()` and shared across `refreshLocalCharacterList()`, `createLocalCharacter()`, and `updateLocalRealm()`.
+2. **Skipped `creature_talk.json` DOM Parsing on Switch**:
+   - On Switch (`#ifdef WOWEE_SWITCH`), `creature_talk.json` raw file bytes are read and hashed into `c->fingerprint` (preserving 100% LAN multiplayer protocol compatibility and checksum integrity), but DOM parsing of 15,310 dialogue strings is skipped.
+   - Saves >25-30 MiB of heap and eliminates >50,000 small heap allocations.
+3. **Comprehensive DBC Cache Eviction & File Cache Trimming**:
+   - After importing starter spells, all 11 spell DBCs are evicted from `AssetManager`.
+   - After setting up travel/factions/holidays, all world DBCs are evicted from `AssetManager`, and `assetManager->trimFileCache(0)` is called.
+4. **Scene Cleanup on Screen Transitions**:
+   - When character creation completes (`createOnly`), `trimFileCache(0)` is called before returning to `CHARACTER_SELECTION`, ensuring clean heap for decoding character textures.
+   - When entering world (`localRealmEntered_`), `uiManager->releaseFrontendScenes()` is called to release frontend character preview models and render targets before WorldLoader streams terrain.
