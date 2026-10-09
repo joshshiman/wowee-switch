@@ -253,8 +253,14 @@ AllocatedBuffer uploadBytesChunked(VkContext& ctx, const void* data, VkDeviceSiz
             offset += have;
         }
         for (auto& s : slices) {
-            if (ctx.isInUploadBatch()) ctx.deferStagingCleanup(s.buf), s.buf = {};
+            // Capture the handle BEFORE handing ownership over: the deferred
+            // list zeroes the AllocatedBuffer it takes, so reading it after
+            // the call yields VK_NULL_HANDLE, and recording a copy from a null
+            // source is a data abort inside the driver - which is exactly what
+            // the character-creation textures were dying on. The single-slice
+            // path above has always captured first; this loop needs the same.
             const VkBuffer src = s.buf.buffer;
+            if (ctx.isInUploadBatch()) ctx.deferStagingCleanup(s.buf), s.buf = {};
             const VkDeviceSize dstOffset = s.offset;
             const VkDeviceSize bytes = s.bytes;
             if (!ctx.immediateSubmit([&](VkCommandBuffer cmd) {
