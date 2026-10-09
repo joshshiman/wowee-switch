@@ -173,6 +173,12 @@ AllocatedBuffer uploadBuffer(VkContext& ctx, const void* data, VkDeviceSize size
 AllocatedBuffer uploadBytesChunked(VkContext& ctx, const void* data, VkDeviceSize size,
     VkBufferUsageFlags usage, VkDeviceSize chunkBytes);
 
+// Registers the function createBuffer calls to free completed upload batches
+// before retrying a failed allocation. Set once by VkContext; the evidence for
+// it is in vk_utils.cpp - the same heap that refused a request serves it
+// moments later, once the failed upload's own staging has been released.
+void setAllocationReclaim(void (*reclaim)());
+
 // Environment variable utility functions
 inline size_t envSizeMBOrDefault(const char* name, size_t defMb) {
     const char* v = std::getenv(name);

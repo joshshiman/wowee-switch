@@ -1119,9 +1119,21 @@ bool VkContext::createAllocator() {
     allocInfo.preferredLargeHeapBlockSize = 32u * 1024 * 1024;
 
     if (vmaCreateAllocator(&allocInfo, &allocator) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create VMA allocator");
-        return false;
+        LOG_ERROR("Failed to create VMA allocator");        return false;
     }
+
+#ifdef WOWEE_SWITCH
+    // Give createBuffer a way to free memory before retrying a failed
+    // allocation. The evidence for this being the right shape is in
+    // vk_utils.cpp: the same heap that refused a 1,398,100-byte request served
+    // a 731,818-byte one moments later, after the failed upload's own staging
+    // had been released. Draining the completed batches is what returns that
+    // memory, and it is safe from an allocation failure because a batch whose
+    // fence is already signalled owns resources nothing else can be using.
+    setAllocationReclaim([]() {
+        if (VkContext* ctx = VkContext::globalInstance()) ctx->pollUploadBatches();
+    });
+#endif
 
     LOG_INFO("VMA allocator created");
     return true;

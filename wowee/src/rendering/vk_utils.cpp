@@ -47,6 +47,15 @@ void reportVmaLayout(VmaAllocator allocator) {
         vmaFreeStatsString(allocator, stats);
     }
 }
+
+// Set by VkContext at creation so an allocation failure can reclaim first.
+// The evidence for this being the right shape: a 1,398,100-byte request fails,
+// and then the bisection that runs immediately afterwards - in the same process,
+// against the same heap - succeeds at 731,818 bytes and fails at 898,388. So the
+// heap was servable moments after it refused. What had changed is that the
+// failed upload's own staging buffers were destroyed on the way out. Draining
+// the completed upload batches returns exactly that memory.
+void (*g_reclaimStaging)() = nullptr;
 #endif
 #ifdef WOWEE_SWITCH
 // Discriminate "the heap is full" from "this particular request cannot be
@@ -111,6 +120,14 @@ void reportAllocationProbe(VmaAllocator allocator, VkBufferUsageFlags usage,
 #endif
 }  // namespace
 
+void setAllocationReclaim(void (*reclaim)()) {
+#ifdef WOWEE_SWITCH
+    g_reclaimStaging = reclaim;
+#else
+    (void)reclaim;
+#endif
+}
+
 AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
     VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
 {
@@ -130,14 +147,29 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
 
     const VkResult rc = vmaCreateBuffer(allocator, &bufInfo, &allocInfo,
             &result.buffer, &result.allocation, &result.info);
+    VkResult finalRc = rc;
     if (rc != VK_SUCCESS) {
+#ifdef WOWEE_SWITCH
+        // Retry once after reclaiming. This is not a guess about fragmentation
+        // shape: the bisection that runs below, in the same process against the
+        // same heap, succeeds at 731,818 bytes moments after 1,398,100 was
+        // refused - so the heap was servable, just not at that instant. What
+        // changed was that the failing upload's own staging was freed on its
+        // way out. Draining the completed batches returns that memory, and a
+        // second attempt then has the room the first one lacked.
+        if (g_reclaimStaging) g_reclaimStaging();
+        finalRc = vmaCreateBuffer(allocator, &bufInfo, &allocInfo,
+                &result.buffer, &result.allocation, &result.info);
+#endif
+    }
+    if (finalRc != VK_SUCCESS) {
         // The result code was previously discarded, which left the one thing
         // that distinguishes out-of-memory from out-of-address-space from
         // feature-absence unreadable on the only machine that fails.
         // The usage is logged too: a 349,524-byte refusal says nothing about
         // what was being built, and vertex/index/transfer are different problems.
         LOG_ERROR("Failed to create VMA buffer (size=", size, ") result=",
-                  static_cast<int>(rc), " usage=", usage,
+                  static_cast<int>(finalRc), " usage=", usage,
                   " memoryUsage=", static_cast<int>(memoryUsage));
         reportAllocationState("VMA buffer", size);
 #ifdef WOWEE_SWITCH
