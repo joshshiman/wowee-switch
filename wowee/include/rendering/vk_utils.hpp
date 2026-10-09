@@ -106,7 +106,8 @@ inline void destroyParticleResources(VkDevice device, VmaAllocator allocator,
 
 // Buffer creation
 AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
-    VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+    VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
+    std::source_location where = std::source_location::current());
 
 void destroyBuffer(VmaAllocator allocator, AllocatedBuffer& buffer);
 

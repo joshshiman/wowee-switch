@@ -128,8 +128,14 @@ void setAllocationReclaim(void (*reclaim)()) {
 #endif
 }
 
+// The failure path logs which call site asked. Every one of these failures has
+// cost a hardware cycle to identify, and the size alone is not enough: a
+// 349,524-byte buffer was pinned on the M2 loader for two runs before the
+// arithmetic showed it could not have come from a layout that no longer
+// produces that size.
 AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
-    VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+    VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
+    std::source_location where)
 {
     AllocatedBuffer result{};
 
@@ -170,7 +176,8 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
         // what was being built, and vertex/index/transfer are different problems.
         LOG_ERROR("Failed to create VMA buffer (size=", size, ") result=",
                   static_cast<int>(finalRc), " usage=", usage,
-                  " memoryUsage=", static_cast<int>(memoryUsage));
+                  " memoryUsage=", static_cast<int>(memoryUsage),
+                  " from ", where.file_name(), ":", where.line());
         reportAllocationState("VMA buffer", size);
 #ifdef WOWEE_SWITCH
         // Layout first: the probe allocates and frees, so dumping after it
