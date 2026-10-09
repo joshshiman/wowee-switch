@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 430" width="980" height="430" role="img" aria-label="WoWee Switch porting progress, treemap by remaining work">
+  <title>WoWee Switch — porting progress</title>
+  <defs>
+    <style>
+      .t{font:600 12px ui-sans-serif,system-ui,sans-serif;fill:#e9edf5}
+      .s{font:400 10px ui-sans-serif,system-ui,sans-serif;fill:#aab4c8}
+      .h{font:700 15px ui-sans-serif,system-ui,sans-serif;fill:#f4f7fc}
+      .p{font:400 11px ui-sans-serif,system-ui,sans-serif;fill:#0b0f16}
+      .k{font:700 11px ui-sans-serif,system-ui,sans-serif;fill:#0b0f16}
+    </style>
+  </defs>
+
+  <rect width="980" height="430" fill="#0b0f16"/>
+
+  <text x="20" y="30" class="h">WoWee Switch — where the work is</text>
+  <text x="20" y="47" class="s">Rectangles are sized by remaining work. Faded = done. Bright = open.</text>
+
+  <!-- DONE BLOCKS -->
+  <g opacity="0.55">
+    <rect x="20" y="62" width="300" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
+    <text x="30" y="82" class="t">Toolchain + NRO build</text>
+    <text x="30" y="98" class="s">devkitA64, libnx, Mesa NVK, romfs</text>
+    <text x="30" y="112" class="s">727/728 targets, 4 min incremental</text>
+
+    <rect x="326" y="62" width="180" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
+    <text x="336" y="82" class="t">TLS miscompile</text>
+    <text x="336" y="98" class="s">423 sites fixed</text>
+    <text x="336" y="112" class="s">guarded by a tool</text>
+
+    <rect x="512" y="62" width="220" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
+    <text x="522" y="82" class="t">MPQ + asset loading</text>
+    <text x="522" y="98" class="s">18 archives, 2.9 GB common.MPQ</text>
+    <text x="522" y="112" class="s">FrameXML, 4 min → 1 s</text>
+
+    <rect x="738" y="62" width="222" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
+    <text x="748" y="82" class="t">Audio + exit</text>
+    <text x="748" y="98" class="s">audout double-wait fixed</text>
+    <text x="748" y="112" class="s">clean _Exit, no teardown abort</text>
+  </g>
+
+  <!-- LOGIN DONE -->
+  <g opacity="0.55">
+    <rect x="20" y="218" width="486" height="90" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
+    <text x="30" y="238" class="t">Login screen</text>
+    <text x="30" y="254" class="s">logo, UI text and music all render on hardware</text>
+    <text x="30" y="268" class="s">font atlas, Vulkan swapchain, controller mapping</text>
+  </g>
+
+  <!-- OPEN: memory -->
+  <rect x="512" y="218" width="448" height="120" rx="4" fill="#8a4b1a" stroke="#e08a3c"/>
+  <text x="522" y="238" class="t">Memory on the console</text>
+  <text x="522" y="254" class="s">driver refuses an allocation the heap says it can serve</text>
+  <text x="522" y="268" class="s">reclaim-and-retry landed; ceiling still unexplained</text>
+  <text x="522" y="282" class="s">blocks 32/16/8/4 MiB — a fallback ladder</text>
+
+  <!-- OPEN: world -->
+  <rect x="20" y="314" width="486" height="98" rx="4" fill="#8a1f1f" stroke="#d4453f"/>
+  <text x="30" y="334" class="t">World entry — never run</text>
+  <text x="30" y="350" class="s">character creation, login, world load, in-game rendering</text>
+  <text x="30" y="364" class="s">terrain, M2/WMO, combat, Lua-driven UI</text>
+  <text x="30" y="378" class="s">the largest remaining unknown</text>
+
+  <text x="20" y="422" class="s">Measured 2026-10-09 on hardware. Sizes are a judgement of remaining work, not byte counts.</text>
+</svg>

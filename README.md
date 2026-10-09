@@ -6,27 +6,35 @@ This file is for **playing the thing**. If you want to build it from source,
 start at [GETTING_STARTED.md](GETTING_STARTED.md) — the verified Linux path,
 end to end. The porting approach is in [PORTING.md](PORTING.md).
 
+![Porting progress by remaining work](docs/port-progress.svg)
+
 ---
 
 ## Status: read this before you try it
 
-**This build has never been run on a real console.** It compiles, links and
-packages, but no Switch or Atmosphère was attached during development, so
-display, audio, controller mapping and the login path are all unverified at
-runtime.
+**It runs on hardware.** Boots through the Vulkan renderer and all 18 client
+MPQs, renders the login screen with working audio, and reaches the character
+creator. The remaining blocker is memory allocation on the console: the driver
+refuses allocations the heap reports it can serve, so large texture and vertex
+uploads still fail. See [AGENTS.md](AGENTS.md) for the live status and the
+hardware debugging loop.
 
-A static audit of the code found six defects that will stop a first run. They are
+A static audit of the code found six defects that stopped the first run. They are
 listed in full, with file and line references, in
 [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md). **The short version:**
 
-| # | What happens | Severity |
-|---|--------------|----------|
-| 1 | Audio plays about 20 ms of sound, then goes permanently silent. | blocker |
-| 2 | Any graphics/audio setting you change before your first successful login is silently discarded — no error, no log. | blocker |
-| 3 | Local-realm character saves are written to a PlayStation path that does not exist on a Switch, so saving fails. | blocker |
-| 4 | If startup fails, the on-screen error is a bare code (`Threw fatal error type 2`). The message explaining what went wrong is thrown away. | blocker |
-| 5 | The login connection sets a socket address field the Switch network stack may reject. Unverified — needs a console. | high |
-| 6 | The title asks for a 1.5 GB heap, which may not be granted on a 2 GB console. | high |
+| # | What happens | Status |
+|---|--------------|--------|
+| 1 | Audio plays about 20 ms of sound, then goes permanently silent. | **fixed** |
+| 2 | Any graphics/audio setting you change before your first successful login is silently discarded — no error, no log. | open |
+| 3 | Local-realm character saves are written to a PlayStation path that does not exist on a Switch, so saving fails. | open |
+| 4 | If startup fails, the on-screen error is a bare code (`Threw fatal error type 2`). The message explaining what went wrong is thrown away. | open |
+| 5 | The login connection sets a socket address field the Switch network stack may reject. Unverified — needs a console. | open |
+| 6 | The title asks for a 1.5 GB heap, which may not be granted on a 2 GB console. | open |
+
+Two further defects were found on hardware and are also fixed: a `thread_local`
+miscompilation that aborted instantly at startup, and an ImGui font-atlas
+allocation that handed the driver an out-of-range memory type.
 
 There are also two things that will make the console experience poor even once
 the above are fixed:
@@ -38,8 +46,8 @@ the above are fixed:
 - **Closing from the Home menu does nothing.** The exit request is detected and
   then ignored.
 
-So: **installing this today gets you a title that starts, and then a support
-channel with nothing in it.** That is the honest state of it — the
+So: **installing this today gets you a working login screen, and a support
+channel that is actively being used.** The
 [audit](AUDIT_FIRST_RUN.md) is the to-do list, in priority order.
 
 ### Servers

@@ -200,55 +200,39 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   Atmosphere files. Push only into `sdmc:/switch/wowee/` and
   `sdmc:/wowps/wowps/`.
 
-## State as of 2026-10-08
+## State as of 2026-10-09
 
 - `build-switch/` builds clean and stages to `wowee/out/switch/switch/wowee/`
   (clean configure + ~4 min; incremental much less). Commands in step 1 above.
   **A flag change needs a clean configure** - `CMAKE_CXX_FLAGS_INIT` only
   applies to a fresh build tree, so editing the toolchain and rebuilding an
   existing `build-switch/` silently keeps the old flags.
-- **The port reaches the login screen on hardware** (2026-10-08). Full boot
-  path is live: romfs mount, resource-root resolution, renderer init with every
-  pipeline, all 18 MPQs opened (including the 2.9 GB `common.MPQ`), FrameXML
-  addons loaded, login logo and text rendered, and music playing. No crash on a
-  clean run.
-- **`thread_local` was miscompiled and is now fixed** (2026-10-08). 423 access
-  sites compiled to `ldr w0, [x0, x0]` (`2 × TP`, data abort, no relocation to
-  fix it up). This was the real first-run blocker: the title aborted instantly
-  on hardware, in the asset phase, on every build. Fixed with
-  `-ftls-model=local-exec`; verified by disassembly
-  (`tools/switch/verify_tls_access.py` PASS on the whole ELF, 423 sites now
-  emitting correct add-tp/ldr pairs).
-- **Audio is fixed** (blocker 1 of AUDIT_FIRST_RUN). `devWrite` no longer
-  pre-waits on its own in-flight flag: libnx's `audoutPlayBuffer` already
-  blocks until the hardware consumes the buffer and harvests the release, so
-  the old double-wait timed out after a second and miniaudio killed the device
-  after one grain. Confirmed live: `audio: music started` with no
-  `audout did not release the previous grain`.
+- **The port reaches the login screen on hardware.** Full boot path is live:
+  romfs mount, resource-root resolution, renderer init with every pipeline,
+  all 18 MPQs opened (including the 2.9 GB `common.MPQ`), FrameXML addons
+  loaded, login logo and text rendered, and music playing. The character
+  creator scene loads too, and it is where it currently dies.
+- **The remaining blocker is console memory.** The driver refuses allocations
+  the heap reports it can serve. Measured: a 512x256 image fails at ~96 MiB
+  live, and the probe run immediately after finds 256x128 servable - so the
+  heap was full for an instant, not permanently short. `createBuffer` and
+  `createImage` now drain completed upload batches and retry once before giving
+  up, which is the structural answer rather than a tuning knob.
+- VMA block sizes come out as a fallback ladder (32, 16, 8, 4 MiB), so the
+  driver does not reliably serve the 32 MiB request VMA prefers. `preferredLargeHeapBlockSize`
+  is set to 32 MiB, the best measured value; 8 MiB broke the M2 transfers.
+- **Audio is fixed** (blocker 1). `devWrite` no longer pre-waits on its own
+  in-flight flag: libnx's `audoutPlayBuffer` already blocks until the hardware
+  consumes the buffer and harvests the release.
+- **`thread_local` was miscompiled and is now fixed.** 423 access sites compiled
+  to `ldr w0, [x0, x0]`. Fixed with `-ftls-model=local-exec`, guarded by
+  `tools/switch/verify_tls_access.py`.
 - **The ImGui font atlas crashed on an unsatisfiable memory type**, now fixed.
-  This console reports one memory type and it is host-visible, not
-  device-local, so `ImGui_ImplVulkan_MemoryType(DEVICE_LOCAL, ...)` returns
-  `0xFFFFFFFF`; ImGui checks that on its buffer path but not its image path, and
-  `nvk_AllocateMemory` uses the index as an array offset with no bounds check -
-  fault address exactly `base + (-1 << 3) + 6296`. Now falls back to
-  host-visible, the same substitution `rendering/vk_utils.cpp` makes for
-  attachment images.
-- **Still open - texture staging fails on the login menu scene.** A 1,398,100 B
-  buffer fails with `VK_ERROR_OUT_OF_DEVICE_MEMORY` while only ~95 MB is live
-  across 59 buffers and 41 images, on a heap the driver reports as 2.25 GiB.
-  11 identical failures; the login menu's `login_sidemtn01/03.blp` draw
-  untextured as a result. **Not understood yet.** The arithmetic does not add
-  up, and the causes need opposite fixes: genuine exhaustion means raising the
-  ceiling, a per-allocation cap means splitting the upload. `createBuffer` now
-  probes with the same request at 2 KiB/64 KiB/1 MiB and logs the VkResult for
-  each, plus `maxMemoryAllocationCount` and the heap/type table, on the first
-  failure. Deploy that build and the log says which it is. Do not guess.
-- **The card's clock runs ~4 h ahead of the client's log clock.** The crash and
-  fatal reports map one-for-one onto the runs in `boot.log` at exactly
-  `FS mtime − 4 h`. Read file mtimes with that offset in mind.
+- **The teardown crash is fixed.** `main()` uses `_Exit`, so `exit()` never walks
+  the C library's open FILE list - one of which was in a bad state and aborted
+  at 0x18 after `shutdown` had already been logged.
 - Still open from the audit: the config path writing to a PS4 location
   (blocker 2), local-realm saves (blocker 3), the swallowed fatal-error text
   (blocker 4), and the 1.5 GiB heap request (blocker 6).
-- Nothing in [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md) is out of date about
-  hardware being unverified — it has since been run on hardware, and the
-  blockers are still the reading order for whatever a new log shows.
+- **World entry has never run.** Character creation, login, world load and
+  in-game rendering are all untested. That is the largest remaining unknown.
