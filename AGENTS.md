@@ -1,8 +1,13 @@
 # AGENTS.md — WoWee Switch
 
 Working notes for anyone (human or agent) driving this project. Facts here were
-verified against the live console on **2026-10-08**; anything that changes
+verified against the live console on **2026-10-09**; anything that changes
 (address, Atmosphere version, where logs land) should be updated here first.
+
+**Read [docs/FINDINGS.md](docs/FINDINGS.md) before debugging anything.** It is
+the ledger of what has been measured, what has been ruled out, and which fixes
+exist and why — written so a measurement is never repeated and a ruled-out
+theory is never re-tried.
 
 ## What this is
 
