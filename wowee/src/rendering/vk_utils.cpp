@@ -141,8 +141,11 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
                   " memoryUsage=", static_cast<int>(memoryUsage));
         reportAllocationState("VMA buffer", size);
 #ifdef WOWEE_SWITCH
-        reportAllocationProbe(allocator, usage, memoryUsage, size);
+        // Layout first: the probe allocates and frees, so dumping after it
+        // reports a heap the probe itself just reshaped rather than the one
+        // that refused the request.
         reportVmaLayout(allocator);
+        reportAllocationProbe(allocator, usage, memoryUsage, size);
 #endif
         result = {};
         return result;

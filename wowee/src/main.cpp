@@ -308,6 +308,16 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 #if defined(__linux__) && !defined(__ANDROID__)
         if (g_emergencyDisplay) { XCloseDisplay(g_emergencyDisplay); g_emergencyDisplay = nullptr; }
 #endif
+#ifdef WOWEE_SWITCH
+        // Do not return: returning runs exit(), which walks every open FILE and
+        // closes it via _fwalk_sglue, and one of them is in a bad state - the
+        // result is a data abort at 0x18 inside _close_r, reached from exit(),
+        // after the app has already logged "shutdown". That report looks like a
+        // fresh crash when the run had already ended, and it has now cost two
+        // debugging cycles. _Exit skips the C library's stream walk; the log is
+        // already complete because this platform flushes every line it writes.
+        std::_Exit(0);
+#endif
         return 0;
     }
     catch (const std::exception& e) {
