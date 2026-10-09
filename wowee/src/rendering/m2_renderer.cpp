@@ -296,19 +296,28 @@ bool M2Renderer::buildMainPassPipelines(VkDescriptorSetLayout perFrameLayout) {
     // --- Build M2 model pipelines ---
     // Vertex input: 18 floats = 72 bytes stride
     // loc 0: vec3 pos (0), loc 1: vec3 normal (12), loc 2: vec2 uv0 (24),
-    // loc 5: vec2 uv1 (32), pad (40), loc 3: vec4 boneWeights (48), loc 4: vec4 boneIndices (64)
+    // loc 3: vec4 boneWeights (32), loc 4: vec4 boneIndices (48), loc 5: vec2
+    // uv1 (64) - 18 floats, 72 bytes.
+    //
+    // This used to be 20 floats (80 bytes) with two pad floats between uv1 and
+    // boneWeights, to keep boneWeights 16-byte aligned. That cost 8 bytes a
+    // vertex, and on the console it is what put the buffer over the heap's
+    // allocation ceiling: UI_Human.m2 is 4,369 vertices, which is 349,524 bytes
+    // at 80 B/vertex and 314,568 at 72 B/vertex, against a ceiling that has been
+    // measured between 342,867 and 345,086. Packing the attributes removes
+    // 35 KB from the buffer and 8 bytes of every future M2 upload.
     VkVertexInputBindingDescription m2Binding{};
     m2Binding.binding = 0;
-    m2Binding.stride = 20 * sizeof(float);
+    m2Binding.stride = 18 * sizeof(float);
     m2Binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     std::vector<VkVertexInputAttributeDescription> m2Attrs = {
         {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = 0},                     // position
         {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = 3 * sizeof(float)},     // normal
         {.location = 2, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 6 * sizeof(float)},        // texCoord0
-        {.location = 5, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 8 * sizeof(float)},        // texCoord1
-        {.location = 3, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 12 * sizeof(float)}, // boneWeights
-        {.location = 4, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 16 * sizeof(float)}, // boneIndices (float)
+        {.location = 3, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 8 * sizeof(float)},  // boneWeights
+        {.location = 4, .binding = 0, .format = VK_FORMAT_R32G32B32A32_SFLOAT, .offset = 12 * sizeof(float)}, // boneIndices (float)
+        {.location = 5, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = 16 * sizeof(float)},       // texCoord1
     };
 
     // Pipeline derivatives - opaque is the base, others derive from it for shared state optimization
@@ -1651,11 +1660,10 @@ bool M2Renderer::loadModel(const pipeline::M2Model& model, uint32_t modelId) {
 
     if (hasGeometry) {
         // Create VBO with interleaved vertex data
-        // Format: position (3), normal (3), texcoord0 (2), texcoord1 (2), pad (2),
-        // boneWeights (4), boneIndices (4 as float). The two pad floats put the
-        // two vec4s on 16-byte boundaries with an 80-byte stride: the console's
-        // vertex fetch reads a vec4 as one 128-bit load.
-        const size_t floatsPerVertex = 20;
+        // Format: position (3), normal (3), texcoord0 (2), boneWeights (4),
+        // boneIndices (4 as float), texcoord1 (2). No pad - see the binding
+        // description below for why the padding was removed.
+        const size_t floatsPerVertex = 18;
         platform::CpuGeometryVector<float> vertexData;
         vertexData.reserve(model.vertices.size() * floatsPerVertex);
 
@@ -1668,10 +1676,6 @@ bool M2Renderer::loadModel(const pipeline::M2Model& model, uint32_t modelId) {
             vertexData.push_back(v.normal.z);
             vertexData.push_back(v.texCoords[0].x);
             vertexData.push_back(v.texCoords[0].y);
-            vertexData.push_back(v.texCoords[1].x);
-            vertexData.push_back(v.texCoords[1].y);
-            vertexData.push_back(0.0f);   // pad: vec4s below start 16-byte aligned
-            vertexData.push_back(0.0f);
             float w0 = v.boneWeights[0] / 255.0f;
             float w1 = v.boneWeights[1] / 255.0f;
             float w2 = v.boneWeights[2] / 255.0f;
@@ -1684,6 +1688,8 @@ bool M2Renderer::loadModel(const pipeline::M2Model& model, uint32_t modelId) {
             vertexData.push_back(static_cast<float>(std::min(v.boneIndices[1], uint8_t(127))));
             vertexData.push_back(static_cast<float>(std::min(v.boneIndices[2], uint8_t(127))));
             vertexData.push_back(static_cast<float>(std::min(v.boneIndices[3], uint8_t(127))));
+            vertexData.push_back(v.texCoords[1].x);
+            vertexData.push_back(v.texCoords[1].y);
         }
 
         // Upload vertex buffer to GPU

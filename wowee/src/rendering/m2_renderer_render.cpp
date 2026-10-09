@@ -2259,16 +2259,18 @@ bool M2Renderer::initializeShadow(VkRenderPass shadowRenderPass) {
         return false;
     }
 
-    // The model VBO has 20 floats: position, normal, both UVs, padding,
-    // weights and bone indices. Existing rigid shadow geometry is unchanged.
+    // The model VBO has 18 floats: position, normal, texCoord0, bone weights,
+    // bone indices, texCoord1. The old 20-float layout with padding is gone -
+    // see M2Renderer::loadModel for why. Existing rigid shadow geometry is
+    // unchanged.
     VkVertexInputBindingDescription vertBind{};
     vertBind.binding = 0;
-    vertBind.stride = 20 * sizeof(float);   // the model VBO's layout, see M2Renderer::loadModel
+    vertBind.stride = 18 * sizeof(float);   // the model VBO's layout, see M2Renderer::loadModel
     vertBind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     std::vector<VkVertexInputAttributeDescription> vertAttrs = {
         {.location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT,    .offset = 0},                     // aPos       -> position
         {.location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT,       .offset = 6 * sizeof(float)},     // aTexCoord  -> texCoord0
-        {.location = 4, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT,       .offset = 8 * sizeof(float)},     // aTexCoord1
+        {.location = 4, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT,       .offset = 16 * sizeof(float)},   // aTexCoord1 -> texCoord1
     };
 
     shadowPipeline_ = buildShadowPipeline(
