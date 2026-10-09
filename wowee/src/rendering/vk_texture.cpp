@@ -367,20 +367,26 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
     // 0.85 MiB, and a full mip chain for a menu texture crosses it, so the
     // staging goes through the chunked uploader rather than being requested in
     // one piece.
-    std::vector<uint8_t> packed(totalSize);
+    //
+    // The scratch is static and reused. A per-texture vector of the full chain
+    // was tried first and it is what threw std::bad_alloc on the console: the
+    // largest menu mip chain is tens of MiB, and allocating that on top of an
+    // already busy heap failed - and because the vector sat before the try/catch
+    // below, the failure surfaced as a bare bad_alloc with no texture error
+    // attached. Reusing one buffer removes that churn entirely.
+    static std::vector<uint8_t> mipScratch;
+    if (mipScratch.size() < totalSize) mipScratch.resize(totalSize);
     for (uint32_t i = 0; i < mipCount; i++)
-        std::memcpy(packed.data() + levels[i].offset, mipData[i], levels[i].bytes);
+        std::memcpy(mipScratch.data() + levels[i].offset, mipData[i], levels[i].bytes);
 
     AllocatedBuffer staging;
     try {
-        staging = uploadBytesChunked(ctx, packed.data(), totalSize,
+        staging = uploadBytesChunked(ctx, mipScratch.data(), totalSize,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
     } catch (const std::exception& error) {
         LOG_ERROR("Texture mip upload: staging failed: ", error.what());
         return false;
     }
-    packed.assign(packed.size(), 0);  // do not hold decoded pixels longer than needed
-    packed.shrink_to_fit();
 
     // Release anything this object already held: a second upload over the
     // same texture used to abandon the first, which is how three quest

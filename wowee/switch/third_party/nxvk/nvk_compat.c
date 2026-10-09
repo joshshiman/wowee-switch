@@ -156,5 +156,7 @@ u32 __nx_applet_type = AppletType_Application;
 // heap was starved - a 128 KiB image failed with OUT_OF_DEVICE_MEMORY while
 // only ~93 MB was live. At 768 MiB the Vulkan side was completely clean but the
 // malloc arena was too small for the login scene's M2 model, which threw
-// std::bad_alloc. 1024 MiB is the middle of those two measurements.
-size_t __nx_heap_size = 1024u * 1024u * 1024u;
+// std::bad_alloc. 1024 MiB was still short on malloc. 1280 MiB is the next step
+// up; if the M2 model still does not fit, the answer is to find what it
+// allocates rather than keep raising the ceiling.
+size_t __nx_heap_size = 1280u * 1024u * 1024u;
