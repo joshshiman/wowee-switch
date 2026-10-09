@@ -209,7 +209,11 @@ private:
     VkDescriptorPool materialDescPool = VK_NULL_HANDLE;
     VkDescriptorSetLayout sceneSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool sceneDescPool = VK_NULL_HANDLE;
+#ifdef WOWEE_SWITCH
+    static constexpr uint32_t MAX_WATER_SETS = 4096;
+#else
     static constexpr uint32_t MAX_WATER_SETS = 16384;
+#endif
 
     VkSampler sceneColorSampler = VK_NULL_HANDLE;
     VkSampler sceneDepthSampler = VK_NULL_HANDLE;

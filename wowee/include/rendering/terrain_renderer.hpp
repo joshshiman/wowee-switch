@@ -241,7 +241,11 @@ private:
     // was dropped for good: terrain that simply was not there, in whichever
     // direction the player had travelled furthest.
     VkDescriptorPool materialDescPool = VK_NULL_HANDLE;
+#ifdef WOWEE_SWITCH
+    static constexpr uint32_t MAX_MATERIAL_SETS = 8192;  // 32 tiles * 256 chunks (budget: 10 resident tiles)
+#else
     static constexpr uint32_t MAX_MATERIAL_SETS = 160 * 1024;  // 640 tiles
+#endif
 
     // Loaded terrain chunks
     std::vector<TerrainChunkGPU> chunks;

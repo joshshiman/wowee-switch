@@ -368,3 +368,43 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
 4. **Scene Cleanup on Screen Transitions**:
    - When character creation completes (`createOnly`), `trimFileCache(0)` is called before returning to `CHARACTER_SELECTION`, ensuring clean heap for decoding character textures.
    - When entering world (`localRealmEntered_`), `uiManager->releaseFrontendScenes()` is called to release frontend character preview models and render targets before WorldLoader streams terrain.
+
+## 2026-10-09 Run 40: World Loading Screen Crash Resolved (Vulkan Descriptor Pool Sizing)
+
+### Symptoms:
+- Reached the World Loading screen successfully for the first time without `std::bad_alloc` or texture errors.
+- The client crashed during map geometry / terrain initialization on the loading screen.
+
+### Symbolicated Crash Analysis:
+- Atmosphere crash report: `/atmosphere/crash_reports/01791589312_010000000000100d.log`
+- Symbolized with `aarch64-none-elf-addr2line` against archived ELF (`logs/console/2026-10-09_1925/deployed.elf`):
+  ```
+  PC:  0x3e78bc -> util_vma_heap_finish (os_file.c)
+  LR:  0x11e720 -> nvk_destroy_descriptor_pool (nvk_descriptor_set.c)
+  RA0: 0x11f95c -> nvk_CreateDescriptorPool
+  RA1: 0xc10748 -> wowee::rendering::TerrainRenderer::initialize(VkContext*, VkDescriptorSetLayout*, AssetManager*)
+  RA2: 0xbe7e94 -> wowee::rendering::Renderer::initializeRenderers(AssetManager*, std::string)
+  RA3: 0xbebab8 -> wowee::rendering::Renderer::loadTestTerrain(AssetManager*, std::string)
+  RA4: 0x57f6f8 -> wowee::core::WorldLoader::loadMapGeometry(...)
+  RA5: 0x582594 -> wowee::core::WorldLoader::loadOnlineWorldTerrain(...)
+  RA6: 0x585474 -> wowee::core::WorldLoader::processPendingEntry()
+  RA7: 0x47b8f0 -> wowee::core::Application::update(float)
+  ```
+
+### Root Cause:
+- In `wowee/include/rendering/terrain_renderer.hpp`:
+  `static constexpr uint32_t MAX_MATERIAL_SETS = 160 * 1024; // 640 tiles = 163,840 sets`
+- In `TerrainRenderer::initialize`:
+  `poolSizes[0].descriptorCount = MAX_MATERIAL_SETS * 7;` (**1,146,880 image samplers**)
+- On the Nintendo Switch (Tegra X1 GPU / Mesa NVK driver), requesting a descriptor pool containing over **1.14 million descriptors** exceeded the driver buffer allocation limits.
+- Mesa NVK failed the allocation inside `nvk_CreateDescriptorPool` and branched into its cleanup handler `nvk_destroy_descriptor_pool`. The cleanup handler attempted to destroy uninitialized descriptor heap structures (`util_vma_heap_finish(&pool->heap)`), resulting in a null-pointer dereference data abort crash.
+
+### Solution:
+- Tuned renderer descriptor pool limits on Switch (`#ifdef WOWEE_SWITCH`):
+  - Switch resident tile budget (`switchbudget::kMaxResidentTiles`) is 10 tiles (2,560 chunks).
+  - `TerrainRenderer`: `MAX_MATERIAL_SETS = 8192` (32 tiles * 256 chunks, >3x headroom over the 10-tile resident cap).
+  - `WMORenderer`: `MAX_MATERIAL_SETS = 8192` (down from 32,768).
+  - `M2Renderer`: `MAX_MATERIAL_SETS = 8192`, `MAX_BONE_SETS = 8192` (down from 16,384 each, saving memory across both `m2Renderer` and `skyboxModelRenderer_`).
+  - `WaterRenderer`: `MAX_WATER_SETS = 4096` (down from 16,384).
+- Added explicit return code validation to `M2Renderer::initialize` for descriptor pool creation.
+- Verified TLS access check (`PASS`), archived ELF to `logs/console/2026-10-09_1943/deployed.elf`, and deployed `wowee.nro` and `wowee.elf` to Switch FTP at `192.168.2.44:5000`.

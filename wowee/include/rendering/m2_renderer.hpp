@@ -695,8 +695,13 @@ private:
     VkDescriptorPool boneDescPool_ = VK_NULL_HANDLE;
     std::shared_ptr<std::atomic<uint64_t>> boneDescPoolGeneration_ =
         std::make_shared<std::atomic<uint64_t>>(0);
+#ifdef WOWEE_SWITCH
+    static constexpr uint32_t MAX_MATERIAL_SETS = 8192;
+    static constexpr uint32_t MAX_BONE_SETS = 8192;
+#else
     static constexpr uint32_t MAX_MATERIAL_SETS = 16384;
     static constexpr uint32_t MAX_BONE_SETS = 16384;
+#endif
 
     // Dummy identity bone buffer + descriptor set for non-animated models.
     // The pipeline layout declares set 2 (bones) and some drivers (Intel ANV)

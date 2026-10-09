@@ -601,7 +601,10 @@ bool M2Renderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout
         ci.poolSizeCount = 2;
         ci.pPoolSizes = sizes;
         ci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        vkCreateDescriptorPool(device, &ci, nullptr, &materialDescPool_);
+        if (vkCreateDescriptorPool(device, &ci, nullptr, &materialDescPool_) != VK_SUCCESS) {
+            LOG_ERROR("M2Renderer: failed to create material descriptor pool");
+            return false;
+        }
     }
     {
         VkDescriptorPoolSize sizes[] = {
@@ -612,7 +615,10 @@ bool M2Renderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout
         ci.poolSizeCount = 1;
         ci.pPoolSizes = sizes;
         ci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        vkCreateDescriptorPool(device, &ci, nullptr, &boneDescPool_);
+        if (vkCreateDescriptorPool(device, &ci, nullptr, &boneDescPool_) != VK_SUCCESS) {
+            LOG_ERROR("M2Renderer: failed to create bone descriptor pool");
+            return false;
+        }
     }
 
     // Create a small identity-bone SSBO + descriptor set so that non-animated
