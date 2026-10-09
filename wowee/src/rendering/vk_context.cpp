@@ -106,6 +106,12 @@ bool VkContext::initialize(SDL_Window* window) {
     if (!createSurface(window)) return false;
     if (!selectPhysicalDevice()) return false;
     if (!createLogicalDevice()) return false;
+    // Before the allocator: createBuffer registers a reclaim callback that reads
+    // globalInstance(), and it is registered inside createAllocator. Setting the
+    // instance afterwards left the callback reading null, so the retry never ran
+    // and a 65,536-byte image was refused while 128x128 - the same size - was
+    // served moments later by the probe.
+    sInstance_ = this;
     if (!createAllocator()) return false;
 
     // Pipeline cache: try to load from disk, fall back to empty cache.
