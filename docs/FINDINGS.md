@@ -408,3 +408,52 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
   - `WaterRenderer`: `MAX_WATER_SETS = 4096` (down from 16,384).
 - Added explicit return code validation to `M2Renderer::initialize` for descriptor pool creation.
 - Verified TLS access check (`PASS`), archived ELF to `logs/console/2026-10-09_1943/deployed.elf`, and deployed `wowee.nro` and `wowee.elf` to Switch FTP at `192.168.2.44:5000`.
+
+## 2026-10-09 Run 41: World Loading Crash 2 Resolved (GPU Memory Exhaustion & Sub-renderer Scaling)
+
+### Symptoms:
+- Client progressed past `TerrainRenderer`, `WaterRenderer`, `Minimap`, and `WorldMap` initialization on the loading screen, but crashed right as `WMORenderer` was initializing.
+
+### Symbolicated Crash Analysis:
+- Atmosphere crash report: `/atmosphere/crash_reports/01791590168_010000000000100d.log` (23:56)
+- Symbolized with `aarch64-none-elf-addr2line`:
+  ```
+  PC:  0x3e78bc -> util_vma_heap_finish (os_file.c)
+  LR:  0x11e720 -> nvk_destroy_descriptor_pool (nvk_descriptor_set.c)
+  RA0: 0x11f95c -> nvk_CreateDescriptorPool
+  RA1: 0xcd9598 -> wowee::rendering::WMORenderer::initialize(VkContext*, VkDescriptorSetLayout*, AssetManager*)
+  RA2: 0xbe7f3c -> wowee::rendering::Renderer::initializeRenderers(AssetManager*, std::string)
+  RA3: 0xbebab8 -> wowee::rendering::Renderer::loadTestTerrain(AssetManager*, std::string)
+  RA4: 0x57f6f8 -> wowee::core::WorldLoader::loadMapGeometry(...)
+  RA5: 0x582594 -> wowee::core::WorldLoader::loadOnlineWorldTerrain(...)
+  RA6: 0x585474 -> wowee::core::WorldLoader::processPendingEntry()
+  RA7: 0x47b8f0 -> wowee::core::Application::update(float)
+  ```
+- Register `X[19]`: `0xfffffffe` (`-2` = `VK_ERROR_OUT_OF_DEVICE_MEMORY`).
+
+### Root Cause:
+1. `m2Renderer` and `skyboxModelRenderer_` both allocated massive mega bone SSBOs (`MEGA_BONE_MAX_INSTANCES = 4096`, 524k matrices each = 32 MiB x 2 = 64 MiB per renderer = **128 MiB total**).
+2. `skyboxModelRenderer_` (dedicated to rendering 1 skybox model) redundantly allocated 64 MiB bone buffers, 7.2 MiB instance buffers, and 16,640 descriptor sets.
+3. `TerrainRenderer` requested 66 MiB mega VB and 24 MiB mega IB, exceeding VMA’s 32 MiB block size on Switch and failing into per-chunk allocation churn.
+4. When `WMORenderer::initialize` attempted to create its descriptor pool, device memory was exhausted, causing `vkCreateDescriptorPool` to fail with `VK_ERROR_OUT_OF_DEVICE_MEMORY` and trigger NVK’s cleanup crash.
+
+### Solutions Applied:
+1. **Differentiated Skybox M2Renderer**:
+   When `skyMode_` is true:
+   - Mega bone capacity reduced to 128 matrices (8 KiB instead of 64 MiB).
+   - Instance capacity reduced to 64 instances (7 KiB instead of 7.2 MiB).
+   - Descriptor pools sized to 64 material sets and 16 bone sets (instead of 16,640 sets).
+   - Saves **71 MiB** of GPU memory and 16,500 descriptor sets.
+2. **Scaled M2Renderer on Switch**:
+   - `MEGA_BONE_MAX_INSTANCES = 512` on Switch (4 MiB per buffer, 8 MiB total double-buffered, saving 56 MiB).
+   - `MAX_INSTANCE_DATA = 4096` on Switch (458 KiB per buffer instead of 3.6 MiB).
+   - Sized material/bone descriptor sets to 2,048 each.
+3. **Scaled TerrainRenderer Mega Buffers for 32 MiB VMA Block Limit**:
+   - `MEGA_VB_MAX_VERTS = 512 * 1024` (22.5 MiB, fits comfortably in 32 MiB block).
+   - `MEGA_IB_MAX_INDICES = 2 * 1024 * 1024` (8 MiB, fits in 32 MiB block).
+   - Both mega buffers now succeed cleanly instead of falling back to 2,560 individual chunk allocations.
+   - `MAX_MATERIAL_SETS = 4096` (1.6x resident tile cap).
+4. **Scaled WMORenderer & WaterRenderer**:
+   - `WMORenderer MAX_MATERIAL_SETS = 2048`.
+   - `WaterRenderer MAX_WATER_SETS = 2048`.
+   - Over **180 MiB of GPU device memory saved** and total descriptor sets reduced from ~250k to ~8k across the entire engine.

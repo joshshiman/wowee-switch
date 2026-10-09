@@ -242,7 +242,7 @@ private:
     // direction the player had travelled furthest.
     VkDescriptorPool materialDescPool = VK_NULL_HANDLE;
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MAX_MATERIAL_SETS = 8192;  // 32 tiles * 256 chunks (budget: 10 resident tiles)
+    static constexpr uint32_t MAX_MATERIAL_SETS = 4096;  // 16 tiles * 256 chunks (Switch budget: 10 resident tiles)
 #else
     static constexpr uint32_t MAX_MATERIAL_SETS = 160 * 1024;  // 640 tiles
 #endif
@@ -291,13 +291,19 @@ private:
     void* megaIBMapped_ = nullptr;
     uint32_t megaVBUsed_ = 0;  // vertices used
     uint32_t megaIBUsed_ = 0;  // indices used
+#ifdef WOWEE_SWITCH
+    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 512 * 1024; // ~512k verts * 44B ≈ 22.5MB (fits in 32MB block)
+    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 2 * 1024 * 1024; // 2M indices * 4B = 8MB (fits in 32MB block)
+    static constexpr uint32_t MAX_INDIRECT_DRAWS = 4096;
+#else
     static constexpr uint32_t MEGA_VB_MAX_VERTS   = 1536 * 1024; // ~1.5M verts × 44B ≈ 64MB
     static constexpr uint32_t MEGA_IB_MAX_INDICES  = 6 * 1024 * 1024; // 6M indices × 4B = 24MB
+    static constexpr uint32_t MAX_INDIRECT_DRAWS = 8192;
+#endif
 
     VkBuffer indirectBuffer_ = VK_NULL_HANDLE;
     VmaAllocation indirectAlloc_ = VK_NULL_HANDLE;
     void* indirectMapped_ = nullptr;
-    static constexpr uint32_t MAX_INDIRECT_DRAWS = 8192;
     static constexpr uint32_t SHADOW_INDIRECT_SLICES = 4; // 2 frame slots x 2 cascades
 };
 

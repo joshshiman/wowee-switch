@@ -863,7 +863,7 @@ private:
     // Descriptor pool for material sets
     VkDescriptorPool materialDescPool_ = VK_NULL_HANDLE;
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MAX_MATERIAL_SETS = 8192;
+    static constexpr uint32_t MAX_MATERIAL_SETS = 2048;
 #else
     static constexpr uint32_t MAX_MATERIAL_SETS = 32768;
 #endif

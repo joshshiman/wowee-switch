@@ -210,7 +210,7 @@ private:
     VkDescriptorSetLayout sceneSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool sceneDescPool = VK_NULL_HANDLE;
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MAX_WATER_SETS = 4096;
+    static constexpr uint32_t MAX_WATER_SETS = 2048;
 #else
     static constexpr uint32_t MAX_WATER_SETS = 16384;
 #endif

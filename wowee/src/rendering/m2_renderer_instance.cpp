@@ -396,7 +396,7 @@ void M2Renderer::clear() {
                     VkDescriptorBufferInfo mbInfo{};
                     mbInfo.buffer = megaBoneBuffer_[i];
                     mbInfo.offset = 0;
-                    mbInfo.range = VkDeviceSize(MEGA_BONE_MATRIX_CAPACITY) * sizeof(glm::mat4);
+                    mbInfo.range = VkDeviceSize(megaBoneMatrixCapacity_) * sizeof(glm::mat4);
                     VkWriteDescriptorSet mw{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
                     mw.dstSet = megaBoneSet_[i];
                     mw.dstBinding = 0;

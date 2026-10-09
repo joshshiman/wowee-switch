@@ -591,13 +591,15 @@ bool M2Renderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout
     }
 
     // --- Descriptor pools ---
+    const uint32_t materialSets = skyMode_ ? 64 : (MAX_MATERIAL_SETS + 256);
+    const uint32_t boneSets = skyMode_ ? 16 : MAX_BONE_SETS;
     {
         VkDescriptorPoolSize sizes[] = {
-            {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = MAX_MATERIAL_SETS + 256},
-            {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = MAX_MATERIAL_SETS + 256},
+            {.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = materialSets},
+            {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = materialSets},
         };
         VkDescriptorPoolCreateInfo ci{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        ci.maxSets = MAX_MATERIAL_SETS + 256;
+        ci.maxSets = materialSets;
         ci.poolSizeCount = 2;
         ci.pPoolSizes = sizes;
         ci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
@@ -608,10 +610,10 @@ bool M2Renderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout
     }
     {
         VkDescriptorPoolSize sizes[] = {
-            {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = MAX_BONE_SETS},
+            {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = boneSets},
         };
         VkDescriptorPoolCreateInfo ci{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        ci.maxSets = MAX_BONE_SETS;
+        ci.maxSets = boneSets;
         ci.poolSizeCount = 1;
         ci.pPoolSizes = sizes;
         ci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
@@ -656,10 +658,11 @@ bool M2Renderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout
         }
     }
 
+    megaBoneMatrixCapacity_ = skyMode_ ? 128 : MEGA_BONE_MATRIX_CAPACITY;
     // Mega bone SSBO - consolidates all animated instance bones into one buffer per frame.
     // Slot 0 = identity matrix (for non-animated instances), slots 1..N = animated instances.
     {
-        const VkDeviceSize megaSize = VkDeviceSize(MEGA_BONE_MATRIX_CAPACITY) * sizeof(glm::mat4);
+        const VkDeviceSize megaSize = VkDeviceSize(megaBoneMatrixCapacity_) * sizeof(glm::mat4);
         glm::mat4 identity(1.0f);
         for (int i = 0; i < 2; i++) {
             VkBufferCreateInfo bci{.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -702,12 +705,13 @@ bool M2Renderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayout
         }
     }
 
-    instanceCapacity_[0] = instanceCapacity_[1] = MAX_INSTANCE_DATA;
+    const uint32_t defaultInstCap = skyMode_ ? 64 : MAX_INSTANCE_DATA;
+    instanceCapacity_[0] = instanceCapacity_[1] = defaultInstCap;
     // Instance data SSBO - per-frame buffer holding per-instance transforms, fade, bones.
     // Shader reads instanceData[push.instanceDataOffset + gl_InstanceIndex].
     {
         static_assert(sizeof(M2InstanceGPU) == 112, "M2InstanceGPU must be 112 bytes (std430)");
-        const VkDeviceSize instBufSize = MAX_INSTANCE_DATA * sizeof(M2InstanceGPU);
+        const VkDeviceSize instBufSize = defaultInstCap * sizeof(M2InstanceGPU);
 
         // Descriptor pool for 2 sets (double-buffered)
         VkDescriptorPoolSize poolSize{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 2};

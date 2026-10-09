@@ -764,7 +764,7 @@ void M2Renderer::prepareRender(uint32_t frameIndex, const Camera& camera) {
         }
 
         const uint32_t boneCount = static_cast<uint32_t>(instance.boneMatrices.size());
-        if (boneCount > MEGA_BONE_MATRIX_CAPACITY - nextOffset) {
+        if (boneCount > megaBoneMatrixCapacity_ - nextOffset) {
             instance.megaBoneOffset = 0;  // Overflow - use identity
             continue;
         }

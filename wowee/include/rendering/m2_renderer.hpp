@@ -696,11 +696,13 @@ private:
     std::shared_ptr<std::atomic<uint64_t>> boneDescPoolGeneration_ =
         std::make_shared<std::atomic<uint64_t>>(0);
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MAX_MATERIAL_SETS = 8192;
-    static constexpr uint32_t MAX_BONE_SETS = 8192;
+    static constexpr uint32_t MAX_MATERIAL_SETS = 2048;
+    static constexpr uint32_t MAX_BONE_SETS = 2048;
+    static constexpr uint32_t MEGA_BONE_MAX_INSTANCES = 512;
 #else
     static constexpr uint32_t MAX_MATERIAL_SETS = 16384;
     static constexpr uint32_t MAX_BONE_SETS = 16384;
+    static constexpr uint32_t MEGA_BONE_MAX_INSTANCES = 4096;
 #endif
 
     // Dummy identity bone buffer + descriptor set for non-animated models.
@@ -712,12 +714,12 @@ private:
 
     // Mega bone SSBO - consolidates all per-instance bone matrices into a single buffer per frame.
     // Replaces per-instance bone SSBOs for fewer descriptor binds and enables GPU instancing.
-    static constexpr uint32_t MEGA_BONE_MAX_INSTANCES = 4096;
     // Per-instance bone ranges are packed at their model's true bone count
     // rather than at a fixed stride, so the buffer is sized in matrices. The
-    // budget matches the old 4096 x 128 slots; models under the old stride
+    // budget matches the old slots; models under the old stride
     // now leave room for the ones above it.
     static constexpr uint32_t MEGA_BONE_MATRIX_CAPACITY = MEGA_BONE_MAX_INSTANCES * 128;
+    uint32_t megaBoneMatrixCapacity_ = MEGA_BONE_MATRIX_CAPACITY;
     ::VkBuffer megaBoneBuffer_[2] = {};
     VmaAllocation megaBoneAlloc_[2] = {};
     void* megaBoneMapped_[2] = {};
