@@ -352,7 +352,24 @@ std::unique_ptr<MpqAssetSource> MpqAssetSource::open(const std::string& archiveD
             // and the ceiling does not apply - an archive that fits in what
             // the heap will really hand back is worth opening even if it is a
             // large one.
-            const uint64_t freeBytes = largestFreeBlockBytes();
+            //
+            // But that measurement is a ladder of real allocations down from
+            // 512 MiB, each touched at both ends to commit it, and it was being
+            // run once per archive for a number that only decorates a log line:
+            // the branch below opens the archive either way. On hardware it
+            // cost about 2.5 s per archive, which is the difference between
+            // eighteen archives opening in one second and taking forty-five -
+            // and once the heap is fragmented by the extra staging slices the
+            // texture uploads now need, the ladder no longer stops at the first
+            // rung and gets slower still. So it is only asked when the static
+            // ceiling has already been exceeded, which is the one case where
+            // the tighter number could change what is logged. Every retail
+            // archive predicts well under that ceiling, so the common path
+            // makes no probe at all.
+            uint64_t freeBytes = 0;
+            if (budget.neededBytes > kArchiveTableCeilingBytes) {
+                freeBytes = largestFreeBlockBytes();
+            }
             const uint64_t room = freeBytes ? freeBytes : kArchiveTableCeilingBytes;
             if (budget.neededBytes > room) {
                 // The prediction is for the log, not for the decision.
