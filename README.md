@@ -2,8 +2,9 @@
 
 The WoWee WoW 3.3.5a (WotLK) client, running natively on a hacked Nintendo Switch.
 
-This file is for **playing the thing**. If you want to build it from source, see
-[PORTING.md](PORTING.md).
+This file is for **playing the thing**. If you want to build it from source,
+start at [GETTING_STARTED.md](GETTING_STARTED.md) — the verified Linux path,
+end to end. The porting approach is in [PORTING.md](PORTING.md).
 
 ---
 
@@ -60,7 +61,7 @@ configuration this port was aimed at.
   subdirectories intact.
 - A server to connect to. See above.
 - A built `wowee.nro` and its `data/` directory — either build it yourself
-  ([PORTING.md](PORTING.md)) or get them from someone who has.
+  ([GETTING_STARTED.md](GETTING_STARTED.md)) or get them from someone who has.
 
 ## Installing
 

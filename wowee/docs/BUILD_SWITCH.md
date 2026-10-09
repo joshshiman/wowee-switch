@@ -20,6 +20,11 @@ Vulkan headers by `tools/switch/gen_nxvk_loader.py`.
 
 ## Prerequisites
 
+> **On Linux, start with [GETTING_STARTED.md](../../GETTING_STARTED.md).** It is
+> the verified end-to-end path, including the devkitPro keyring/repo setup and
+> the `vk_video` headers the prebuilt driver archive leaves out. What follows
+> here is the prerequisite list, not the walkthrough.
+
 * devkitPro with `devkitA64`, `libnx` and `portlibs/switch`
   (`switch-zlib`, `switch-pkg-config`):
   `sudo dkp-pacman -S switch-dev switch-zlib`
