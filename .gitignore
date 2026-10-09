@@ -13,3 +13,6 @@ deps/
 logs/console/
 
 
+
+# local-only: binaries pulled off the console for comparison; too large for git
+backups/
