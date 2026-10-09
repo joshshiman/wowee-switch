@@ -375,16 +375,23 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
     // below, the failure surfaced as a bare bad_alloc with no texture error
     // attached. Reusing one buffer removes that churn entirely.
     static std::vector<uint8_t> mipScratch;
-    if (mipScratch.size() < totalSize) mipScratch.resize(totalSize);
-    for (uint32_t i = 0; i < mipCount; i++)
-        std::memcpy(mipScratch.data() + levels[i].offset, mipData[i], levels[i].bytes);
-
     AllocatedBuffer staging;
     try {
+        // Inside the try: a resize of the scratch is a malloc, and the console
+        // has refused one here before - which surfaced as a bare bad_alloc from
+        // prepareScene with nothing naming the texture or the size. The size is
+        // logged so a future failure says what was asked for.
+        if (mipScratch.size() < totalSize) {
+            LOG_INFO("Texture mip upload: scratch grows to ", totalSize, " bytes");
+            mipScratch.resize(totalSize);
+        }
+        for (uint32_t i = 0; i < mipCount; i++)
+            std::memcpy(mipScratch.data() + levels[i].offset, mipData[i], levels[i].bytes);
         staging = uploadBytesChunked(ctx, mipScratch.data(), totalSize,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
     } catch (const std::exception& error) {
-        LOG_ERROR("Texture mip upload: staging failed: ", error.what());
+        LOG_ERROR("Texture mip upload: staging failed: ", error.what(),
+                  " (totalSize=", totalSize, ", scratch=", mipScratch.size(), ")");
         return false;
     }
 
