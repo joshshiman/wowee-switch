@@ -1059,7 +1059,7 @@ if(WOWEE_SWITCH)
             --nacp=${CMAKE_BINARY_DIR}/wowee.nacp
             --icon=${DEVKITPRO}/libnx/default_icon.jpg
             --romfs=${CMAKE_BINARY_DIR}/wowee-romfs.bin
-        COMMAND ${CMAKE_PYTHON_EXECUTABLE}
+        COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tools/switch/patch_nro_romfs.py
             ${CMAKE_BINARY_DIR}/wowee.nro ${CMAKE_BINARY_DIR}/wowee-romfs.bin
         BYPRODUCTS ${CMAKE_BINARY_DIR}/wowee.nro ${CMAKE_BINARY_DIR}/wowee.nacp
