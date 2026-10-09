@@ -134,8 +134,11 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
         // The result code was previously discarded, which left the one thing
         // that distinguishes out-of-memory from out-of-address-space from
         // feature-absence unreadable on the only machine that fails.
+        // The usage is logged too: a 349,524-byte refusal says nothing about
+        // what was being built, and vertex/index/transfer are different problems.
         LOG_ERROR("Failed to create VMA buffer (size=", size, ") result=",
-                  static_cast<int>(rc));
+                  static_cast<int>(rc), " usage=", usage,
+                  " memoryUsage=", static_cast<int>(memoryUsage));
         reportAllocationState("VMA buffer", size);
 #ifdef WOWEE_SWITCH
         reportAllocationProbe(allocator, usage, memoryUsage, size);
