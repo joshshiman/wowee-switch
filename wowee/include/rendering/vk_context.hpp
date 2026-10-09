@@ -411,6 +411,15 @@ private:
     uint32_t swapchainRebuildFailures_ = 0;
     std::chrono::steady_clock::time_point swapchainRebuildRetryAt_{};
 
+    // Acquires that answered VK_ERROR_OUT_OF_DATE_KHR while the surface still
+    // reported this swapchain's extent. nxvk does this while the dimensions
+    // are unchanged, and each one used to trigger a full VideoOut
+    // destroy/recreate (the white flashing). Above a growing threshold one
+    // real rebuild is attempted anyway, in case something outside the extent
+    // did change; a successful acquire resets the patience.
+    uint32_t spuriousOutOfDateSkips_ = 0;
+    uint32_t spuriousOutOfDateThreshold_ = 5;
+
     // Three-buffer switch presentation can keep one completed/submitted image
     // waiting for presentation while the CPU records the next frame. This
     // removes the render-completion wait from the same frame's endFrame path

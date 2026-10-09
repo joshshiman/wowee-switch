@@ -21,6 +21,9 @@
 #include "game/local_scripted_portals.hpp"
 #include "game/local_world_catalog.hpp"
 #include "network/net_platform.hpp"
+#ifdef WOWEE_SWITCH
+#include "platform/switch/switch_platform.hpp"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -1178,11 +1181,15 @@ bool copyFileBytes(const std::string& from, const std::string& to) {
     }
     if (std::fclose(in) != 0) ok = false;
     if (std::fflush(out) != 0) ok = false;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(WOWEE_SWITCH)
     if (::fsync(fileno(out)) != 0) ok = false;
 #endif
     if (std::fclose(out) != 0) ok = false;
-    if (ok && std::rename(temp.c_str(), to.c_str()) != 0) ok = false;
+    if (ok) {
+        std::error_code ec;
+        std::filesystem::remove(to, ec);
+        if (std::rename(temp.c_str(), to.c_str()) != 0) ok = false;
+    }
     if (!ok) std::remove(temp.c_str());
     return ok;
 }
@@ -1192,7 +1199,7 @@ bool atomicWrite(const std::string& path, const std::vector<uint8_t>& bytes, boo
     if (!f) return false;
     bool ok = std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
     if (std::fflush(f) != 0) ok = false;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(WOWEE_SWITCH)
     if (::fsync(fileno(f)) != 0) ok = false;
 #endif
     if (std::fclose(f) != 0) ok = false;
@@ -1206,7 +1213,11 @@ bool atomicWrite(const std::string& path, const std::vector<uint8_t>& bytes, boo
             if (!copyFileBytes(path, path + ".bak")) ok = false;
         }
     }
-    if (ok && std::rename(temp.c_str(), path.c_str()) != 0) ok = false;
+    if (ok) {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        if (std::rename(temp.c_str(), path.c_str()) != 0) ok = false;
+    }
     if (!ok) std::remove(temp.c_str());
     return ok;
 }
@@ -3807,7 +3818,15 @@ struct LocalRealm::Impl {
         if (!ensureDirectory(path)) return fail("Cannot create local realm save directory");
         directory = path; self.name = name;
         if (gameplay.content().sourcePath.empty()) {
-            for (const auto& candidate : {std::string("/data/wow_ps/realm/world.json"), std::string("/app0/assets/local_realm/world.json"), std::string("assets/local_realm/world.json")}) {
+            for (const auto& candidate : {
+#ifdef WOWEE_SWITCH
+                std::string(platform::switchport::writableRoot() + "/realm/world.json"),
+                std::string(platform::switchport::appRoot() + "/assets/local_realm/world.json"),
+                std::string("romfs:/assets/local_realm/world.json"),
+#else
+                std::string("/data/wow_ps/realm/world.json"), std::string("/app0/assets/local_realm/world.json"),
+#endif
+                std::string("assets/local_realm/world.json")}) {
                 std::error_code ec;
                 if (std::filesystem::exists(candidate, ec)) {
                     if (!gameplay.loadContent(candidate, error)) return fail(error);

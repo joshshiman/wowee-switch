@@ -1299,8 +1299,19 @@ static bool requestIdentityTransform(vkb::SwapchainBuilder& builder,
 #if defined(WOWEE_SWITCH)
 static bool ps4DeferredPresentEnabled() {
     static const bool enabled = [] {
+        // Off by default. nxvk's WSI checks out one buffer at a time (an
+        // NWindow tracks a single cur_slot, and nwindowQueueBuffer refuses any
+        // slot but that one). Parking one image to present it a frame later -
+        // the whole point of the deferred present - is the one workflow that
+        // asks the driver to hold two at once, and on the console it
+        // correlates with an immediate VK_ERROR_OUT_OF_DATE_KHR on every third
+        // acquire and a full VideoOut rebuild ~14x/s: the white flashing that
+        // ends in a device-lost vkQueueSubmit. The synchronous present path
+        // matches the driver's state machine exactly (acquire -> submit ->
+        // present the image that is still checked out). WOWEE_VK_DEFER_PRESENT=1
+        // restores the overlap experiment if it is ever wanted again.
         const char* value = std::getenv("WOWEE_VK_DEFER_PRESENT");
-        return !(value && *value == '0');
+        return value && *value == '1';
     }();
     return enabled;
 }
@@ -3029,6 +3040,15 @@ bool VkContext::recreateSwapchain(int width, int height) {
     if (!createOverlayRenderPass()) return failedRebuild();
     if (!createSceneContinueRenderPass()) return failedRebuild();
 
+    // Recreate ImGui pipeline so it references the new overlayRenderPass
+    if (ImGui::GetCurrentContext() && ImGui::GetIO().BackendRendererUserData) {
+        ImGui_ImplVulkan_PipelineInfo pipeInfo{};
+        pipeInfo.RenderPass = overlayRenderPass;
+        pipeInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+        pipeInfo.Subpass = 0;
+        ImGui_ImplVulkan_CreateMainPipeline(&pipeInfo);
+    }
+
     // The old swapchain might have held an acquired-but-unsubmitted image.
     // New ownership starts with unsignalled semaphores and completed slots.
     resetFrameSyncState();
@@ -3273,14 +3293,47 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
         // Bracketed in the boot log because this is the one frame step that can
         // wait forever on something outside our control: the presentation
         // engine. "render: beginFrame" with no "gpu: acquire done" after it
-        // names the hang without any further instrumentation.
-        platform::switchport::reportBootStage(
-            (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)
-                ? "gpu: swapchain acquire done"
-                : "gpu: swapchain acquire FAILED");
+        // names the hang without any further instrumentation. The exact
+        // VkResult rides along on the failure so the next run can tell a
+        // timeout (2) from out-of-date (-1000001004) from anything else.
+        char acquireStage[96];
+        std::snprintf(acquireStage, sizeof acquireStage,
+                      "gpu: swapchain acquire %s rc=%d",
+                      (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) ? "done" : "FAILED",
+                      static_cast<int>(result));
+        platform::switchport::reportBootStage(acquireStage);
 #endif
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+#if defined(WOWEE_SWITCH)
+            // A rebuild here destroys and recreates VideoOut - the layer
+            // flashes off and on (the white flashing the player sees) - and
+            // every swapchain image and sync object with it. That response is
+            // only correct when the surface actually changed. Measured on the
+            // console: nxvk answers OUT_OF_DATE immediately on every third
+            // acquire while the dimensions stay 1280x720, and rebuilding on
+            // each one became a ~14/s destroy/create loop that ended in a
+            // device-lost vkQueueSubmit at the character-select scene. So
+            // when the surface still reports this swapchain's extent, the
+            // answer is treated as spurious and the frame is simply skipped;
+            // one real rebuild is attempted after a growing run of them, in
+            // case something outside the extent did change.
+            VkSurfaceCapabilitiesKHR outOfDateCaps{};
+            const bool extentUnchanged =
+                vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface,
+                                                           &outOfDateCaps) == VK_SUCCESS &&
+                outOfDateCaps.currentExtent.width == swapchainExtent.width &&
+                outOfDateCaps.currentExtent.height == swapchainExtent.height;
+            if (extentUnchanged && spuriousOutOfDateSkips_ < spuriousOutOfDateThreshold_) {
+                ++spuriousOutOfDateSkips_;
+                platform::switchport::reportBootStage(
+                    "gpu: acquire out-of-date with unchanged extent; frame skipped");
+                return VK_NULL_HANDLE;
+            }
+            spuriousOutOfDateSkips_ = 0;
+            spuriousOutOfDateThreshold_ =
+                spuriousOutOfDateThreshold_ >= 120 ? 120 : spuriousOutOfDateThreshold_ * 2;
+#endif
             swapchainDirty = true;
             return VK_NULL_HANDLE;
         }
@@ -3304,6 +3357,14 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
         imageAcquiredSemaphores_[imageIndex] = currentAcquireSemaphore_;
         retainedFrameImage_ = true;
         retainedFrameImageIndex_ = imageIndex;
+#if defined(WOWEE_SWITCH)
+        // The acquire answered, so whatever made the previous skips spurious
+        // is gone. Patience resets so a later storm is still contained early.
+        if (spuriousOutOfDateSkips_ != 0 || spuriousOutOfDateThreshold_ != 5) {
+            spuriousOutOfDateSkips_ = 0;
+            spuriousOutOfDateThreshold_ = 5;
+        }
+#endif
     } else {
         // Recording failed before submission: acquire was already signalled
         // and this image was never handed to presentation. Keep both intact.
@@ -3825,7 +3886,15 @@ void VkContext::endFrame(VkCommandBuffer cmd, uint32_t imageIndex) {
     // one frame of useful overlap while image ownership remains unambiguous.
     // The two-image fallback stays synchronous: it has no spare scanout image
     // and would otherwise force AcquireNextImageKHR to reclaim an unpresented
-    // buffer. WOWEE_VK_DEFER_PRESENT=0 restores the synchronous path.
+    // buffer.
+    //
+    // 2026-10-09: measured on the console, this parking is the one workflow
+    // that asks nxvk's single-checked-out-slot NWindow to hold two images at
+    // once, and it correlates with an immediate OUT_OF_DATE acquire every
+    // third frame and a VideoOut rebuild storm (white flashing, eventual
+    // device-lost submit). ps4DeferredPresentEnabled() now defaults to off;
+    // this path only runs with WOWEE_VK_DEFER_PRESENT=1. See the counter-note
+    // in beginFrame before re-enabling it wholesale.
     const bool deferredPresent = ps4DeferredPresentEnabled() && swapchainImages.size() >= 3;
     bool presentedThisEnd = false;
 

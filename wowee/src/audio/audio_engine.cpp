@@ -274,6 +274,21 @@ bool AudioEngine::initialize() {
     initialized_ = true;
     LOG_INFO("Decoded audio cache budget: ", kDecodedAudioCacheBytes / (1024 * 1024), " MiB");
     LOG_INFO("AudioEngine initialized (miniaudio, backend: ", backendName, ")");
+#ifdef WOWEE_SWITCH
+    // The self-test's audio=ok only means ma_engine_init returned success.
+    // The console has shown runs where that is true and no grain ever reaches
+    // the hardware, so record whether the device is actually started (and
+    // therefore whether a device thread exists that ought to be writing).
+    // "started" here without a later "audio: first device write" means the
+    // thread stalled between start and its first onDeviceWrite.
+    {
+        const ma_device* device = ma_engine_get_device(engine_);
+        const bool started = device != nullptr && ma_device_is_started(device);
+        platform::switchport::reportBootStage(started
+            ? "audio: engine initialized (device started)"
+            : "audio: engine initialized (device NOT started)");
+    }
+#endif
     return true;
 }
 

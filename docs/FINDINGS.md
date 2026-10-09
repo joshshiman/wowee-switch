@@ -4,7 +4,7 @@ Everything here was measured on the console at `192.168.2.44`. This file exists
 so that measurements are not repeated and ruled-out theories are not re-tried.
 Read it before debugging a new symptom.
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-09 (evening — flashing/crash/audio session).
 
 ---
 
@@ -150,3 +150,182 @@ rendering. This is the largest unknown and where the next real finding will be.
 Local-realm content (`assets/local_realm`, 26 MB on disk) is *not* loaded in
 these runs — zero `Content loaded` lines in `boot.log` — so it is not a factor
 in the current crashes.
+
+---
+
+## 7. The 2026-10-09 evening session: flashing, character-select crash, audio
+
+Everything in this section was measured from the run ending 17:36:48–17:37:00
+(build `31e6981`, md5 `2682a265b03a5574ff38ca3e365d2338` — verified against the
+card) plus the crash/fatal report directory.
+
+### The crash itself: not a segfault, a device-lost exit
+
+`wowps.log` ends:
+
+```
+17:37:00.942 [ERROR] endFrame[186] vkQueueSubmit FAILED: -4
+17:37:00.944 [ERROR] GPU device lost - exiting application
+17:37:01.082 [WARN ] [SHUTDOWN] Asset degradation: 22 read(s) lost ...
+```
+
+No wowee crash report exists and none can: wowee runs as an anonymous NRO inside
+the hbloader/qlaunch applet process, so Atmosphere cannot attribute its frames.
+
+### The paired crash reports are teardown noise, not the crash
+
+Every run that *dies* produces, 1 s after its last boot.log line, a pair of
+reports: process `hbloader` (`010000000000100d`, module `nx-hbmenu`, main thread
+aborting in hbmenu code — a *fresh* hbmenu relaunch, entry stub at +0xc4 on the
+stack) and process `qlaunch` (`0100000000001000`, LibraryAppletThread break).
+Runs that end cleanly (HOME → close, e.g. run 10 at 22:32) produce **no**
+reports. Calibration: report filename epoch − exactly 4:00:00 = the run's last
+boot.log timestamp, one-to-one, across all 23 reports on the card. Do not
+re-derive this; grep the run's end time instead.
+
+Attempts to symbolize `nx-hbmenu + 0x…` or qlaunch `[4f8977c6] + 0x…` offsets
+against `wowee.elf` produce garbage (verified by disassembly: no `brk` at the
+crash PCs; qlaunch's module range is 12.0 MiB, smaller than wowee's `.text`
+alone at 17.7 MiB). Those reports are the applet host's aftermath, full stop.
+
+### The white flashing: a swapchain rebuild storm, ~14/s
+
+`boot.log` shows `gpu: swapchain acquire FAILED` every third acquire, and
+`wowps.log` shows `Frame synchronisation reset after a rebuild` 81+8 times per
+run — every failure was `VK_ERROR_OUT_OF_DATE_KHR` (the silent path; zero
+`Failed to acquire swapchain image` errors, so never VK_TIMEOUT, and the
+failures are immediate — ~14/s rules out the 2 s acquire timeout). Each
+OUT_OF_DATE triggered `recreateSwapchain`, which on Switch destroys and
+recreates VideoOut (the layer flashes off/on — white, not black, because the
+post-rebuild scanout images are fresh/never-written). After ~90 such cycles the
+run 35 submit failed with DEVICE_LOST.
+
+The failure count tracks reaching the glue/3D scene across every run since the
+port first reached the main loop (92–451 failures per run; short runs that die
+in boot show 0). It is not a regression of the VMA block-size commits.
+
+### The mechanism, from the nxvk source (`wsi_switch.c` + libnx `native_window.c`)
+
+- nxvk's WSI hands out **one checked-out buffer at a time**: `nwindowQueueBuffer`
+  and `nwindowCancelBuffer` both *require* `slot == nw->cur_slot`, and the
+  swapchain's `queue_present` clears `dequeued_slot` unconditionally.
+- wowee's **deferred present** parks one image per frame and presents it one
+  frame later — the only workflow that asks this WSI to hold two images across
+  a frame boundary. The first acquire failure in run 35 is the first acquire
+  after a park.
+- The driver always creates exactly 3 images (`WSI_SWITCH_IMAGE_COUNT` is
+  hardcoded, `minImageCount` in the request is ignored), so wowee's two-image
+  fallback can never engage and `deferredPresent` was always on.
+- What could *not* be pinned down statically: which exact code path returns the
+  OUT_OF_DATE (the immediate candidates in `wsi_switch_dequeue_nonblocking` are
+  `slots_configured == 0` or the dimension check in `wsi_switch_window_error`;
+  the single-slot collision paths return VK_TIMEOUT or SURFACE_LOST, neither of
+  which was observed). The exact acquire rc is now breadcrumb-logged
+  (`gpu: swapchain acquire FAILED rc=…`) so the next run answers this.
+
+### Fixes deployed 2026-10-09 ~18:05 (md5 `b6cec6abcc251a9b92e9ddfbd8b2fafa`)
+
+1. **Deferred present off by default on Switch** (`WOWEE_VK_DEFER_PRESENT=1`
+   re-enables). The synchronous present path (acquire → submit → present the
+   image that is still checked out) matches the driver's state machine exactly.
+2. **OUT_OF_DATE guard**: before rebuilding, the surface caps are re-queried;
+   if the extent is unchanged the frame is skipped instead, with a growing
+   threshold (5 → 10 → 20 … capped 120) that forces one real rebuild in case
+   something non-extent changed. A successful acquire resets the patience.
+   Result: worst case is a brief stall showing the last presented frame, not a
+   VideoOut destroy/create storm.
+3. **Audio breadcrumbs**: `audio: audout context open`, `audio: device init ok`,
+   `audio: device start ok`, `audio: engine initialized (device started|NOT
+   started)` — all boot-stage lines, so they always land in `boot.log`.
+
+### Audio: one working run ever, and why it was invisible
+
+`audio: first device write` appears in exactly one run in the whole boot.log
+(10-08 22:43:19 — the same run that first recorded a 3D composite). Every other
+run: `music started` but no device write, while SELF-TEST says `audio=ok`
+(that verdict only means `ma_engine_init` succeeded). The old breadcrumbs could
+not distinguish device-not-started from device-thread-stalled; the new ones
+can. Runs 10 and 11 used the same build, so the failure is nondeterministic —
+prime suspects are heap state at device-thread creation or a thread stall
+between start and the first `onDeviceWrite`.
+
+### Memory: the ceiling collapsed further
+
+Run 35's self-test probe measured the allocation cap at **342,867–345,086 B**
+(down from 518 KB–1.1 MB in runs 9–17). Consequences measured in the same run:
+`Texture mip upload: staging failed: std::bad_alloc (totalSize=349524,
+scratch=1398100)` — the *chunked* (256 KiB) uploader failed, meaning even a
+256 KiB staging buffer could not be served: VMA's existing blocks are full of
+≤13 KiB holes and any new block needs a fresh `vkAllocateMemory` above the cap.
+`Login glue: exception during preparation: std::bad_alloc` followed, and 22
+asset reads were lost to allocation failure. This is blocker 6's territory.
+
+### Open questions this session leaves
+
+- The exact nxvk path returning OUT_OF_DATE (next run's rc breadcrumb answers).
+- Whether the device-lost submit disappears once the rebuild storm is gone
+  (likely — no submit should ever race a VideoOut destroy again).
+- Where the audio device thread stalls (next run's breadcrumbs answer).
+- Why the driver caps `vkAllocateMemory` at ~343 KB while reporting a 1.8 GiB
+  budget — the root disease of the port (blocker 6).
+
+## 2026-10-09 Run 36: Frame-0 Instant Crash Resolved (md5 55909e59...)
+
+### What happened on Run 35 deployment (instant crash on startup)
+- Log: `[2026-10-09 18:22:21] ImGui Vulkan resource creation failed: -4`, `fatal: startup error`.
+- Root cause:
+  1. SDL posts an initial `SDL_WINDOWEVENT_RESIZED` during startup with `(1280, 720)`.
+  2. In `application.cpp`, this called `window->getVkContext()->markSwapchainDirty()` unconditionally.
+  3. In `renderer->beginFrame()`, this triggered `recreateSwapchain()`, destroying and remaking `overlayRenderPass` and the VideoOut swapchain layer.
+  4. ImGui's pipeline was never rebuilt after render pass recreation.
+  5. ImGui's `CheckVkResultFn` in `ui_manager.cpp` had `#ifdef WOWEE_SWITCH if (err < 0) throw std::runtime_error(...)`, causing an unhandled exception instead of graceful failure handling.
+
+### Fixes Applied:
+1. **Ignored window resize on Switch** (`application.cpp`): Handheld and docked Switch resolutions are fixed at 1280x720. SDL resize events never mark swapchain dirty on Switch.
+2. **Recreate ImGui pipeline on swapchain rebuild** (`vk_context.cpp`): Called `ImGui_ImplVulkan_CreateMainPipeline` after `createOverlayRenderPass()` so ImGui always uses the current render pass.
+3. **Removed hard throw in ImGui error callback** (`ui_manager.cpp`): Logged errors without throwing, allowing ImGui internal fallbacks to operate as designed.
+
+## 2026-10-09 Run 37: White Flashing & Audio Fix Verified + Login Scene Fallback (md5 bff7fe77...)
+
+### Key Learnings Documented (Run 36 verification):
+1. **White Flashing Eliminated**:
+   - The white flashing was caused by repeated swapchain/VideoOut destroy-and-recreate cycles triggered by `VK_ERROR_OUT_OF_DATE_KHR`.
+   - Disabling deferred present eliminated the out-of-date acquire condition: nxvk's native WSI expects only 1 checked-out buffer at a time. Synchronous present matches this design directly.
+   - All frame acquires in Run 36 reported `gpu: swapchain acquire done rc=0` with zero acquire errors or VideoOut churn.
+2. **Audio Clear & Operational**:
+   - Audio is now stable and fully working through `audout` hardware with 48 kHz stereo s16 buffers.
+3. **Character Selection Screen State**:
+   - The 3D scene composite (`UI_Human.m2` Stormwind room) rendered cleanly at 1280x720 without errors.
+   - The middle of the screen was empty because **0 characters currently exist on the account/realm** (`characters.empty() == true`).
+   - The UI correctly displays the prompt: *"You have no characters on this realm. Create a new character to begin your adventure."* along with the **Create New Character** button.
+   - Creating a character will load and display the full 3D character model on the pedestal.
+4. **Login Screen Background Fix** (Run 37):
+   - The login screen previously had no background because `UI_MainMenu_Northrend.m2` (Icecrown Citadel + Sindragosa dragon) requests >20 large uncompressed BLP textures (~100 MiB), which exceeded the shared process heap budget and threw `std::bad_alloc`.
+   - On Switch, `AuthScreen` now defaults to the Classic Dark Portal (`Interface\Glues\Models\UI_MainMenu\UI_MainMenu.m2`), which is compact (~10 MiB) and loads cleanly.
+   - Added automatic fallback to Classic UI_MainMenu if any expansion scene fails to allocate.
+
+## 2026-10-09 Run 38: Local Realm Save Failure Resolved (md5 562243d4...)
+
+### Problem:
+- Upon character creation or Enter World, the client reported:
+  `"Local realm save failed; check free space and directory permissions"`.
+- The user had 12 GB of free space on the SD card, so space was not the issue.
+
+### Root Cause:
+1. **Hardcoded PS4 directory paths on Switch**:
+   In `application_local_realm.cpp`, `localSaveDirectory()` and `localContentPath()` had:
+   `#ifdef WOWEE_SWITCH return "/data/wow_ps/saves/local_realm";`
+   On Switch, the root filesystem `/data` does not exist. All writable storage on Switch lives under `sdmc:/wowps/wowps`.
+   Attempting to open `/data/wow_ps/saves/local_realm/realm.wprs.new` returned `ENOENT`.
+2. **FAT32 rename & fsync constraints**:
+   - In `local_realm.cpp`, `copyFileBytes` and `atomicWrite` called `::fsync(fileno(f))`. On devkitA64 / newlib FAT filesystem, `fsync` is not implemented and fails.
+   - On FAT32 SD cards, POSIX atomic `rename()` over an existing file fails unless the destination file is unlinked first.
+
+### Fixes Applied:
+1. **Corrected Save & Content Paths** (`application_local_realm.cpp`):
+   - Changed `localSaveDirectory()` on Switch to `platform::switchport::writableRoot() + "/saves/local_realm"` (`sdmc:/wowps/wowps/saves/local_realm`).
+   - Changed `localContentPath()` on Switch to check `platform::switchport::writableRoot() + "/realm/world.json"` before falling back to asset bundles.
+2. **Hardened FAT32 Atomic Writes** (`local_realm.cpp`):
+   - Excluded `::fsync()` on Switch (relying on `std::fflush` and fclose).
+   - Ensured destination files are removed before `std::rename()` to support FAT32 filesystem semantics.
+   - Updated `world.json` search paths on Switch to check writable root, app root, and romfs.

@@ -1611,28 +1611,38 @@ void Application::run() {
                 if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
                     int newWidth = event.window.data1;
                     int newHeight = event.window.data2;
-                    window->setSize(newWidth, newHeight);
-                    // Mark swapchain dirty so it gets recreated at the correct size
-                    if (window->getVkContext()) {
-                        window->getVkContext()->markSwapchainDirty();
-                    }
-                    // Vulkan viewport set in command buffer, not globally
-                    if (renderer && renderer->getCamera() && newHeight > 0) {
-                        renderer->getCamera()->setAspectRatio(static_cast<float>(newWidth) / newHeight);
-                    }
-                    // Notify addons so UI layouts can adapt to the new size
-                    if (addonManager_) {
-                        // The event handlers query GetScreenWidth/Height and
-                        // UIParent immediately (bag columns in particular).
-                        // Publish the new geometry before they reposition.
-                        if (newWidth > 0 && newHeight > 0) {
-                            if (auto* engine = addonManager_->getLuaEngine())
-                                engine->widgets().layout(static_cast<float>(newWidth),
-                                                         static_cast<float>(newHeight));
+#ifndef WOWEE_SWITCH
+                    if (newWidth != window->getWidth() || newHeight != window->getHeight()) {
+                        window->setSize(newWidth, newHeight);
+                        // Mark swapchain dirty so it gets recreated at the correct size
+                        if (window->getVkContext()) {
+                            window->getVkContext()->markSwapchainDirty();
                         }
-                        // The shared FrameXML layout stage publishes display
-                        // changes for both SDL and switch/CVar transitions.
+                        // Vulkan viewport set in command buffer, not globally
+                        if (renderer && renderer->getCamera() && newHeight > 0) {
+                            renderer->getCamera()->setAspectRatio(static_cast<float>(newWidth) / newHeight);
+                        }
+                        // Notify addons so UI layouts can adapt to the new size
+                        if (addonManager_) {
+                            // The event handlers query GetScreenWidth/Height and
+                            // UIParent immediately (bag columns in particular).
+                            // Publish the new geometry before they reposition.
+                            if (newWidth > 0 && newHeight > 0) {
+                                if (auto* engine = addonManager_->getLuaEngine())
+                                    engine->widgets().layout(static_cast<float>(newWidth),
+                                                             static_cast<float>(newHeight));
+                            }
+                            // The shared FrameXML layout stage publishes display
+                            // changes for both SDL and switch/CVar transitions.
+                        }
                     }
+#else
+                    // On Switch, window size is fixed (1280x720).
+                    // SDL sends an initial resize event during startup, but we must
+                    // never mark the swapchain dirty or trigger a VideoOut recreation.
+                    (void)newWidth;
+                    (void)newHeight;
+#endif
                 }
                 // Sound in Background. Off in the real client and off here:
                 // losing the window silences the client rather than playing

@@ -54,9 +54,11 @@ ma_result ctxInit(ma_context* pContext, const ma_context_config*, ma_backend_cal
     // it negotiated.
     if (R_FAILED(audoutInitialize())) {
         LOG_ERROR("audoutInitialize failed");
+        wowee::platform::switchport::reportBootStage("audio: audout context FAILED");
         return MA_FAILED_TO_INIT_BACKEND;
     }
     wowee::platform::switchport::miniaudioBackendCallbacks(*pCallbacks);
+    wowee::platform::switchport::reportBootStage("audio: audout context open");
     return MA_SUCCESS;
 }
 
@@ -102,6 +104,7 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
     if (rate != kSampleRate || channels != kChannels || format != PcmFormat_Int16) {
         LOG_ERROR("audout opened at ", rate, "Hz/", channels, "ch/format ", static_cast<int>(format),
                   "; expected ", kSampleRate, "Hz/", kChannels, "ch/Int16");
+        wowee::platform::switchport::reportBootStage("audio: device init FAILED (format mismatch)");
         return MA_FAILED_TO_OPEN_BACKEND_DEVICE;
     }
     g_port.opened = true;
@@ -115,6 +118,13 @@ ma_result devInit(ma_device* pDevice, const ma_device_config* pConfig, ma_device
     pDescriptorPlayback->periodSizeInMilliseconds = 0;
     pDescriptorPlayback->periodCount = 2;
     LOG_INFO("switch audio: audout open (48 kHz stereo s16, 1024-frame grains)");
+    // Boot-stage crumbs bracket the whole device lifecycle because the client
+    // log is pinned to WARNING and the engine can report audio=ok while the
+    // device thread never reaches a write - exactly the silent-audio shape
+    // seen on the console. "context open" + "device init" without "device
+    // start" (or without "first device write" after a start) names the stage
+    // that died without another run.
+    wowee::platform::switchport::reportBootStage("audio: device init ok");
     return MA_SUCCESS;
 }
 
@@ -129,8 +139,13 @@ ma_result devUninit(ma_device*) {
 }
 
 ma_result devStart(ma_device*) {
-    if (R_FAILED(audoutStartAudioOut())) return MA_ERROR;
+    if (R_FAILED(audoutStartAudioOut())) {
+        LOG_ERROR("audoutStartAudioOut failed");
+        wowee::platform::switchport::reportBootStage("audio: device start FAILED");
+        return MA_ERROR;
+    }
     g_port.started = true;
+    wowee::platform::switchport::reportBootStage("audio: device start ok");
     return MA_SUCCESS;
 }
 

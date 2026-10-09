@@ -58,7 +58,7 @@ game::Character localCharacter(const game::LocalRealmPlayer& player,
 
 std::string localContentPath() {
 #ifdef WOWEE_SWITCH
-    const std::string overrideContent = "/data/wow_ps/realm/world.json";
+    const std::string overrideContent = platform::switchport::writableRoot() + "/realm/world.json";
 #else
     const std::string overrideContent = getConfigRoot() + "/realm/world.json";
 #endif
@@ -107,7 +107,7 @@ bool localMapAssetsReady(pipeline::AssetManager& assets, const game::LocalRealmP
 
 std::string localSaveDirectory() {
 #ifdef WOWEE_SWITCH
-    return "/data/wow_ps/saves/local_realm";
+    return platform::switchport::writableRoot() + "/saves/local_realm";
 #else
     return getConfigRoot() + "/saves/local_realm";
 #endif

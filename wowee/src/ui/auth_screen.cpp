@@ -1068,6 +1068,18 @@ void AuthScreen::startGlueScene() {
     const auto expansion = currentExpansionId();
     if (expansion == "tbc") scene = "Interface\\Glues\\Models\\UI_MainMenu_BurningCrusade\\UI_MainMenu_BurningCrusade.m2";
     else if (expansion == "classic" || expansion == "turtle") scene = "Interface\\Glues\\Models\\UI_MainMenu\\UI_MainMenu.m2";
+#if defined(WOWEE_SWITCH)
+    // On Switch, UI_MainMenu_Northrend (Sindragosa + Citadel) requests >20 large BLPs
+    // and complex geometry exceeding the shared process memory budget (causing std::bad_alloc).
+    // The Classic Dark Portal (UI_MainMenu.m2) is much lighter (~10 MiB) and loads cleanly.
+    const char* envScene = std::getenv("WOWEE_LOGIN_SCENE");
+    if (envScene && *envScene) scene = envScene;
+    else scene = "Interface\\Glues\\Models\\UI_MainMenu\\UI_MainMenu.m2";
+#endif
+    if (!assets->fileExists(scene)) {
+        // Fallback to Classic if custom scene is absent
+        scene = "Interface\\Glues\\Models\\UI_MainMenu\\UI_MainMenu.m2";
+    }
     if (!assets->fileExists(scene)) {
         glueSceneError_ = "3D-Menueszene fehlt in den Clientdaten.";
         LOG_ERROR("Login glue: missing model ", scene);
@@ -1078,7 +1090,26 @@ void AuthScreen::startGlueScene() {
     const int width = std::max(1, static_cast<int>(screen.x * factor));
     const int height = std::max(1, static_cast<int>(screen.y * factor));
     auto preview = std::make_unique<rendering::CharacterPreview>();
-    if (!preview->initialize(assets, width, height) || !preview->loadGlueScene(scene)) {
+    bool sceneOk = false;
+    try {
+        if (preview->initialize(assets, width, height) && preview->loadGlueScene(scene)) {
+            sceneOk = true;
+        }
+    } catch (const std::exception& e) {
+        LOG_WARNING("Login glue: scene load failed (", e.what(), "), attempting Classic portal fallback");
+    }
+    if (!sceneOk && std::strcmp(scene, "Interface\\Glues\\Models\\UI_MainMenu\\UI_MainMenu.m2") != 0) {
+        scene = "Interface\\Glues\\Models\\UI_MainMenu\\UI_MainMenu.m2";
+        preview = std::make_unique<rendering::CharacterPreview>();
+        try {
+            if (preview->initialize(assets, width, height) && preview->loadGlueScene(scene)) {
+                sceneOk = true;
+            }
+        } catch (...) {
+            sceneOk = false;
+        }
+    }
+    if (!sceneOk) {
         glueSceneError_ = "Could not load the 3D menu scene. See the boot log for details.";
         LOG_ERROR("Login glue: initialization failed for ", scene);
         return;

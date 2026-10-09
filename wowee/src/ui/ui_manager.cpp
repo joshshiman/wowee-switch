@@ -177,9 +177,6 @@ bool UIManager::initialize(core::Window* win) {
     initInfo.CheckVkResultFn = [](VkResult err) {
         if (err != VK_SUCCESS)
             LOG_ERROR("ImGui Vulkan error: ", static_cast<int>(err));
-#ifdef WOWEE_SWITCH
-        if (err < 0) throw std::runtime_error("ImGui Vulkan resource creation failed: " + std::to_string(err));
-#endif
     };
 
     bool rendererBackendReady = false;
