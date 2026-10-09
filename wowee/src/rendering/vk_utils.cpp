@@ -391,6 +391,18 @@ AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
         imageResult = vmaCreateImage(allocator, &imgInfo, &allocInfo,
             &result.image, &result.allocation, &result.info);
     }
+    // Same transient-fullness retry as createBuffer: the heap that refuses a
+    // request serves it moments later, once the failed upload's own staging has
+    // been released. A 512x256 image was refused at 96 MiB live, and the probe
+    // that ran immediately after found 256x128 servable - so the room was there,
+    // just not yet. Images are what the character-creator scene needs most.
+#ifdef WOWEE_SWITCH
+    if (imageResult != VK_SUCCESS && g_reclaimStaging) {
+        g_reclaimStaging();
+        imageResult = vmaCreateImage(allocator, &imgInfo, &allocInfo,
+            &result.image, &result.allocation, &result.info);
+    }
+#endif
     if (imageResult != VK_SUCCESS) {
         LOG_ERROR("Failed to create VMA image (", width, "x", height, ") result=", static_cast<int>(imageResult));
         reportAllocationState("VMA image", static_cast<VkDeviceSize>(width) * height);
