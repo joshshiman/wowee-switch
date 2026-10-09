@@ -230,20 +230,14 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
 
     AllocatedBuffer staging{};
     if (!useHostCopy) {
-        staging = createBuffer(ctx.getAllocator(), imageSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-
-        void* mapped = nullptr;
-        if (!mapStaging(ctx, staging, &mapped)) {
-            LOG_ERROR("Texture upload: staging allocation/map failed");
-            destroyBuffer(ctx.getAllocator(), staging);
-            return false;
-        }
-        std::memcpy(mapped, pixels, imageSize);
-        const VkResult flushed = vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, imageSize);
-        vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
-        if (flushed != VK_SUCCESS) {
-            destroyBuffer(ctx.getAllocator(), staging);
+        // Chunked for the same reason as uploadMips below: the console refuses
+        // a host-visible allocation above about 0.85 MiB, and a full-size
+        // texture is over it.
+        try {
+            staging = uploadBytesChunked(ctx, pixels, imageSize,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1024 * 1024);
+        } catch (const std::exception& error) {
+            LOG_ERROR("Texture upload: staging failed: ", error.what());
             return false;
         }
     }
@@ -367,23 +361,26 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
         return false;
     }
     mipLevels_ = mipCount;
-    AllocatedBuffer staging = createBuffer(ctx.getAllocator(), totalSize,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-    void* mapped = nullptr;
-    if (!mapStaging(ctx, staging, &mapped)) {
-        LOG_ERROR("Texture mip upload: staging allocation/map failed");
-        destroyBuffer(ctx.getAllocator(), staging);
-        return false;
-    }
+    // The layout this function just computed is already one contiguous buffer
+    // with per-level offsets, so the mip chain can be flattened and uploaded as
+    // a single block. The console refuses a host-visible allocation above about
+    // 0.85 MiB, and a full mip chain for a menu texture crosses it, so the
+    // staging goes through the chunked uploader rather than being requested in
+    // one piece.
+    std::vector<uint8_t> packed(totalSize);
     for (uint32_t i = 0; i < mipCount; i++)
-        std::memcpy(static_cast<uint8_t*>(mapped) + levels[i].offset,
-                    mipData[i], levels[i].bytes);
-    const VkResult flushed = vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, totalSize);
-    vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
-    if (flushed != VK_SUCCESS) {
-        destroyBuffer(ctx.getAllocator(), staging);
+        std::memcpy(packed.data() + levels[i].offset, mipData[i], levels[i].bytes);
+
+    AllocatedBuffer staging;
+    try {
+        staging = uploadBytesChunked(ctx, packed.data(), totalSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1024 * 1024);
+    } catch (const std::exception& error) {
+        LOG_ERROR("Texture mip upload: staging failed: ", error.what());
         return false;
     }
+    packed.assign(packed.size(), 0);  // do not hold decoded pixels longer than needed
+    packed.shrink_to_fit();
 
     // Release anything this object already held: a second upload over the
     // same texture used to abandon the first, which is how three quest

@@ -133,12 +133,144 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
     return result;
 }
 
+// Maps a staging allocation so it can be written. Kept here rather than
+// shared because vk_texture.cpp has its own copy in an anonymous namespace and
+// the two are not the same function even though they do the same thing.
+bool mapStaging(VkContext& ctx, const AllocatedBuffer& staging, void** mapped) {
+    *mapped = nullptr;
+    if (!staging.buffer || !staging.allocation) return false;
+    if (vmaMapMemory(ctx.getAllocator(), staging.allocation, mapped) != VK_SUCCESS)
+        return false;
+    if (!*mapped) {
+        vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
+        return false;
+    }
+    return true;
+}
+
 void destroyBuffer(VmaAllocator allocator, AllocatedBuffer& buffer) {
     if (buffer.buffer) {
         gBufferCount.fetch_sub(1, std::memory_order_relaxed);
         gBufferBytes.fetch_sub(buffer.info.size, std::memory_order_relaxed);
     }
     destroy(allocator, buffer.buffer, buffer.allocation);
+}
+
+// One chunked upload, shared by every caller that stages bytes through a
+// host-visible buffer.
+//
+// The console refuses a single host-visible allocation above roughly 0.85 MiB
+// (measured: between 867,155 and 869,757 bytes in one run and between
+// 1,166,462 and 1,169,065 in another, so the ceiling moves with what is
+// already committed rather than being fixed). Anything larger used to fail
+// outright, and the texture path made exactly such a request, which is why the
+// character-select scene kept dying on the very same 1,398,100-byte buffer
+// that uploadBuffer had just been taught to split.
+//
+// Fills every slice before recording any copy, because a batched
+// immediateSubmit only records into a shared command buffer and submits later
+// - a shared staging would be overwritten by the next slice's write before the
+// GPU had read the previous one. Each slice therefore owns its staging.
+//
+// Returns the GPU-side buffer, or an empty one on failure.
+AllocatedBuffer uploadBytesChunked(VkContext& ctx, const void* data, VkDeviceSize size,
+    VkBufferUsageFlags usage, VkDeviceSize chunkBytes)
+{
+    if (!data || !size) return {};
+    if (size > std::numeric_limits<VkDeviceSize>::max() - 3)
+        throw std::length_error("GPU upload size overflow");
+    const VkDeviceSize transferSize = (size + 3) & ~VkDeviceSize(3);  // dword-aligned
+    if (transferSize <= chunkBytes) {
+        // One slice - the common case, and the desktop path in full.
+        AllocatedBuffer staging = createBuffer(ctx.getAllocator(), transferSize,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+        if (!staging.buffer) throw std::bad_alloc();
+        AllocatedBuffer gpuBuffer{};
+        try {
+            void* mapped = nullptr;
+            if (!mapStaging(ctx, staging, &mapped)) throw std::bad_alloc();
+            std::memcpy(mapped, data, size);
+            if (transferSize != size)
+                std::memset(static_cast<unsigned char*>(mapped) + size, 0, transferSize - size);
+            const VkResult flushed = vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, transferSize);
+            vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
+            if (flushed != VK_SUCCESS) throw std::runtime_error("GPU staging flush failed");
+
+            gpuBuffer = createBuffer(ctx.getAllocator(), transferSize,
+                usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+            if (!gpuBuffer.buffer) throw std::bad_alloc();
+
+            const VkBuffer source = staging.buffer;
+            if (ctx.isInUploadBatch()) ctx.deferStagingCleanup(staging), staging = {};
+            const VkBuffer dst = gpuBuffer.buffer;
+            const VkDeviceSize bytes = transferSize;
+            if (!ctx.immediateSubmit([&](VkCommandBuffer cmd) {
+                VkBufferCopy region{};
+                region.srcOffset = 0; region.dstOffset = 0; region.size = bytes;
+                vkCmdCopyBuffer(cmd, source, dst, 1, &region);
+            })) throw std::runtime_error("GPU buffer transfer failed");
+            if (!ctx.isInUploadBatch()) destroyBuffer(ctx.getAllocator(), staging);
+        } catch (...) {
+            destroyBuffer(ctx.getAllocator(), staging);
+            destroyBuffer(ctx.getAllocator(), gpuBuffer);
+            throw;
+        }
+        return gpuBuffer;
+    }
+
+    // Sliced. Fill all of them first, then record all the copies.
+    struct Slice { AllocatedBuffer buf; VkDeviceSize offset; VkDeviceSize bytes; };
+    std::vector<Slice> slices;
+    AllocatedBuffer gpuBuffer{};
+    try {
+        gpuBuffer = createBuffer(ctx.getAllocator(), transferSize,
+            usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+        if (!gpuBuffer.buffer) throw std::bad_alloc();
+        for (VkDeviceSize offset = 0; offset < transferSize; ) {
+            const VkDeviceSize remaining = transferSize - offset;
+            VkDeviceSize want = std::min(chunkBytes, remaining);
+            want = (want + 3) & ~VkDeviceSize(3);
+            const VkDeviceSize have = std::min(want, remaining);
+            AllocatedBuffer slice = createBuffer(ctx.getAllocator(), want,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+            if (!slice.buffer) throw std::bad_alloc();
+            void* mapped = nullptr;
+            if (!mapStaging(ctx, slice, &mapped)) {
+                destroyBuffer(ctx.getAllocator(), slice);
+                throw std::bad_alloc();
+            }
+            const VkDeviceSize real = (static_cast<VkDeviceSize>(size) > offset)
+                ? std::min(have, static_cast<VkDeviceSize>(size) - offset) : 0;
+            if (real) std::memcpy(mapped, static_cast<const unsigned char*>(data) + offset, real);
+            if (want > real) std::memset(static_cast<unsigned char*>(mapped) + real, 0, want - real);
+            const VkResult flushed = vmaFlushAllocation(ctx.getAllocator(), slice.allocation, 0, want);
+            vmaUnmapMemory(ctx.getAllocator(), slice.allocation);
+            if (flushed != VK_SUCCESS) {
+                destroyBuffer(ctx.getAllocator(), slice);
+                throw std::runtime_error("GPU staging flush failed");
+            }
+            slices.push_back({slice, offset, have});
+            offset += have;
+        }
+        for (auto& s : slices) {
+            if (ctx.isInUploadBatch()) ctx.deferStagingCleanup(s.buf), s.buf = {};
+            const VkBuffer src = s.buf.buffer;
+            const VkDeviceSize dstOffset = s.offset;
+            const VkDeviceSize bytes = s.bytes;
+            if (!ctx.immediateSubmit([&](VkCommandBuffer cmd) {
+                VkBufferCopy region{};
+                region.srcOffset = 0; region.dstOffset = dstOffset; region.size = bytes;
+                vkCmdCopyBuffer(cmd, src, gpuBuffer.buffer, 1, &region);
+            })) throw std::runtime_error("GPU buffer transfer failed");
+        }
+        if (!ctx.isInUploadBatch())
+            for (auto& s : slices) destroyBuffer(ctx.getAllocator(), s.buf);
+    } catch (...) {
+        for (auto& s : slices) destroyBuffer(ctx.getAllocator(), s.buf);
+        destroyBuffer(ctx.getAllocator(), gpuBuffer);
+        throw;
+    }
+    return gpuBuffer;
 }
 
 AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
@@ -463,142 +595,15 @@ AllocatedBuffer uploadBuffer(VkContext& ctx, const void* data, VkDeviceSize size
     VkBufferUsageFlags usage)
 {
     if (!data || !size) return {};
-    VkDeviceSize transferSize = size;
 #ifdef WOWEE_SWITCH
-    // OpenGNM CopyMemory rejects the ENTIRE copy when size is not dword
-    // aligned. An odd number of uint16 indices left a valid-looking buffer
-    // full of uninitialized data (WMO roofs and several character skins).
-    // Pad the allocation and staging bytes, never the model's draw count.
-    if (size > std::numeric_limits<VkDeviceSize>::max() - 3)
-        throw std::length_error("GPU upload size overflow");
-    transferSize = (size + 3) & ~VkDeviceSize(3);
-#endif
-    // Create staging buffer
-    //
-    // On hardware the driver refuses a single host-visible allocation above
-    // 1,166,462 bytes: a bisection over real requests put the cap between
-    // 1,166,462 and 1,169,065, with 1,169,065 failing and 1,166,462
-    // succeeding, while the heap reported 2.25 GiB free and only ~100 of the
-    // 4096 allowed allocations were live. A 1,398,100 B transfer is over that
-    // line and used to fail outright, so the staging is capped and the upload
-    // walks the destination in slices. The GPU-side buffer is a plain
-    // allocation with no such limit, so it is still made at full size.
-//
-    // One staging per slice, not one reused. A batch records its copies now and
-    // submits them later, so a shared staging would be overwritten by the next
-    // slice's memcpy before the GPU had read it; distinct buffers keep every
-    // recorded copy pointing at the data it was recorded against.
-#ifdef WOWEE_SWITCH
-    constexpr VkDeviceSize kConsoleStagingChunkBytes = 1024 * 1024;  // under the measured cap
-    const bool needsSlicing = transferSize > kConsoleStagingChunkBytes;
+    // The console refuses a single host-visible allocation above roughly
+    // 0.85 MiB, so anything larger is staged in slices. Desktop keeps one
+    // slice, which is the whole allocation.
+    constexpr VkDeviceSize kConsoleStagingChunkBytes = 1024 * 1024;
+    return uploadBytesChunked(ctx, data, size, usage, kConsoleStagingChunkBytes);
 #else
-    constexpr VkDeviceSize kConsoleStagingChunkBytes = 0;
-    const bool needsSlicing = false;
+    return uploadBytesChunked(ctx, data, size, usage, 0);
 #endif
-    AllocatedBuffer staging = createBuffer(ctx.getAllocator(),
-        needsSlicing ? kConsoleStagingChunkBytes : transferSize,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-    if (!staging.buffer || !staging.allocation) throw std::bad_alloc();
-    AllocatedBuffer gpuBuffer{};
-    try {
-        gpuBuffer = createBuffer(ctx.getAllocator(), transferSize,
-            usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-        if (!gpuBuffer.buffer || !gpuBuffer.allocation) throw std::bad_alloc();
-
-        const VkBuffer source = staging.buffer;
-        const bool batched = ctx.isInUploadBatch();
-
-        if (!needsSlicing) {
-            // The whole upload in one slice - the common case, and the only
-            // one the desktop path ever took.
-            void* mapped = nullptr;
-            if (vmaMapMemory(ctx.getAllocator(), staging.allocation, &mapped) != VK_SUCCESS || !mapped)
-                throw std::bad_alloc();
-            std::memcpy(mapped, data, size);
-            if (transferSize != size)
-                std::memset(static_cast<unsigned char*>(mapped) + size, 0, transferSize - size);
-            const VkResult flushed = vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, transferSize);
-            vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
-            if (flushed != VK_SUCCESS) throw std::runtime_error("GPU staging flush failed");
-
-            // Hand the batch ownership AFTER the fill: the deferred list exists
-            // for a staging a queued command still references.
-            if (batched) ctx.deferStagingCleanup(staging), staging = {};
-            const VkBuffer src = source;
-            const VkDeviceSize dst = 0;
-            const VkDeviceSize bytes = transferSize;
-            if (!ctx.immediateSubmit([&](VkCommandBuffer cmd) {
-                VkBufferCopy copyRegion{};
-                copyRegion.srcOffset = 0;
-                copyRegion.dstOffset = dst;
-                copyRegion.size = bytes;
-                vkCmdCopyBuffer(cmd, src, gpuBuffer.buffer, 1, &copyRegion);
-            })) throw std::runtime_error("GPU buffer transfer failed");
-        } else {
-            // Fill every slice first, then record the copies. Doing it in that
-            // order means the data is already in each staging before anything
-            // is queued, which is what makes a batch safe.
-            struct Slice { AllocatedBuffer buf; VkDeviceSize offset; VkDeviceSize bytes; };
-            std::vector<Slice> slices;
-            for (VkDeviceSize offset = 0; offset < transferSize; ) {
-                const VkDeviceSize remaining = transferSize - offset;
-                // Pad the final slice out to the dword alignment the console
-                // requires, without touching the model's real byte count.
-                VkDeviceSize want = std::min(kConsoleStagingChunkBytes, remaining);
-                want = (want + 3) & ~VkDeviceSize(3);
-                const VkDeviceSize have = std::min(want, remaining);
-                AllocatedBuffer slice = createBuffer(ctx.getAllocator(), want,
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-                if (!slice.buffer || !slice.allocation) {
-                    for (auto& s : slices) destroyBuffer(ctx.getAllocator(), s.buf);
-                    throw std::bad_alloc();
-                }
-                void* mapped = nullptr;
-                if (vmaMapMemory(ctx.getAllocator(), slice.allocation, &mapped) != VK_SUCCESS || !mapped) {
-                    destroyBuffer(ctx.getAllocator(), slice);
-                    for (auto& s : slices) destroyBuffer(ctx.getAllocator(), s.buf);
-                    throw std::bad_alloc();
-                }
-                const VkDeviceSize real = (static_cast<VkDeviceSize>(size) > offset)
-                                              ? std::min(have, static_cast<VkDeviceSize>(size) - offset) : 0;
-                if (real) std::memcpy(mapped, static_cast<const unsigned char*>(data) + offset, real);
-                if (want > real) std::memset(static_cast<unsigned char*>(mapped) + real, 0, want - real);
-                const VkResult flushed = vmaFlushAllocation(ctx.getAllocator(), slice.allocation, 0, want);
-                vmaUnmapMemory(ctx.getAllocator(), slice.allocation);
-                if (flushed != VK_SUCCESS) {
-                    destroyBuffer(ctx.getAllocator(), slice);
-                    for (auto& s : slices) destroyBuffer(ctx.getAllocator(), s.buf);
-                    throw std::runtime_error("GPU staging flush failed");
-                }
-                slices.push_back({slice, offset, have});
-                offset += have;
-            }
-            // Release the single-size staging: the slices replaced it.
-            destroyBuffer(ctx.getAllocator(), staging);
-            staging = {};
-
-            for (auto& s : slices) {
-                if (batched) ctx.deferStagingCleanup(s.buf), s.buf = {};
-                const VkBuffer src = s.buf.buffer;
-                const VkDeviceSize dst = s.offset;
-                const VkDeviceSize bytes = s.bytes;
-                if (!ctx.immediateSubmit([&](VkCommandBuffer cmd) {
-                    VkBufferCopy copyRegion{};
-                    copyRegion.srcOffset = 0;
-                    copyRegion.dstOffset = dst;
-                    copyRegion.size = bytes;
-                    vkCmdCopyBuffer(cmd, src, gpuBuffer.buffer, 1, &copyRegion);
-                })) throw std::runtime_error("GPU buffer transfer failed");
-            }
-            if (!batched) for (auto& s : slices) destroyBuffer(ctx.getAllocator(), s.buf);
-        }
-    } catch (...) {
-        destroyBuffer(ctx.getAllocator(), staging);
-        destroyBuffer(ctx.getAllocator(), gpuBuffer);
-        throw;
-    }
-    destroyBuffer(ctx.getAllocator(), staging);
-    return gpuBuffer;
 }
 
 } // namespace rendering

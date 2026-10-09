@@ -165,6 +165,14 @@ void transitionImageLayout(VkCommandBuffer cmd, VkImage image,
 AllocatedBuffer uploadBuffer(VkContext& ctx, const void* data, VkDeviceSize size,
     VkBufferUsageFlags usage);
 
+// The same upload, with the caller choosing the staging chunk. The console
+// refuses a single host-visible allocation above roughly 0.85 MiB - a ceiling
+// that moves with what is already committed - so anything larger has to be
+// staged in slices. The texture path needs this because it stages its own
+// bytes rather than going through uploadBuffer.
+AllocatedBuffer uploadBytesChunked(VkContext& ctx, const void* data, VkDeviceSize size,
+    VkBufferUsageFlags usage, VkDeviceSize chunkBytes);
+
 // Environment variable utility functions
 inline size_t envSizeMBOrDefault(const char* name, size_t defMb) {
     const char* v = std::getenv(name);
