@@ -646,7 +646,7 @@ AllocatedBuffer uploadBuffer(VkContext& ctx, const void* data, VkDeviceSize size
     // The console refuses a single host-visible allocation above roughly
     // 0.85 MiB, so anything larger is staged in slices. Desktop keeps one
     // slice, which is the whole allocation.
-    constexpr VkDeviceSize kConsoleStagingChunkBytes = 1024 * 1024;
+    constexpr VkDeviceSize kConsoleStagingChunkBytes = 256 * 1024;
     return uploadBytesChunked(ctx, data, size, usage, kConsoleStagingChunkBytes);
 #else
     return uploadBytesChunked(ctx, data, size, usage, 0);

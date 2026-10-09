@@ -151,4 +151,11 @@ int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t buflen,
 u32 __nx_applet_type = AppletType_Application;
 // Tuned for the client: terrain/M2/WMO uploads plus the asset cache want
 // room; lower it if the title cannot be co-resident with the OS.
-size_t __nx_heap_size = 1536u * 1024u * 1024u;
+//
+// 1536 MiB was the original ask, and it is too much. The Vulkan heap reports
+// 2.25 GiB and the two draw on the same physical pool, so a 1.5 GiB malloc arena
+// leaves the driver short: a 128 KiB image failed with OUT_OF_DEVICE_MEMORY while
+// only ~93 MB was live, and the largest allocation the heap would hand back
+// shrank across runs (1.17 MiB, then 0.87 MiB, then 0.51 MiB) as the heap
+// fragmented. Halving the arena gives the driver room to work in.
+size_t __nx_heap_size = 768u * 1024u * 1024u;

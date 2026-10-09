@@ -667,7 +667,12 @@ void applyRightStick(float dt, bool& rightButton) {
         if (xrel != 0 || yrel != 0) pushMouseMotion(xrel, yrel);
     } else {
         int xrel = 0, yrel = 0;
-        moveCursor(dx, dy, xrel, yrel);
+        // Y is flipped for the cursor, and the look path above flips it again,
+        // so the two agree. The cursor reads "stick up -> cursor up", which is
+        // the opposite sign from the raw stick: on hardware the right stick moved
+        // the cursor the wrong way on Y until this was negated. X is left alone -
+        // it was correct from the start.
+        moveCursor(dx, -dy, xrel, yrel);
         s_lookRemX = s_lookRemY = 0.0f;
         if (xrel != 0 || yrel != 0) pushMouseMotion(xrel, yrel);
     }

@@ -235,7 +235,7 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
         // texture is over it.
         try {
             staging = uploadBytesChunked(ctx, pixels, imageSize,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1024 * 1024);
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
         } catch (const std::exception& error) {
             LOG_ERROR("Texture upload: staging failed: ", error.what());
             return false;
@@ -374,7 +374,7 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
     AllocatedBuffer staging;
     try {
         staging = uploadBytesChunked(ctx, packed.data(), totalSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1024 * 1024);
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
     } catch (const std::exception& error) {
         LOG_ERROR("Texture mip upload: staging failed: ", error.what());
         return false;
