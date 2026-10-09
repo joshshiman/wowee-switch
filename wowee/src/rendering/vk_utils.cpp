@@ -15,6 +15,25 @@
 namespace wowee {
 namespace rendering {
 
+namespace {
+// Live allocation accounting, so a failed allocation can be reported with what
+// is actually held rather than as a bare size. The console has one memory type
+// in one 2.25 GiB heap and a 1.5 GiB malloc arena in the same address space,
+// so "why did 1.3 MiB fail" is not answerable from the request alone.
+std::atomic_uint_least64_t gBufferBytes{0};
+std::atomic_uint_least64_t gImageBytes{0};
+std::atomic_uint_least64_t gBufferCount{0};
+std::atomic_uint_least64_t gImageCount{0};
+
+void reportAllocationState(const char* what, VkDeviceSize size) {
+    LOG_ERROR(what, " failed: size=", size,
+              " liveBuffers=", gBufferCount.load(std::memory_order_relaxed),
+              " liveBufferBytes=", gBufferBytes.load(std::memory_order_relaxed),
+              " liveImages=", gImageCount.load(std::memory_order_relaxed),
+              " liveImageBytes=", gImageBytes.load(std::memory_order_relaxed));
+}
+}  // namespace
+
 AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
     VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
 {
@@ -32,15 +51,28 @@ AllocatedBuffer createBuffer(VmaAllocator allocator, VkDeviceSize size,
         allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
     }
 
-    if (vmaCreateBuffer(allocator, &bufInfo, &allocInfo,
-            &result.buffer, &result.allocation, &result.info) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create VMA buffer (size=", size, ")");
+    const VkResult rc = vmaCreateBuffer(allocator, &bufInfo, &allocInfo,
+            &result.buffer, &result.allocation, &result.info);
+    if (rc != VK_SUCCESS) {
+        // The result code was previously discarded, which left the one thing
+        // that distinguishes out-of-memory from out-of-address-space from
+        // feature-absence unreadable on the only machine that fails.
+        LOG_ERROR("Failed to create VMA buffer (size=", size, ") result=",
+                  static_cast<int>(rc));
+        reportAllocationState("VMA buffer", size);
+        result = {};
+        return result;
     }
-
+    gBufferCount.fetch_add(1, std::memory_order_relaxed);
+    gBufferBytes.fetch_add(result.info.size, std::memory_order_relaxed);
     return result;
 }
 
 void destroyBuffer(VmaAllocator allocator, AllocatedBuffer& buffer) {
+    if (buffer.buffer) {
+        gBufferCount.fetch_sub(1, std::memory_order_relaxed);
+        gBufferBytes.fetch_sub(buffer.info.size, std::memory_order_relaxed);
+    }
     destroy(allocator, buffer.buffer, buffer.allocation);
 }
 
@@ -82,6 +114,7 @@ AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
             return vmaCreateImage(allocator, &imgInfo, &allocInfo,
                 &result.image, &result.allocation, &actual);
         });
+        result.info = actual;
         imageResult = allocated.result;
         if (allocated.fallback) {
             LOG_WARNING("[SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback",
@@ -99,12 +132,15 @@ AllocatedImage createImage(VkDevice device, VmaAllocator allocator,
 #endif
     {
         imageResult = vmaCreateImage(allocator, &imgInfo, &allocInfo,
-            &result.image, &result.allocation, nullptr);
+            &result.image, &result.allocation, &result.info);
     }
     if (imageResult != VK_SUCCESS) {
         LOG_ERROR("Failed to create VMA image (", width, "x", height, ") result=", static_cast<int>(imageResult));
+        reportAllocationState("VMA image", static_cast<VkDeviceSize>(width) * height);
         return result;
     }
+    gImageCount.fetch_add(1, std::memory_order_relaxed);
+    gImageBytes.fetch_add(result.info.size, std::memory_order_relaxed);
 
     // Name it by shape, so an allocation that survives shutdown can be traced
     // back from the leak dump to whatever asked for an image this size.
@@ -152,6 +188,8 @@ void destroyImage(VkDevice device, VmaAllocator allocator, AllocatedImage& image
         image.imageView = VK_NULL_HANDLE;
     }
     if (image.image) {
+        gImageCount.fetch_sub(1, std::memory_order_relaxed);
+        gImageBytes.fetch_sub(image.info.size, std::memory_order_relaxed);
         vmaDestroyImage(allocator, image.image, image.allocation);
         image.image = VK_NULL_HANDLE;
         image.allocation = VK_NULL_HANDLE;

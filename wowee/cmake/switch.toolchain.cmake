@@ -41,8 +41,19 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 # Tegra X1 CPU: A57 quad, Cortex-A53 quad. Tuning flags for the renderer's
 # CPU culling/animation sampling/asset bookkeeping.
+#
+# -ftls-model=local-exec is not optional. With -mtp=soft plus -fPIE/-fPIC,
+# devkitA64 g++ 16.1.0 miscompiles every `thread_local` access into
+# `ldr w0, [x0, x0]` - base and index both the thread pointer, so the load
+# reads 2 * TP and data-aborts with no relocation the linker could fix up.
+# The client touches TLS the first time StormLib answers a failed syscall
+# (SErrGetLastError, SMemUtf8.cpp), which is inside SFileOpenArchive, so the
+# title aborts instantly on hardware while building and logging fine on the
+# host. Local-exec emits the correct add-tp/ldr pair and is the right model
+# for a statically-linked NRO anyway. There is no dynamic TLS on the Switch
+# to resolve against, so no other model is usable.
 set(WOWEE_SWITCH_COMMON_FLAGS
-    "-fPIC -ffunction-sections -fdata-sections -fexceptions -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE -D_GNU_SOURCE -D__SWITCH__ -DWOWEE_SWITCH=1")
+    "-fPIC -ffunction-sections -fdata-sections -fexceptions -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -ftls-model=local-exec -fPIE -D_GNU_SOURCE -D__SWITCH__ -DWOWEE_SWITCH=1")
 set(CMAKE_C_FLAGS_INIT   "${WOWEE_SWITCH_COMMON_FLAGS} -isystem ${DEVKITPRO}/libnx/include")
 set(CMAKE_CXX_FLAGS_INIT "${WOWEE_SWITCH_COMMON_FLAGS} -isystem ${DEVKITPRO}/libnx/include")
 

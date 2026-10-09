@@ -27,6 +27,7 @@ struct AllocatedImage {
     VkImageView imageView = VK_NULL_HANDLE;
     VkExtent2D extent{};
     VkFormat format = VK_FORMAT_UNDEFINED;
+    VmaAllocationInfo info{};  ///< size/deviceMemory, so a free can be accounted
 };
 
 // Destroying a handle and forgetting it, which the renderers do about two

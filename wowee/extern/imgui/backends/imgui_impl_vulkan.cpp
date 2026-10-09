@@ -827,6 +827,22 @@ void ImGui_ImplVulkan_UpdateTexture(ImTextureData* tex)
             alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             alloc_info.allocationSize = IM_MAX(v->MinAllocationSize, req.size);
             alloc_info.memoryTypeIndex = ImGui_ImplVulkan_MemoryType(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, req.memoryTypeBits);
+#ifdef WOWEE_SWITCH
+            // nxvk reports exactly one memory type on this console and it is
+            // host-visible, not device-local, so the preferred index above
+            // comes back 0xFFFFFFFF. ImGui checks for that on its buffer path
+            // but not here, and nxvk_AllocateMemory uses the index as an array
+            // offset with no bounds check - so the dynamic font atlas aborted
+            // the process on a data abort inside the driver, fault address at
+            // base + (-1 << 3) + 6296. Substitute host-visible, which the
+            // driver does have, so the upload succeeds uncached. This is the
+            // same substitution rendering/vk_utils.cpp makes for attachment
+            // images via switch_attachment_memory.hpp.
+            if (alloc_info.memoryTypeIndex == 0xFFFFFFFF) {
+                alloc_info.memoryTypeIndex = ImGui_ImplVulkan_MemoryType(
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, req.memoryTypeBits);
+            }
+#endif
             err = vkAllocateMemory(v->Device, &alloc_info, v->Allocator, &backend_tex->Memory);
             check_vk_result(err);
             err = vkBindImageMemory(v->Device, backend_tex->Image, backend_tex->Memory, 0);

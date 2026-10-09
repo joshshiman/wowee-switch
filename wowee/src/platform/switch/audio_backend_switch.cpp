@@ -156,11 +156,6 @@ ma_result devWrite(ma_device* pDevice, const void* pFrames, ma_uint32 frameCount
     while (done < frameCount) {
         ma_uint32 n = frameCount - done;
         if (n > kGrainFrames) n = kGrainFrames;
-        if (!waitForGrainRelease()) {
-            LOG_ERROR("audout did not release the previous grain");
-            if (pFramesWritten) *pFramesWritten = done;
-            return MA_ERROR;
-        }
         std::memcpy(g_port.grain, src + (size_t)done * kChannels * sizeof(int16_t), (size_t)n * kChannels * sizeof(int16_t));
         if (n < kGrainFrames) {
             std::memset(g_port.grain + (size_t)n * kChannels * sizeof(int16_t), 0, (size_t)(kGrainFrames - n) * kChannels * sizeof(int16_t));
@@ -170,12 +165,23 @@ ma_result devWrite(ma_device* pDevice, const void* pFrames, ma_uint32 frameCount
         buf.buffer_size = (u64)kGrainBytes;
         buf.data_size = (u64)kGrainBytes;
         AudioOutBuffer* released = nullptr;
+        // No pre-wait here. libnx's audoutPlayBuffer is documented as
+        // "Submits an audio sample data buffer for playing and waits for it to
+        // finish playing", and it calls audoutAppendAudioOutBuffer then
+        // audoutWaitPlayFinish internally, so it already blocks until the
+        // hardware has consumed this buffer and already harvests the release
+        // on the way out. Gating on our own in-flight flag double-waited: the
+        // wait found the buffer already harvested, so it sat out its full
+        // second and returned false, which made devWrite fail and miniaudio
+        // close the device after a single grain of sound. The flag is kept for
+        // devStop's drain only, and is cleared here because the buffer this
+        // call submitted is finished by the time it returns.
         if (R_FAILED(audoutPlayBuffer(&buf, &released))) {
             LOG_ERROR("audoutPlayBuffer failed");
             if (pFramesWritten) *pFramesWritten = done;
             return MA_ERROR;
         }
-        g_port.inFlight = true;
+        g_port.inFlight = false;
         done += n;
     }
     if (pFramesWritten) *pFramesWritten = done;
