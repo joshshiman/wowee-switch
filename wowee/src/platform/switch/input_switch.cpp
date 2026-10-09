@@ -648,10 +648,20 @@ void applyRightStick(float dt, bool& rightButton) {
         // Relative motion is what turns the camera; the cursor position is
         // moved too, clamped, so the click-versus-drag test in GameScreen
         // sees a drag and does not interact where the look began.
+        //
+        // Y is flipped relative to the cursor path below. The cursor reads
+        // "stick down -> cursor down", but the camera reads the same axis as
+        // "stick up -> look up", which is the opposite sign: on hardware the
+        // right stick turned the view the wrong way on both axes until this
+        // was negated. The cursor path deliberately keeps its sign, so a
+        // change here must not be made to the shared dy above.
         const int xrel = static_cast<int>(dx);
-        const int yrel = static_cast<int>(dy);
+        const int yrel = static_cast<int>(-dy);
         s_lookRemX = dx - static_cast<float>(xrel);
-        s_lookRemY = dy - static_cast<float>(yrel);
+        // Remainders must be tracked on the axis actually sent, not on dy, or
+        // the sub-pixel part stalls against a value that is never consumed:
+        // dy would accumulate unbounded while the camera stood still.
+        s_lookRemY = -dy - static_cast<float>(yrel);
         s_cursorX = clampf(s_cursorX + static_cast<float>(xrel), 0.0f, static_cast<float>(std::max(s_displayW - 1, 0)));
         s_cursorY = clampf(s_cursorY + static_cast<float>(yrel), 0.0f, static_cast<float>(std::max(s_displayH - 1, 0)));
         if (xrel != 0 || yrel != 0) pushMouseMotion(xrel, yrel);
