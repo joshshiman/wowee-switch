@@ -665,3 +665,31 @@ rejected entry. M2 already degraded this way; only WMO threw.
 ### Deployed 2026-10-09 ~21:40 (md5 `710cae61...`): memory-query fix + WMO pool/skip.
 ### Open: right-edge black flash (needs screen + docked/handheld + frequency);
 ### exact WMO set count Elwynn needs (log will show whether the warn-once fires).
+
+## 2026-10-09 Run 47: FIRST WORLD ENTRY on hardware (build 710cae61, title override)
+
+### Milestone
+Entered the world on the console: terrain streaming ([32,48], [30,48], [29,48]
+...), NPC humanoid displays spawning, HUD, ground clutter, no crash, no world
+rejection. Verified in logs 2026-10-09_2143 (wowps.log 1.1 MB in-world).
+
+### Fix verification from the run
+- Memory query: `flexibleBytes=149827584` (~143 MiB) at renderer init vs 4 MiB
+  before — gates open. `Interface fonts loaded: 5 of 5` (font back).
+- WMO pool: no `pool exhausted` warning, no descriptor failure on Elwynn entry.
+- Only 2-3 swapchain rebuilds; no OUT_OF_DATE storm. Audio breadcrumbs all
+  present through `engine initialized (device started)`.
+
+### Known issues from the run (open)
+- Intro cinematic (authored camera flight) never left buffering; user skipped
+  with Circle. By design it waits for flight-corridor tiles to be scene-ready
+  (`application_character_intro.cpp` prewarm); on hardware streaming that can
+  take very long. Unknown whether it resolves with patience or stalls forever
+  — needs a timed repro. No INTRO lines in Release logs (INFO-suppressed).
+- `[FRAMEXML_REQUIRED] original UI unavailable: preflight declined` (x2) —
+  client runs on fallback UI; preflight reason not in WARNING logs.
+- Right-edge intermittent black flash (user report, 1 occurrence class) —
+  still needs screen + docked/handheld + frequency.
+- Screenshots taken via Switch capture are inside the emuMMC raw partition
+  (`/emuMMC/RAW1`), invisible to ftpd (`/Nintendo/Album` on SD is the sysMMC
+  side and empty). Phone photo is the practical transfer path.

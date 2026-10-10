@@ -12,12 +12,12 @@ end to end. The porting approach is in [PORTING.md](PORTING.md).
 
 ## Status: read this before you try it
 
-**It runs on hardware.** Boots through the Vulkan renderer and all 18 client
-MPQs, renders the login screen with working audio, and reaches the character
-creator. The remaining blocker is memory allocation on the console: the driver
-refuses allocations the heap reports it can serve, so large texture and vertex
-uploads still fail. See [AGENTS.md](AGENTS.md) for the live status and the
-hardware debugging loop.
+**It runs on hardware, in-world.** Boots through the Vulkan renderer and all 18 client
+MPQs, renders the login screen with working audio, character creation, and —
+as of 2026-10-09, launched via Title Override (hold R on any game, for the full
+~3.2 GB RAM) — enters the world: terrain streaming, NPCs, HUD, ground clutter.
+The remaining work is console memory tuning and polish, not boot blockers. See
+[AGENTS.md](AGENTS.md) for the live status and the hardware debugging loop.
 
 A static audit of the code found six defects that stopped the first run. They are
 listed in full, with file and line references, in
