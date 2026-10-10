@@ -106,20 +106,20 @@
 		</Frames>
 		<Layers>
 			<Layer level="BACKGROUND">
-				<Texture name="$parentBG" parentKey="BG" alphaMode="ADD" file="Interface\QuestFrame\UI-QuestLogTitleHighlight">
+				<Texture name="$parentBG" parentKey="BG" hidden="true" alphaMode="ADD" file="Interface\QuestFrame\UI-QuestLogTitleHighlight">
 					<Anchors>
 						<Anchor point="TOPLEFT" x="16" y="-16"/>
 						<Anchor point="BOTTOMRIGHT" x="-16" y="16"/>
 					</Anchors>
 				</Texture>
-				<Texture name="$parentCoverArt" parentKey="CoverArt">
+				<Texture name="$parentCoverArt" parentKey="CoverArt" hidden="true">
 					<Anchors>
 						<Anchor point="CENTER" x="0" y="50"/>
 					</Anchors>
 				</Texture>
 			</Layer>
 			<Layer level="BORDER">
-				<Texture name="$parentBottomLine" parentKey="BottomLine" file="Interface\AddOns\ConsolePort\Textures\Lines">
+				<Texture name="$parentBottomLine" parentKey="BottomLine" hidden="true" file="Interface\AddOns\ConsolePort\Textures\Lines">
 					<TexCoords left="0.00195313" right="0.81835938" top="0.013671875" bottom="0.017578125"/>
 					<Size x="0" y="1"/>
 					<Anchors>

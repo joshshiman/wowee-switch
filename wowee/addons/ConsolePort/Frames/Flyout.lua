@@ -6,6 +6,10 @@
 
 local _, db = ...
 
+if ConsolePortSpellFlyout then
+	ConsolePortSpellFlyout:Hide()
+end
+
 if not (SpellFlyout and type(SpellFlyout) == "table" and SpellFlyout.IsProtected and SpellFlyout:IsProtected()) then return end
 local Flyout, Selector, GameTooltip = SpellFlyout, ConsolePortSpellFlyout, GameTooltip
 local FadeIn = db.UIFrameFadeIn

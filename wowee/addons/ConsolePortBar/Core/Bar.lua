@@ -191,6 +191,38 @@ function Bar:UPDATE_BONUS_ACTIONBAR()
 	WrapperLib:UpdateAllBindings()
 end
 
+function Bar:MODIFIER_STATE_CHANGED()
+	local mod = ConsolePort:GetCurrentModifier() or ""
+	self:SetAttribute("state", mod)
+	for _, wrapper in ipairs(self.Buttons) do
+		local main = wrapper['']
+		if main then
+			local kind = main.state_types and (main.state_types[mod] or main.state_types[""]) or "empty"
+			local action = main.state_actions and (main.state_actions[mod] or main.state_actions[""])
+			main._state_type = kind
+			main._state_action = action
+			main:SetAttribute("state", mod)
+			if main.UpdateAction then
+				main:UpdateAction(true)
+			end
+		end
+	end
+end
+
+function Bar:ACTIONBAR_SLOT_CHANGED()
+	for _, wrapper in ipairs(self.Buttons) do
+		local main = wrapper['']
+		if main and main.UpdateAction then
+			main:UpdateAction(true)
+		end
+		for _, button in pairs(wrapper.Buttons) do
+			if button and button.UpdateAction then
+				button:UpdateAction(true)
+			end
+		end
+	end
+end
+
 function Bar:LoadReticleSpells()
 	Bar:Execute('wipe(reticleSpellManifest)')
 	local reticleSpells = ab.manifest and ab.manifest.ReticleSpells
@@ -210,7 +242,11 @@ function Bar:ADDON_LOADED(name)
 		if not ConsolePortBarSetup then
 			ConsolePortBarSetup = ab:GetDefaultSettings()
 		-------------------------------
-		-- compat: binding ID fix for grip buttons , remove later on
+		-- WoWee Switch migration (rev 2): earlier Switch runs saved the
+		-- desktop defaults (gold BG line, class-colour tints, centre-hugging
+		-- layout) into the per-character SavedVariables, which then shadow
+		-- every code default. Refresh those keys in place so existing
+		-- characters pick up the handheld presentation without a /reset.
 		else local layout = ConsolePortBarSetup.layout
 			if layout then
 				layout.CP_T3 = layout.CP_T3 or layout.CP_L_GRIP1 -- translate Lgrip1 to t3
@@ -219,6 +255,18 @@ function Bar:ADDON_LOADED(name)
 				layout.CP_T5 = layout.CP_T5 or layout.CP_L_GRIP2 -- translate Lgrip2 to t5
 				layout.CP_T6 = layout.CP_T6 or layout.CP_R_GRIP2 -- translate Rgrip2 to t6
 				layout.CP_L_GRIP2 = nil layout.CP_R_GRIP2 = nil
+			end
+			if (ConsolePortBarSetup.woweeRev or 0) < 2 then
+				ConsolePortBarSetup.showline = false
+				ConsolePortBarSetup.showart = false
+				ConsolePortBarSetup.flashart = false
+				ConsolePortBarSetup.swipeRGB = nil
+				ConsolePortBarSetup.tintRGB = nil
+				ConsolePortBarSetup.borderRGB = nil
+				ConsolePortBarSetup.artRGB = nil
+				ConsolePortBarSetup.expRGB = nil
+				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
+				ConsolePortBarSetup.woweeRev = 2
 			end
 		-------------------------------
 		end
@@ -355,6 +403,10 @@ function Bar:OnLoad(cfg, benign)
 
     -- Visual Stylings
     if cfg.showline then self.BG:Show() self.BottomLine:Show() else self.BG:Hide() self.BottomLine:Hide() end
+    if not cfg.showline then
+        self.BG:Hide()
+        self.BottomLine:Hide()
+    end
     ab:SetArtUnderlay(cfg.showart or cfg.flashart, cfg.flashart)
     ab:SetRainbowScript(cfg.rainbow)
 
@@ -362,8 +414,8 @@ function Bar:OnLoad(cfg, benign)
         self.BG:SetGradientAlpha(ab:GetColorGradient(unpack(cfg.tintRGB)))
         self.BottomLine:SetVertexColor(unpack(cfg.tintRGB))
     else
-        self.BG:SetGradientAlpha(ab:GetColorGradient(r, g, b))
-        self.BottomLine:SetVertexColor(r, g, b, 1)
+        self.BG:SetGradientAlpha(ab:GetColorGradient(1, 1, 1))
+        self.BottomLine:SetVertexColor(1, 1, 1, 1)
     end
 
     CPAPI.SetShown(self.Menu, cfg.quickMenu)
@@ -438,7 +490,7 @@ function Bar:OnLoad(cfg, benign)
         wrapper:ToggleIcon(not hideIcons)
         wrapper:ToggleModifiers(not hideModifiers)
         wrapper:SetClassicBorders(classicBorders)
-        wrapper:SetSwipeColor(unpack(cfg.swipeRGB or {r, g, b, 1}))
+        wrapper:SetSwipeColor(unpack(cfg.swipeRGB or {1, 1, 1, 1}))
         wrapper:SetBorderColor(unpack(cfg.borderRGB or {1, 1, 1, 1}))
     end
 
@@ -711,6 +763,8 @@ for _, event in ipairs({
 	'PLAYER_LOGIN',
 	'ADDON_LOADED',
 	'PLAYER_TALENT_UPDATE',
+	'MODIFIER_STATE_CHANGED',
+	'ACTIONBAR_SLOT_CHANGED',
 }) do pcall(Bar.RegisterEvent, Bar, event) end
 
 Bar.ignoreNode = true

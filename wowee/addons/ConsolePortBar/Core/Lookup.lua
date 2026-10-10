@@ -4,7 +4,7 @@ local CPAPI = db.CPAPI
 
 local r, g, b = ConsolePort:GetData().Atlas.GetNormalizedCC()
 --------------------------------------------------------
-local defaultIcons
+local defaultIcons, defaultIconsStatic
 do  local custom = [[Interface\AddOns\ConsolePortBar\Textures\Icons\%s]]
 	local customcp = [[Interface\AddOns\ConsolePort\Textures\Icons\%s]]
 	local client = [[Interface\Icons\%s]]
@@ -97,7 +97,13 @@ function ab:GetBindingIcon(binding)
     end
 
     -- Fallback to default icons if no custom icon is found
-    return ab.manifest.BindingIcons[binding]
+    if ab.manifest and ab.manifest.BindingIcons and ab.manifest.BindingIcons[binding] then
+        return ab.manifest.BindingIcons[binding]
+    end
+    if defaultIconsStatic and defaultIconsStatic[binding] then
+        return defaultIconsStatic[binding]
+    end
+    return nil
 end
 
 function ab:CreateManifest()
@@ -109,6 +115,7 @@ function ab:CreateManifest()
 	elseif type(ConsolePortBarManifest.BindingIcons) ~= 'table' then
 		ConsolePortBarManifest.BindingIcons = defaultIcons
 	end
+	defaultIconsStatic = defaultIcons
 	defaultIcons = nil
 	ab.manifest = ConsolePortBarManifest
 	return ConsolePortBarManifest
@@ -136,21 +143,25 @@ end
 
 function ab:GetDefaultButtonLayout(button)
 	local layout = {
-		CP_T3 = {point = {'LEFT', 456, 56}, dir = 'right', size = 64},
-		CP_T4 = {point = {'RIGHT', -456, 56}, dir = 'left', size = 64},
-		---
-		CP_T1 = {point = {'LEFT', 396, 16}, dir = 'down', size = 64},
-		CP_T2 = {point = {'RIGHT', -396, 16}, dir = 'down', size = 64},
-		---
-		CP_L_LEFT 	= {point = {'LEFT', 176, 56}, dir = 'left', size = 64},
-		CP_L_RIGHT 	= {point = {'LEFT', 306, 56}, dir = 'right', size = 64},
-		CP_L_UP 	= {point = {'LEFT', 240, 100}, dir = 'up', size = 64},
-		CP_L_DOWN 	= {point = {'LEFT', 240, 16}, dir = 'down', size = 64},
-		---
-		CP_R_LEFT 	= {point = {'RIGHT', -306, 56}, dir = 'left', size = 64},
-		CP_R_RIGHT 	= {point = {'RIGHT', -176, 56}, dir = 'right', size = 64},
-		CP_R_UP 	= {point = {'RIGHT', -240, 100}, dir = 'up', size = 64},
-		CP_R_DOWN 	= {point = {'RIGHT', -240, 16}, dir = 'down', size = 64},
+		-- RIGHT CLUSTER (Face Buttons) - Centered at +330, raised to clear bags
+		CP_R_LEFT    = {dir = 'left',  point = {'BOTTOM',  280, 95}, size = 45},
+		CP_R_RIGHT   = {dir = 'right', point = {'BOTTOM',  380, 95}, size = 45},
+		CP_R_UP      = {dir = 'up',    point = {'BOTTOM',  330, 120}, size = 45},
+		CP_R_DOWN    = {dir = 'down',  point = {'BOTTOM',  330, 70}, size = 45},
+
+		-- RIGHT SHOULDERS - Center-Right, pushed out to widen the bag gap
+		CP_T4        = {dir = 'up',    point = {'BOTTOM',  180, 120}, size = 45},
+		CP_T1        = {dir = 'down',  point = {'BOTTOM',  180, 70}, size = 45},
+
+		-- LEFT CLUSTER (D-Pad) - Centered at -330, raised to clear bags
+		CP_L_LEFT    = {dir = 'left',  point = {'BOTTOM', -380, 95}, size = 45},
+		CP_L_RIGHT   = {dir = 'right', point = {'BOTTOM', -280, 95}, size = 45},
+		CP_L_UP      = {dir = 'up',    point = {'BOTTOM', -330, 120}, size = 45},
+		CP_L_DOWN    = {dir = 'down',  point = {'BOTTOM', -330, 70}, size = 45},
+
+		-- LEFT SHOULDERS - Center-Left, pushed out to widen the bag gap
+		CP_T3        = {dir = 'up',    point = {'BOTTOM', -180, 120}, size = 45},
+		CP_T2        = {dir = 'down',  point = {'BOTTOM', -180, 70}, size = 45},
 	}
 	if button ~= nil then
 		return layout[button]
@@ -212,30 +223,10 @@ function ab:GetPresets()
 			width = 1100,
 			watchbars = true,
 			showline = false,
+			hideModifiers = true,
 			lock = true,
-			useSquareButtons = true,
-			layout = {
-				-- RIGHT CLUSTER (Face Buttons)
-				-- Base Y increased to 50 to clear the EXP bar
-				CP_R_LEFT    = {dir = 'left',  point = {'BOTTOM',  100, 75}, size = 45}, 
-				CP_R_RIGHT   = {dir = 'right', point = {'BOTTOM',  200, 75}, size = 45}, 
-				CP_R_UP      = {dir = 'up',    point = {'BOTTOM',  150, 100}, size = 45}, 
-				CP_R_DOWN    = {dir = 'down',  point = {'BOTTOM',  150, 50}, size = 45}, 
-				
-				-- RIGHT SHOULDERS (Stacked vertically in the center-right)
-				CP_T4        = {dir = 'up',    point = {'BOTTOM',   40, 100}, size = 45}, 
-				CP_T1        = {dir = 'down',  point = {'BOTTOM',   40, 50}, size = 45}, 
-
-				-- LEFT CLUSTER (D-Pad)
-				CP_L_LEFT    = {dir = 'left',  point = {'BOTTOM', -200, 75}, size = 45}, 
-				CP_L_RIGHT   = {dir = 'right', point = {'BOTTOM', -100, 75}, size = 45}, 
-				CP_L_UP      = {dir = 'up',    point = {'BOTTOM', -150, 100}, size = 45}, 
-				CP_L_DOWN    = {dir = 'down',  point = {'BOTTOM', -150, 50}, size = 45}, 
-				
-				-- LEFT SHOULDERS (Stacked vertically in the center-left)
-				CP_T3        = {dir = 'up',    point = {'BOTTOM',  -40, 100}, size = 45}, 
-				CP_T2        = {dir = 'down',  point = {'BOTTOM',  -40, 50}, size = 45}, 
-			},
+			useSquareButtons = false,
+			layout = ab:GetDefaultButtonLayout(),
 		}, 
 
 		["Crossbar: Triple"] = {
@@ -347,9 +338,9 @@ function ab:GetRGBColorFor(element, default)
 	local cfg = ab.cfg or {}
 	local defaultColors = {
 		art 	= {1, 1, 1, 1},
-		tint 	= {r, g, b, 1},
+		tint 	= {1, 1, 1, 1},
 		border 	= {1, 1, 1, 1},
-		swipe 	= {r, g, b, 1},
+		swipe 	= {1, 1, 1, 1},
 		exp 	= {r, g, b, 1},
 	}
 	if default then
@@ -374,9 +365,10 @@ function ab:GetDefaultSettings()
 		scale = 0.9,
 		width = 1100,
 		watchbars = true,
-		showline = true,
+		showline = false,
+		hideModifiers = true,
 		lock = true,
-		flashart = true,
+		flashart = false,
 		layout = ab:GetDefaultButtonLayout()
 	}
 end

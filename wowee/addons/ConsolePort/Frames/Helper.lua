@@ -25,6 +25,11 @@ local Core, Helper = ConsolePort, ConsolePortSpellHelperFrame
 ]]--
 
 function Helper:OnShow()
+	local _chkType = GetCursorInfo()
+	if not _chkType then
+		self:Hide()
+		return
+	end
 	Core:SetCursorObstructor(self, true)
 	if db('disableSmartBind') then
 		self:UnregisterAllEvents()
@@ -257,6 +262,7 @@ function Helper:ACTIONBAR_HIDEGRID(...)
 end
 
 function Helper:ACTIONBAR_SHOWGRID(...)
+	if not GetCursorInfo() then return end
 	if not InCombatLockdown() then
 		self:Show()
 	else

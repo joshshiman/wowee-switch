@@ -177,8 +177,8 @@ function lib:CreateButton(id, name, header, config)
 	-- Store the LAB Version that created this button for debugging
 	button.__LAB_Version = MINOR_VERSION
 
-	-- just in case we're not run by a header, default to state 0
-	button:SetAttribute("state", 0)
+	-- default to state ""
+	button:SetAttribute("state", "")
 
 	SetupSecureSnippets(button)
 	WrapOnClick(button)
@@ -531,10 +531,13 @@ end
 
 function Generic:UpdateState(state)
 	if not state then state = self:GetAttribute("state") end
-	state = tostring(state)
+	state = tostring(state or "")
+	if state == "0" then state = "" end
 	self:SetAttribute(format("labtype-%s", state), self.state_types[state])
 	self:SetAttribute(format("labaction-%s", state), self.state_actions[state])
-	if state ~= tostring(self:GetAttribute("state")) then return end
+	local curState = tostring(self:GetAttribute("state") or "")
+	if curState == "0" then curState = "" end
+	if state ~= curState then return end
 	if self.header then
 		self.header:SetFrameRef("updateButton", self)
 		self.header:Execute([[
@@ -549,8 +552,15 @@ end
 
 function Generic:GetAction(state)
 	if not state then state = self:GetAttribute("state") end
-	state = tostring(state)
-	return self.state_types[state] or "empty", self.state_actions[state]
+	state = tostring(state or "")
+	if state == "0" then state = "" end
+	local kind = self.state_types[state]
+	local action = self.state_actions[state]
+	if (not kind or kind == "empty") and state ~= "" and self.state_types[""] then
+		kind = self.state_types[""]
+		action = self.state_actions[""]
+	end
+	return kind or "empty", action
 end
 
 function Generic:UpdateAllStates()

@@ -384,6 +384,15 @@ function WrapperMixin:ToggleModifiers(enabled)
 		local hotkey1, hotkey2 = button.hotkey1, button.hotkey2
 		if hotkey1 then CPAPI.SetShown(hotkey1, enabled) end
 		if hotkey2 then CPAPI.SetShown(hotkey2, enabled) end
+		if mod ~= '' then
+			if enabled then
+				button:Show()
+				button:SetAlpha(1)
+			else
+				button:Hide()
+				button:SetAlpha(0)
+			end
+		end
 	end
 end
 
@@ -537,9 +546,21 @@ function WrapperMixin:ConfigureSwapStates(modifier, button, stateType, stateID)
 		button:SetState('SHIFT-', stateType, stateID)
 		button:SetState('CTRL-', stateType, stateID)
 		button:SetState('CTRL-SHIFT-', stateType, stateID)
+		button._state_type = stateType
+		button._state_action = stateID
+		if button.UpdateAction then
+			button:UpdateAction(true)
+		end
 	end
 	-- set up main button to swap to current state
 	self['']:SetState(modifier, stateType, stateID)
+	if modifier == '' then
+		self['']._state_type = stateType
+		self['']._state_action = stateID
+		if self[''].UpdateAction then
+			self['']:UpdateAction(true)
+		end
+	end
 end
 
 function WrapperMixin:SetRebindButton()
@@ -759,11 +780,44 @@ function HANDLE:UpdateWrapperBindings(wrapper, bindings)
 			end
 
 			wrapper:ConfigureSwapStates(modifier, button, stateType, stateID)
+
+			button.state_types[modifier] = stateType
+			button.state_actions[modifier] = stateID
+			button:SetAttribute('labtype-' .. modifier, stateType)
+			button:SetAttribute('labaction-' .. modifier, stateID)
+
+			if modifier == '' then
+				button._state_type = stateType
+				button._state_action = stateID
+				button:SetAttribute('state', '')
+				if button.UpdateAction then
+					button:UpdateAction(true)
+				end
+			end
+
 			-- call an update on the button to reflect new binding
 			button:Execute(format([[
 				control:RunAttribute('UpdateState', '%s')
 				control:CallMethod('UpdateAction')
 			]], modifier))
+		end
+		if main then
+			local mainBinding = bindings['']
+			local mainActionID = mainBinding and ConsolePort:GetActionID(mainBinding)
+			local mainStateType, mainStateID
+			if mainActionID then
+				mainStateType, mainStateID = 'action', mainActionID
+			elseif mainBinding then
+				mainStateType, mainStateID = self:SetArbitraryBinding(main, mainBinding)
+			end
+			if mainStateType then
+				main._state_type = mainStateType
+				main._state_action = mainStateID
+				main:SetAttribute('state', '')
+				if main.UpdateAction then
+					main:UpdateAction(true)
+				end
+			end
 		end
 	else
 		for modifier, button in pairs(wrapper.Buttons) do

@@ -416,6 +416,11 @@
 
 	<!-- Frames\Flyout.lua -->
 	<Button name="ConsolePortSpellFlyout" inherits="SecureHandlerBaseTemplate, SecureActionButtonTemplate" parent="UIParent" registerForClicks="AnyDown" hidden="true">
+		<Scripts>
+			<OnLoad>
+				self:Hide();
+			</OnLoad>
+		</Scripts>
 		<Size x="0" y="100"/>
 		<Backdrop edgeFile="Interface\AddOns\ConsolePort\Textures\Window\EdgeFileNosides" tile="false">
 			<EdgeSize>
