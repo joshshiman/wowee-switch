@@ -321,7 +321,7 @@ void CharacterScreen::render(game::GameHandler& gameHandler) {
         ui_.textCentered(screen.x * 0.5f, screen.y - px(142), notice.c_str(), px(14),
                          statusIsError || statusMessage.empty() ? theme.crayonRed : theme.ink);
 #ifdef WOWEE_SWITCH
-    ui_.text(ImVec2(px(22), screen.y - px(20)), "D-pad: select   Right stick: cursor   Cross: choose   Circle: back",
+    ui_.text(ImVec2(px(22), screen.y - px(20)), "D-pad: select   Right stick: cursor   A: choose   B: back",
              px(11), theme.inkSoft);
 #endif
     if (modalUp) ui_.popInert();

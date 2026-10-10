@@ -1698,7 +1698,7 @@ void drawPadControlHint(bool inWorld, float safeAreaInset) {
     static constexpr const char* kLines[] = {
         "L2 / R2: walk the menus      R1: open      -: world map      +: menus",
         "R3: camera / cursor      L3: autorun      A: jump / click      B: interact",
-        "Triangle: target      X: ability 1      L2 / R2 / R1 + face: bars 5-8 / 1-4 / 9-12",
+        "Y: target      X: ability 1      ZL / ZR / R + face: bars 5-8 / 1-4 / 9-12",
     };
     const ImGuiIO& io = ImGui::GetIO();
     // The title-safe margin the interface lays out inside, which the widget tree

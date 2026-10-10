@@ -754,7 +754,7 @@ void CharacterCreateScreen::render(game::GameHandler&) {
     if (!status.empty())
         ui_.textCentered(center, px(32), status.c_str(), px(15), statusIsError ? theme.crayonRed : theme.ink);
 #ifdef WOWEE_SWITCH
-    ui_.text(ImVec2(px(24), screen.y - px(20)), "Right stick: cursor   Cross: choose   Triangle: keyboard   Circle: back",
+    ui_.text(ImVec2(px(24), screen.y - px(20)), "Right stick: cursor   A: choose   Y: keyboard   B: back",
              px(11), theme.inkSoft);
 #endif
     ui_.end();
@@ -776,7 +776,13 @@ void CharacterCreateScreen::renderNameKeyboard() {
     if (ImGui::BeginPopupModal("Character name##keyboard", nullptr,
                               ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::TextUnformatted(nameKeyboard_.draft.empty() ? "_" : nameKeyboard_.draft.c_str());
-        ImGui::TextUnformatted("2-12 letters. D-pad: select   Cross: type   R2: Done   Circle: Cancel");
+        ImGui::TextUnformatted(
+#ifdef WOWEE_SWITCH
+            // Switch plastic: A=choose/type, B=back/cancel, ZR=done.
+            "2-12 letters. D-pad: select   A: type   ZR: Done   B: Cancel");
+#else
+            "2-12 letters. D-pad: select   Cross: type   R2: Done   Circle: Cancel");
+#endif
         ImGui::Separator();
         const bool ignoreOpeningPress = nameKeyboard_.justOpened;
         nameKeyboard_.justOpened = false;

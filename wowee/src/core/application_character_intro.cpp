@@ -472,8 +472,14 @@ void Application::renderCharacterIntroOverlay() {
     if ((introBuffering_ && !introSceneVisible_) || introReturning_)
         draw->AddRectFilled(ImVec2(0, 0), size, IM_COL32(0, 0, 0, 255));
     const char* label = introReturning_ ? "Loading starting area..." :
+#ifdef WOWEE_SWITCH
+        // Skip is Circle(=B) or Escape, and on Switch Escape arrives via Plus.
+        introBuffering_ ? (introSceneVisible_ ? "Buffering cinematic...  B / +: Skip" :
+            "Loading cinematic...  B / +: Skip") : "B / +: Skip";
+#else
         introBuffering_ ? (introSceneVisible_ ? "Buffering cinematic...  Circle / Esc: Skip" :
             "Loading cinematic...  Circle / Esc: Skip") : "Circle / Esc: Skip";
+#endif
     const ImVec2 text = ImGui::CalcTextSize(label);
     const ImVec2 at(std::max(16.0f, (size.x-text.x)*0.5f), std::max(16.0f, size.y-48.0f));
     draw->AddRectFilled(ImVec2(at.x-12, at.y-8), ImVec2(at.x+text.x+12, at.y+text.y+8),

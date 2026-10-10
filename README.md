@@ -149,10 +149,10 @@ the action bar:
 
 | Hold | Face buttons become |
 |------|---------------------|
-| R2 | slots 1–4 |
-| L2 | slots 5–8 |
-| R1 | slots 9–12 |
-| L1 | character keys: ✕ jump / swim up, □ sit / stand, △ reset camera, ○ screenshot; D-pad walks |
+| ZR | slots 1–4 |
+| ZL | slots 5–8 |
+| R | slots 9–12 |
+| L1 | character keys: A jump / swim up, X sit / stand, Y reset camera, B screenshot; D-pad walks |
 
 **In a text field** (server address, realm name, character name, chat):
 
