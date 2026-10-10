@@ -938,3 +938,32 @@ terminal line under fatigue. Rule from here on: verify deploys with
   between pumps and the edge never exists. Now reads HELD L1+B with a latch:
   hold both through any pump instant to fire once, release B to re-arm.
   Verified in staged binary via strings; card md5 MATCH.
+
+## Screenshots PARKED (2026-10-10, user request)
+Phone photo worked; in-game capture fought back across 4 attempts (unwired fn
+-> layer-eaten chord -> edge-vs-pump timing). Current state: PRINTSCREEN
+synthesized from any-shoulder+B in the pad layer (bd3dc21, on card), plus
+fired/failed WARNINGs. Revisit only when a README shot or a daylight check
+needs it. Input-telemetry note honored: pad bits were never logged; if input
+is ever doubted again, log raw bits first, assume nothing.
+
+## Invisible floor: mesh forensics conclusive (host tool, no console cycles)
+- `meshstats` (/tmp/opencode/meshstats: StormLib static + ADTLoader +
+  TerrainMeshGenerator, stubs for logger/profiler): tile [32,48] from BOTH
+  common-2.MPQ and patch.MPQ (patch carries its own 99-bytes-different copy)
+  yields 256 valid chunks, 37k verts, finite positions, in-range uint32
+  indices, 44-byte verts. The 99 bytes are header-only; geometry identical.
+- Coordinate red herring killed: raw ADT coords LOOK alien (16533.x) but
+  generateChunkMesh converts to render space from tile/chunk indices ("MCNK
+  position fields are unreliable") — tile [32,48] spans render
+  X[-9066,-8533] Y[-533,0] Z[61,277], player at (-8940,-128,83) inside it.
+  An early meshstats run with unset terrain.coord "proved" a mismatch that
+  was a harness bug. Spaces are coherent: verts, camera, physics, entities.
+- Standing hypotheses, ranked: (1) frustum/distance cull eats near chunks
+  (TERRAIN_DIAG nearestDrawn vs nearestCulled decides; in card build
+  92b8b575, never yet run in-world); (2) rasterizer/frag-stage fault with
+  valid draws (wireframe toggle would split it — setWireframeMode exists but
+  has no trigger); (3) pass/state mismatch (all renderers share the ImGui
+  pass; M2/WMO fine through it, so unlikely terrain-specific).
+- Photo ground truth: WMO/M2/characters/sky/UI/portraits/action icons all
+  render; ONLY terrain missing; stars below horizon (see-through, not black).
