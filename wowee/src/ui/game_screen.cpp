@@ -1745,14 +1745,23 @@ void GameScreen::processTargetInput(game::GameHandler& gameHandler) {
                 takeScreenshot();
             }
 #ifdef WOWEE_SWITCH
-            // L + B chord, read raw: the layer system maps B to interact and
-            // (with action bars up) bypasses the L1 layer entirely, so the
-            // chord never arrives as a scancode. Hold-L-then-B, edge on B.
+            // L + B chord, read on HELD state with a latch, not the press
+            // edge: at entry/world frame rates (250 ms+) a quick tap can fall
+            // entirely between two pumps and the edge never exists. Holding
+            // both for any pump instant fires once; releasing B re-arms.
+            // (The layer system maps B to interact and bypasses L1 when bars
+            // are up, so the chord never arrives as a scancode — read raw.)
             {
                 const auto& pad = platform::switchport::padSnapshot();
-                if (pad.connected && (pad.buttons & ORBIS_PAD_BUTTON_L1) &&
-                    (pad.pressed & ORBIS_PAD_BUTTON_CIRCLE)) {
+                static bool chordFired = false;
+                const bool held = pad.connected &&
+                    (pad.buttons & ORBIS_PAD_BUTTON_L1) &&
+                    (pad.buttons & ORBIS_PAD_BUTTON_CIRCLE);
+                if (held && !chordFired) {
+                    chordFired = true;
                     takeScreenshot();
+                } else if (!(pad.buttons & ORBIS_PAD_BUTTON_CIRCLE)) {
+                    chordFired = false;
                 }
             }
 #endif

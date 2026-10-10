@@ -1696,7 +1696,7 @@ void drawPadControlHint(bool inWorld, float safeAreaInset) {
     // with a face button is still an action slot, and that is what the third
     // line is for.
     static constexpr const char* kLines[] = {
-        "L2 / R2: walk the menus      R1: open      -: world map      +: menus",
+        "ZL / ZR: walk the menus      R: open      -: world map      +: menus",
         "R3: camera / cursor      L3: autorun      A: jump / click      B: interact",
         "Y: target      X: ability 1      ZL / ZR / R + face: bars 5-8 / 1-4 / 9-12",
     };

@@ -919,3 +919,22 @@ Renderer::captureScreenshot exists, bound to gamepad circle on the HUD
 (game_screen_hud.cpp:1785), saves to <home>/.wowps/screenshots/WoWPS_*.png =
 sdmc:/wowps/wowps/.wowps/screenshots/ — retrievable via ftpd, unlike the
 Album (emuMMC raw partition). Asked user to press circle in-world.
+
+## Process lesson (2026-10-10): md5 alone is not verification
+The "9ac841ed" recorded for the button-name deploy never existed as a distinct
+build — the staged file was 67553954 before and after (same bytes, verified by
+strings content + rebuild determinism). Almost certainly a misread/misattributed
+terminal line under fatigue. Rule from here on: verify deploys with
+`strings <nro> | grep <new-string>` (content truth) AND card-vs-staged md5
+(transfer truth). Both are now done for every deploy below.
+
+## 2026-10-10: screenshot chord v2 + missed shoulder line (build 479c1d72)
+- Card held the right build all along (67553954, strings-verified) — the
+  user's stale-build suspicion was wrong, and so was the phantom md5.
+- Real miss #1: help-overlay line 1 still said "L2 / R2 ... R1" (only line 3
+  had been converted). Fixed to ZL/ZR/R. This is almost certainly the "hints"
+  the user saw.
+- Real miss #2: chord read the press EDGE, but at 3-4 fps a quick tap falls
+  between pumps and the edge never exists. Now reads HELD L1+B with a latch:
+  hold both through any pump instant to fire once, release B to re-arm.
+  Verified in staged binary via strings; card md5 MATCH.
