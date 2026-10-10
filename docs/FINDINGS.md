@@ -1005,3 +1005,20 @@ Also explains "Failed to upload chunk"=0 (only the full path warns).
   m2Draws/wmoDraws + frameMeanMs confirm next run; tune factors from there.
 - Path to 15 fps (~65 ms from ~240): this cut + 540p + forces. If still
   short: grass/clutter, 480p scene, NPC radius — in that order.
+
+## Run 61: object distance round 2 + 480p scene (build 2303f472)
+
+### Run 01:32 (build e52a4767): draws halved, fps doubled, no crash
+- frameMean 240->123 ms (~8 fps avg, best 56 ms/~17 fps). m2Draws mean ~56
+  (was ~150), wmoDraws ~37 (was ~100). Cut works mechanically.
+- Worst frames (209 ms) carry LOW draws (t8/m12) = streaming hitches on the
+  main thread (SLOW update 60-75 ms), not GPU load. Two regimes: steady
+  draw-bound + travel hitches. User felt little (8 fps still slow) but noted
+  fog covering unload pop correctly.
+
+### Change deployed (md5 `2303f472...`): M2 0.55->0.45, WMO 0.7->0.6,
+### scene 540p->480p. Expectation ~85-100 ms. Next levers if short: grass,
+### NPC radius, hitch budgeting. Open feel items (not this build): minimap
+### arrow rotation (code comments admit half-turn uncertainty, needs a
+### walk-north calibration), swinging lamp posts (verify vs retail: lamps
+### static, flame flickers — possibly wind applied to wrong doodad class).
