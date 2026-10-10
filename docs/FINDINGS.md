@@ -1187,3 +1187,29 @@ Comprehensive note per user request - the whole override picture in one place.
   lost to chat spam before this was noticed.
 - MPQ forensics recipe stands (locale-enUS.MPQ holds base FrameXML; workspace
   dir for binaries since /tmp/opencode is noexec).
+
+## Secure nil-body root cause: surrogate tables (2026-10-10, commit 1fecde0)
+- "Invalid function body" (securehandlers.lua:805) is the TYPE check on the
+  RunFor body arg: restricted `self:GetAttribute(...)` returned nil for keys
+  that insecure reads saw fine, with handles round-tripping to the right
+  table. Not setup, not namespaces, not duplicates.
+- Cause: Blizzard handles are NOT the frame. RestrictedFrames builds
+  `surrogate = {[0]=frame[0], [1]=frame}` with the frame's metatable, so
+  restricted reads land in mt:GetAttribute with self=surrogate, whose own
+  __attributes is empty by construction. Retail frames are C objects where
+  this indirection is invisible; here frames are Lua tables and rawget
+  exposed it. Every wrapped click/drag/ring snippet died on this one line.
+- Fix: mt:GetAttribute falls back to rawget(self,1).__attributes (real
+  frames never use [1]; verified by grep). Writes stay split - restricted
+  writes land on the surrogate only, no taint leak insecurely.
+- Companion finding, same session: the bar's SetBindingClick DOES execute
+  (restricted HANDLE method in Blizzard's restrictedframes.lua, NOT the
+  engine no-op - method lookup differs by environment). It wrote CLICK CPB_*
+  overrides into the bar frame's owner bucket, which outranks the handler's
+  by pointer order in the ordered owner map - F1..F4 eaten mid-session while
+  early-session traces were clean. Bar:RegisterOverride neutralized (revert
+  flag noted in code); the per-login UnregisterOverrides the bar already runs
+  clears stale bucket entries by itself.
+- Rule: when retail Lua does handle-table indirection, check what `self`
+  really is before blaming the data. And method no-op allowlists are
+  environment-specific: verify restricted-path methods separately.
