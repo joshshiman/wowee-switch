@@ -279,6 +279,17 @@ private:
     int renderedChunks = 0;
     float furthestDrawnSq_ = 0.0f;
     int culledChunks = 0;
+#ifdef WOWEE_SWITCH
+    // Nearest-chunk survey for the invisible-floor diagnosis. Small, fixed,
+    // insertion-kept; reset by the diag block after each report.
+    struct NearestSurveyEntry {
+        float dist = 1.0e30f;
+        int tileX = -1, tileY = -1;
+        bool hasBuffers = false, hasSet = false;
+        int32_t megaBaseVertex = -1;
+    };
+    NearestSurveyEntry nearestSurvey_[5];
+#endif
 
     // Mega vertex/index buffers for indirect drawing
     // All terrain chunks share a single VB + IB, eliminating per-chunk rebinds.

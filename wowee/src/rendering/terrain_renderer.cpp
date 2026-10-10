@@ -1087,6 +1087,28 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
     }
 
     for (const auto& chunk : chunks) {
+#ifdef WOWEE_SWITCH
+        // Nearest-5 survey across ALL chunks (including the pre-check skip
+        // below) to separate "near chunks lack buffers/sets" from "near
+        // chunks are culled". Runs with the diag block under it.
+        {
+            float sdx = chunk.boundingSphereCenter.x - camPos.x;
+            float sdy = chunk.boundingSphereCenter.y - camPos.y;
+            float sdz = chunk.boundingSphereCenter.z - camPos.z;
+            float sd = std::sqrt(sdx * sdx + sdy * sdy + sdz * sdz);
+            for (int k = 0; k < 5; ++k) {
+                if (sd < nearestSurvey_[k].dist) {
+                    for (int m = 4; m > k; --m) nearestSurvey_[m] = nearestSurvey_[m - 1];
+                    nearestSurvey_[k] = {sd,
+                        chunk.tileX, chunk.tileY,
+                        chunk.vertexBuffer != VK_NULL_HANDLE,
+                        chunk.materialSet != VK_NULL_HANDLE,
+                        chunk.megaBaseVertex};
+                    break;
+                }
+            }
+        }
+#endif
         if (!chunk.isValid() || !chunk.materialSet) continue;
 
         float dx = chunk.boundingSphereCenter.x - camPos.x;
@@ -1150,6 +1172,15 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
                         " nearestDrawn=", nearestDrawnSq < 0.0f ? -1.0 : std::sqrt(nearestDrawnSq),
                         " nearestCulled=", nearestCulledSq < 0.0f ? -1.0 : std::sqrt(nearestCulledSq),
                         " cam=(", camPos.x, ",", camPos.y, ",", camPos.z, ")");
+            for (int k = 0; k < 5; ++k) {
+                const auto& e = nearestSurvey_[k];
+                LOG_WARNING("TERRAIN_NEAREST rank=", k, " dist=", e.dist,
+                            " tile=[", e.tileX, ",", e.tileY, "]",
+                            " buffers=", e.hasBuffers ? 1 : 0,
+                            " set=", e.hasSet ? 1 : 0,
+                            " mega=", e.megaBaseVertex);
+                nearestSurvey_[k] = NearestSurveyEntry{};
+            }
         }
     }
 #endif
