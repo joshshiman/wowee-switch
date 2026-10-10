@@ -88,7 +88,7 @@ for flag, nodes in pairs({
 		DropDownList2,
 	},
 	-----------------------------------------------------------
-}) do for _, node in pairs(nodes) do node[flag] = true end end
+}) do for _, node in pairs(nodes) do if type(node) == "table" then node[flag] = true end end end
 ---------------------------------------------------------------
 
 ---------------------------------------------------------------

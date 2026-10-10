@@ -624,7 +624,9 @@ for name, script in pairs({
 		for key, button in pairs(bindings) do
 			self:SetBindingClick(true, key, button, 'ControllerInput')
 		end
-		control:RunFor(mouse, mouse:GetAttribute('UpdateTarget'), mouse:GetAttribute('current'))
+		if mouse then
+			control:RunFor(mouse, mouse:GetAttribute('UpdateTarget'), mouse:GetAttribute('current'))
+		end
 		if PlayerInCombat() or ( not self:GetAttribute('hidesafe') ) then
 			control:CallMethod('FadeIn')
 		end

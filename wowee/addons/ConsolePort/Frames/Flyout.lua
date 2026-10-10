@@ -6,7 +6,7 @@
 
 local _, db = ...
 
-if not SpellFlyout then return end
+if not (SpellFlyout and type(SpellFlyout) == "table" and SpellFlyout.IsProtected and SpellFlyout:IsProtected()) then return end
 local Flyout, Selector, GameTooltip = SpellFlyout, ConsolePortSpellFlyout, GameTooltip
 local FadeIn = db.UIFrameFadeIn
 

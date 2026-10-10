@@ -197,7 +197,12 @@ struct Emitter {
         return quote(parentName + suffix);
     }
 
-    void line(const std::string& s) { result.lua += s; result.lua += "\n"; }
+    std::string* activeLua_ = nullptr;
+    void line(const std::string& s) {
+        std::string& target = activeLua_ ? *activeLua_ : result.lua;
+        target += s;
+        target += "\n";
+    }
 
     void emitScripts(const XmlNode& scripts, const std::string& var) {
         for (const XmlNode& s : scripts.children) {
@@ -369,13 +374,16 @@ struct Emitter {
             result.warnings.emplace_back("virtual region with no name was skipped");
             return;
         }
+        std::string* prev = activeLua_;
+        activeLua_ = &result.templatesLua;
         Emitter inner;
         inner.runtimeParentName = true;
         inner.emitRegionProperties(node, "self", "self:GetParent()", name, isTexture);
         line("__WoweeTemplates[" + quote(name) + "] = function(self)");
-        result.lua += inner.result.lua;
+        *activeLua_ += inner.result.lua;
         for (auto& w : inner.result.warnings) result.warnings.push_back(w);
         line("end");
+        activeLua_ = prev;
     }
 
     /// Button art declared as its own element rather than inside a Layer.
@@ -629,6 +637,8 @@ struct Emitter {
     void emitFont(const XmlNode& node) {
         const std::string name = node.attrOr("name", "");
         if (name.empty()) return;
+        std::string* prev = activeLua_;
+        activeLua_ = &result.templatesLua;
 
         float height = 0.0f;
         if (const XmlNode* fh = node.child("FontHeight")) {
@@ -694,6 +704,7 @@ struct Emitter {
                 line(name + ".shadowA = " + std::to_string(sc->attrFloat("a", 1.0f)));
             }
         }
+        activeLua_ = prev;
     }
 
     /// Applies whatever this node inherits onto `var`. Templates apply before
@@ -776,6 +787,8 @@ struct Emitter {
                 result.warnings.emplace_back("virtual frame with no name was skipped");
                 return {};
             }
+            std::string* prev = activeLua_;
+            activeLua_ = &result.templatesLua;
             Emitter inner;
             inner.temp = 0;
             inner.runtimeParentName = true;
@@ -832,9 +845,10 @@ struct Emitter {
                 line("if " + *par + " and __noParent then self:SetParent(" +
                      *par + ") end");
             }
-            result.lua += inner.result.lua;
+            *activeLua_ += inner.result.lua;
             for (auto& w : inner.result.warnings) result.warnings.push_back(w);
             line("end");
+            activeLua_ = prev;
             return {};
         }
 

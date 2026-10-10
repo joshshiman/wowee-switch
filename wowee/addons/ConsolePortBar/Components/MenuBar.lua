@@ -65,6 +65,7 @@ function Eye:OnClick(button)
 end
 
 function Eye:OnEnter()
+	if not (ab and ab.cfg) then return end
 	local texture_esc = '|T%s:24:24:0:0|t'
 	self.tooltipText = 	L.EYE_HEADER:format(ab.cfg.lock and L.EYE_LOCKED or L.EYE_UNLOCKED) .. '\n' ..
 						L.EYE_LEFTCLICK:format(texture_esc:format(db.ICONS.CP_T_L3)) .. '\n' ..

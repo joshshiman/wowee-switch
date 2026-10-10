@@ -1689,6 +1689,17 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
                (name.compare(name.size() - 4, 4, ".lua") == 0 ||
                 name.compare(name.size() - 4, 4, ".LUA") == 0);
     };
+    if (!emitted.templatesLua.empty()) {
+        frameXmlCheckpoint("XML templates compile/execute", path.c_str());
+        if (!luaEngine_.executeString(emitted.templatesLua)) {
+            if (ok) lastXmlError_ = "templates: " + luaEngine_.lastError();
+            LOG_ERROR("AddonManager: templates from ", path, " failed to build");
+            ok = false;
+        } else {
+            LOG_INFO("AddonManager: built templates from ", path);
+        }
+    }
+
     for (const auto& inc : emitted.includeFiles) {
         const bool loaded = isLua(inc)
             ? executeSourceFile(sibling(inc).string())
