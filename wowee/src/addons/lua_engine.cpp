@@ -28,6 +28,7 @@
 #include "addons/lua_api_registrations.hpp"
 #include "addons/toc_parser.hpp"
 #include "core/window.hpp"
+#include "core/input.hpp"
 #include <imgui.h>
 #include <fstream>
 #include "core/app_clock.hpp"
@@ -8503,12 +8504,65 @@ void LuaEngine::registerCoreAPI() {
         "    frame.offset = math.floor(value / (itemHeight or 1) + 0.5)\n"
         "    if updateFunction then updateFunction() end\n"
         "end\n"
-        // SecureCmdOptionParse - parses conditional macros like [target=focus]
+        // SecureCmdOptionParse - parses conditional macros like [combat][nocombat] show; hide
         "function SecureCmdOptionParse(options)\n"
-        "    if not options then return nil end\n"
-        "    -- Simple: return the unconditional fallback (text after last semicolon or the whole string)\n"
-        "    local result = options:match(';%s*(.-)$') or options:match('^%[.*%]%s*(.-)$') or options\n"
-        "    return result\n"
+        "    if not options or options == '' then return nil end\n"
+        "    for clause in options:gmatch('([^;]+)') do\n"
+        "        clause = clause:match('^%s*(.-)%s*$')\n"
+        "        if clause and clause ~= '' then\n"
+        "            if not clause:find('%[') then\n"
+        "                return clause\n"
+        "            end\n"
+        "            local action = clause:match('^.*%]%s*(.-)$') or ''\n"
+        "            local anyGroupMatched = false\n"
+        "            for group in clause:gmatch('%[([^%]]*)%]') do\n"
+        "                local groupPass = true\n"
+        "                for cond in group:gmatch('([^,]+)') do\n"
+        "                    cond = cond:match('^%s*(.-)%s*$')\n"
+        "                    if cond ~= '' then\n"
+        "                        local pass = false\n"
+        "                        if cond == 'combat' then\n"
+        "                            pass = InCombatLockdown and InCombatLockdown()\n"
+        "                        elseif cond == 'nocombat' then\n"
+        "                            pass = not (InCombatLockdown and InCombatLockdown())\n"
+        "                        elseif cond == 'pet' then\n"
+        "                            pass = (HasPetUI and HasPetUI()) or (UnitExists and UnitExists('pet'))\n"
+        "                        elseif cond == 'nopet' then\n"
+        "                            pass = not ((HasPetUI and HasPetUI()) or (UnitExists and UnitExists('pet')))\n"
+        "                        elseif cond:match('^mod:shift') then\n"
+        "                            pass = IsShiftKeyDown and IsShiftKeyDown()\n"
+        "                        elseif cond:match('^mod:ctrl') then\n"
+        "                            pass = IsControlKeyDown and IsControlKeyDown()\n"
+        "                        elseif cond:match('^mod:alt') then\n"
+        "                            pass = IsAltKeyDown and IsAltKeyDown()\n"
+        "                        elseif cond:match('^nomod') then\n"
+        "                            pass = not (IsModifierKeyDown and IsModifierKeyDown())\n"
+        "                        elseif cond:match('^bonusbar:(%d+)') then\n"
+        "                            local b = tonumber(cond:match('^bonusbar:(%d+)'))\n"
+        "                            pass = (GetBonusBarOffset and GetBonusBarOffset() == b)\n"
+        "                        elseif cond:match('^bar:(%d+)') or cond:match('^actionbar:(%d+)') then\n"
+        "                            local b = tonumber(cond:match('(%d+)'))\n"
+        "                            pass = (GetActionBarPage and GetActionBarPage() == b)\n"
+        "                        else\n"
+        "                            pass = true\n"
+        "                        end\n"
+        "                        if not pass then\n"
+        "                            groupPass = false\n"
+        "                            break\n"
+        "                        end\n"
+        "                    end\n"
+        "                end\n"
+        "                if groupPass then\n"
+        "                    anyGroupMatched = true\n"
+        "                    break\n"
+        "                end\n"
+        "            end\n"
+        "            if anyGroupMatched then\n"
+        "                return action\n"
+        "            end\n"
+        "        end\n"
+        "    end\n"
+        "    return nil\n"
         "end\n"
         // ChatFrame message group stubs
         "function ChatFrame_AddMessageGroup(frame, group) end\n"
@@ -9937,6 +9991,63 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     if (!L_) return false;
     const std::string command = bindingCommandFor(sdlKeycode, shift, ctrl, alt);
     if (command.empty()) return false;
+
+    // 1. CLICK FrameName:MouseButton commands (e.g. CLICK ConsolePortUtilityToggle:LeftButton)
+    if (command.rfind("CLICK ", 0) == 0) {
+        std::string rest = command.substr(6);
+        std::string frameName = rest;
+        std::string mouseBtn = "LeftButton";
+        size_t colon = rest.find(':');
+        if (colon != std::string::npos) {
+            frameName = rest.substr(0, colon);
+            mouseBtn = rest.substr(colon + 1);
+            if (mouseBtn.empty()) mouseBtn = "LeftButton";
+        }
+        if (!frameName.empty()) {
+            lua_getglobal(L_, frameName.c_str());
+            if (lua_istable(L_, -1)) {
+                lua_getfield(L_, -1, "Click");
+                if (lua_isfunction(L_, -1)) {
+                    lua_pushvalue(L_, -2); // self
+                    lua_pushstring(L_, mouseBtn.c_str());
+                    lua_pushboolean(L_, down ? 1 : 0);
+                    if (lua_pcall(L_, 3, 0, 0) != 0) {
+                        LOG_WARNING("CLICK ", frameName, " failed: ", lua_tostring(L_, -1));
+                        lua_pop(L_, 1);
+                    }
+                } else {
+                    lua_pop(L_, 1);
+                }
+                lua_pop(L_, 1); // frame table
+                return true;
+            }
+            lua_pop(L_, 1);
+        }
+    }
+
+    // 2. Explicit JUMP binding (e.g. B button in ConsolePort)
+    if (command == "JUMP") {
+        core::Input::getInstance().setVirtualKey(SDL_SCANCODE_SPACE, down);
+        return true;
+    }
+
+    // 3. Action bar slots (e.g. ACTIONBUTTON1..12)
+    if (command.rfind("ACTIONBUTTON", 0) == 0) {
+        try {
+            int slot = std::stoi(command.substr(12));
+            if (slot >= 1 && slot <= 120 && down) {
+                lua_getglobal(L_, "UseAction");
+                if (lua_isfunction(L_, -1)) {
+                    lua_pushinteger(L_, slot);
+                    lua_pcall(L_, 1, 0, 0);
+                } else {
+                    lua_pop(L_, 1);
+                }
+                return true;
+            }
+        } catch (...) {}
+    }
+
     // Left alone if the client performs it. Not "already handled, so skip the
     // work" - running it as well would undo it.
     if (clientActsOnBinding(command)) return false;

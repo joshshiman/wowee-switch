@@ -277,7 +277,9 @@ function SetupSecureSnippets(button)
 		if self:GetID() > 0 then
 			local state = self:GetAttribute("state")
 			local kind, value = (self:GetAttribute(format("labtype-%s", state)) or "empty"), self:GetAttribute(format("labaction-%s", state))
-			control:CallMethod("CallMethodFromFrame", self:GetName(), "ButtonContentsChanged", state, kind, value + ((message - 1) * 12))
+			if value and type(value) == "number" then
+				control:CallMethod("CallMethodFromFrame", self:GetName(), "ButtonContentsChanged", state, kind, value + ((message - 1) * 12))
+			end
 		end
 	]])
 

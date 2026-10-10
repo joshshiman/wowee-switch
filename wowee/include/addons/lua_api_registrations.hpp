@@ -3,6 +3,8 @@
 // Extracted from lua_engine.cpp as part of §5.1 (Tame LuaEngine).
 #pragma once
 
+#include <string>
+
 struct lua_State;
 
 namespace wowee::addons {
@@ -50,5 +52,8 @@ void registerActionLuaAPI(lua_State* L);
 /// something - so twice means the panel opens and shuts again on one press and
 /// the key reads as dead. Consulted before running a binding.
 bool clientActsOnBinding(const std::string& command);
+
+/// Retrieve active override binding for a key if any has been registered.
+std::string getOverrideBindingAction(const std::string& key);
 
 } // namespace wowee::addons

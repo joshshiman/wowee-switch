@@ -1890,6 +1890,17 @@ void Application::run() {
                         renderer->getWMORenderer()->debugDumpGroupsAtPosition(pos.x, pos.y, pos.z);
                     }
                 }
+            } else if (event.type == SDL_KEYUP) {
+                if (addonManager_ && addonsLoaded_) {
+                    if (auto* engine = addonManager_->getLuaEngine()) {
+                        const SDL_Keymod mods = SDL_GetModState();
+                        engine->dispatchBindingKey(
+                            event.key.keysym.sym,
+                            (mods & KMOD_SHIFT) != 0,
+                            (mods & KMOD_CTRL) != 0,
+                            (mods & KMOD_ALT) != 0, false);
+                    }
+                }
             }
         }
 

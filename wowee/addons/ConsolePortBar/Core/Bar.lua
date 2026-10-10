@@ -499,6 +499,8 @@ function Bar:OnLoad(cfg, benign)
     self:SetSize(width, BAR_FIXED_HEIGHT)
 
     self:SetupShoulderButtons()
+    self:SetAlpha(1)
+    self:Show()
 end
 
 function Bar:UpdateDividerFocus(newstate)
