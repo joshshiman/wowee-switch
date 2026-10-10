@@ -87,6 +87,7 @@ public:
      * @param terrain Loaded ADT terrain data
      * @return Generated mesh (check validChunkCount)
      */
+    static void generate(const ADTTerrain& terrain, TerrainMesh& mesh);
     static TerrainMesh generate(const ADTTerrain& terrain);
 
     /**

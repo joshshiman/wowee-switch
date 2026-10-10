@@ -457,3 +457,37 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
    - `WMORenderer MAX_MATERIAL_SETS = 2048`.
    - `WaterRenderer MAX_WATER_SETS = 2048`.
    - Over **180 MiB of GPU device memory saved** and total descriptor sets reduced from ~250k to ~8k across the entire engine.
+
+## 2026-10-09 Run 42: Terrain Worker Stack Overflow Resolved (2 MiB Worker Stacks & Direct Heap ADT/Mesh Loading)
+
+### Symptoms:
+- The world loading screen lasted much longer, loading progress advanced to ~20%, and all renderers (`TerrainRenderer`, `WaterRenderer`, `Minimap`, `WorldMap`, `M2Renderer`, `WMORenderer`) initialized successfully with zero Vulkan memory errors.
+- Client crashed with a Data Abort on a background thread during tile streaming.
+
+### Symbolicated Crash Analysis:
+- Atmosphere crash report: `/atmosphere/crash_reports/01791590785_010000000000100d.log` (00:06)
+- Thread: `0x2a0` (Terrain worker thread)
+- Stack Region: `00000064426cd000 - 00000064426ee000` (128 KiB + guard page)
+- Stack Pointer: `SP = 000000644269da90` (193 KiB below the bottom of the stack region!)
+- Fault Address: `000000644269dad0` (guard page / unmapped page hit during stack push)
+- Symbolicated stack:
+  ```
+  PC: 0xc314e8 -> wowee::rendering::TerrainManager::prepareTile(int, int, bool)
+  LR: 0xc37e74 -> wowee::rendering::TerrainManager::workerLoop()
+  ```
+
+### Root Cause:
+1. On Nintendo Switch (devkitA64 / libnx), `std::thread` invokes `pthread_create(..., NULL, ...)`, which defaults to a tiny **128 KiB stack** (`0x20000`).
+2. `pipeline::ADTTerrain` contains `std::array<MapChunk, 256>` and liquid data, totaling **~300 KiB**.
+3. `ADTLoader::load(adtData)` returned `ADTTerrain` by value on the stack, and `prepareTile()` called it twice (`adtData` and `objData`) along with `pipeline::TerrainMesh` (25 KiB) on the stack.
+4. Allocating 300+ KiB on a 128 KiB thread stack instantly triggered a hard stack overflow.
+
+### Solutions Applied:
+1. **ThreadWithStack Helper (`core::ThreadWithStack`)**:
+   - Implemented `wowee/include/core/thread_util.hpp`, providing a POSIX `pthread_create` wrapper that configures explicit stack sizes via `pthread_attr_setstacksize`.
+   - `TerrainManager::startWorkers()` now spawns background terrain workers with **2 MiB stacks** (`2 * 1024 * 1024`), replacing the 128 KiB default.
+2. **Direct-to-Heap ADT Loading**:
+   - Added `ADTLoader::load(const std::vector<uint8_t>&, ADTTerrain&)` to populate heap-allocated `terrainPtr` directly.
+   - Converted split `_obj0.adt` loading to populate `objTerrain` on the heap, eliminating 300 KiB stack frames.
+3. **Direct-to-Heap Terrain Mesh Generation**:
+   - Added `TerrainMeshGenerator::generate(const ADTTerrain&, TerrainMesh&)` to write chunk geometry directly into heap-allocated `pending->mesh`.

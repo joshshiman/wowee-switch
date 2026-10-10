@@ -7,14 +7,11 @@
 namespace wowee {
 namespace pipeline {
 
-TerrainMesh TerrainMeshGenerator::generate(const ADTTerrain& terrain) {
-    TerrainMesh mesh;
-
+void TerrainMeshGenerator::generate(const ADTTerrain& terrain, TerrainMesh& mesh) {
     if (!terrain.isLoaded()) {
         LOG_WARNING("Attempting to generate mesh from unloaded terrain");
-        return mesh;
+        return;
     }
-
 
     // Copy texture list
     mesh.textures = terrain.textures;
@@ -41,8 +38,11 @@ TerrainMesh TerrainMeshGenerator::generate(const ADTTerrain& terrain) {
     }
 
     mesh.validChunkCount = validCount;
+}
 
-
+TerrainMesh TerrainMeshGenerator::generate(const ADTTerrain& terrain) {
+    TerrainMesh mesh;
+    generate(terrain, mesh);
     return mesh;
 }
 

@@ -30,13 +30,12 @@ float HeightMap::getHeight(int x, int y) const {
 }
 
 // ADTLoader implementation
-ADTTerrain ADTLoader::load(const std::vector<uint8_t>& adtData) {
+bool ADTLoader::load(const std::vector<uint8_t>& adtData, ADTTerrain& terrain) {
     ZoneScopedN("ADTLoader::load");
-    ADTTerrain terrain;
 
     if (adtData.empty()) {
         LOG_ERROR("Empty ADT data");
-        return terrain;
+        return false;
     }
 
     LOG_DEBUG("Loading ADT terrain (", adtData.size(), " bytes)");
@@ -86,7 +85,12 @@ ADTTerrain ADTLoader::load(const std::vector<uint8_t>& adtData) {
     }
 
     terrain.loaded = true;
+    return true;
+}
 
+ADTTerrain ADTLoader::load(const std::vector<uint8_t>& adtData) {
+    ADTTerrain terrain;
+    load(adtData, terrain);
     return terrain;
 }
 

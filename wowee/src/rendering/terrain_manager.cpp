@@ -477,8 +477,7 @@ std::shared_ptr<PendingTile> TerrainManager::prepareTile(int x, int y, bool obje
             return nullptr;
         }
 
-        *terrainPtr = pipeline::ADTLoader::load(adtData);
-        if (!terrainPtr->isLoaded()) {
+        if (!pipeline::ADTLoader::load(adtData, *terrainPtr) || !terrainPtr->isLoaded()) {
             LOG_ERROR("Failed to parse ADT terrain: ", adtPath);
             return nullptr;
         }
@@ -493,8 +492,8 @@ std::shared_ptr<PendingTile> TerrainManager::prepareTile(int x, int y, bool obje
                           std::to_string(coord.x) + "_" + std::to_string(coord.y) + "_obj0.adt";
     auto objData = assetManager->readFile(objPath);
     if (!objData.empty()) {
-        auto objTerrain = std::make_unique<pipeline::ADTTerrain>(pipeline::ADTLoader::load(objData));
-        if (objTerrain->isLoaded()) {
+        auto objTerrain = std::make_unique<pipeline::ADTTerrain>();
+        if (pipeline::ADTLoader::load(objData, *objTerrain) && objTerrain->isLoaded()) {
             const uint32_t doodadNameBase = static_cast<uint32_t>(terrainPtr->doodadNames.size());
             const uint32_t wmoNameBase = static_cast<uint32_t>(terrainPtr->wmoNames.size());
 
@@ -564,14 +563,6 @@ std::shared_ptr<PendingTile> TerrainManager::prepareTile(int x, int y, bool obje
         }
     }
 
-    // Generate mesh
-    pipeline::TerrainMesh mesh;
-    if (!objectsOnly) mesh = pipeline::TerrainMeshGenerator::generate(*terrainPtr);
-    if (!objectsOnly && mesh.validChunkCount == 0) {
-        LOG_ERROR("Failed to generate terrain mesh for tile [", x, ",", y, "]");
-        return nullptr;
-    }
-
     if (!workerRunning.load()) return nullptr;
 
 #ifdef WOWEE_SWITCH
@@ -582,7 +573,15 @@ std::shared_ptr<PendingTile> TerrainManager::prepareTile(int x, int y, bool obje
     pending->coord = coord;
     pending->objectsOnly = objectsOnly;
     pending->terrain = std::move(*terrainPtr);
-    pending->mesh = std::move(mesh);
+
+    // Generate mesh directly into heap-allocated pending tile
+    if (!objectsOnly) {
+        pipeline::TerrainMeshGenerator::generate(pending->terrain, pending->mesh);
+        if (pending->mesh.validChunkCount == 0) {
+            LOG_ERROR("Failed to generate terrain mesh for tile [", x, ",", y, "]");
+            return nullptr;
+        }
+    }
 
     // Pre-load terrain texture BLP data on background thread so finalizeTile
     // doesn't block the main thread with file I/O.
@@ -2495,8 +2494,9 @@ bool TerrainManager::startWorkers() {
     workerRunning.store(true);
     try {
         workerThreads.reserve(workerCount);
+        constexpr size_t kWorkerStackSize = 2 * 1024 * 1024; // 2 MiB stack (Switch default is 128 KiB)
         for (int i = 0; i < workerCount; ++i) {
-            workerThreads.emplace_back(&TerrainManager::workerLoop, this);
+            workerThreads.emplace_back(kWorkerStackSize, &TerrainManager::workerLoop, this);
         }
     } catch (const std::exception& e) {
         // A partially constructed pool still owns joinable threads. Join it

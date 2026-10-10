@@ -183,6 +183,7 @@ public:
      * @param adtData Raw ADT file data
      * @return Loaded terrain (check isLoaded())
      */
+    static bool load(const std::vector<uint8_t>& adtData, ADTTerrain& terrain);
     static ADTTerrain load(const std::vector<uint8_t>& adtData);
 
 private:

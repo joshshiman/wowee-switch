@@ -12,6 +12,7 @@
 #include "pipeline/wmo_loader.hpp"
 #include "pipeline/wmo_geometry_residency.hpp"
 #include "pipeline/blp_loader.hpp"
+#include "core/thread_util.hpp"
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -578,7 +579,7 @@ private:
     static constexpr float CHUNK_SIZE = 33.33333f;          // One chunk = 33.33 units
 
     // Background loading worker pool
-    std::vector<std::thread> workerThreads;
+    std::vector<core::ThreadWithStack> workerThreads;
     int workerCount = 0;
     // THREAD-SAFE: guards loadQueue, readyQueue, and pendingTiles.
     // Workers wait on queueCV; main thread signals when new tiles are enqueued
