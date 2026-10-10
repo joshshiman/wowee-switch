@@ -1099,3 +1099,43 @@ flow is INFO-suppressed or unlogged. Nothing to diagnose from.
 - Abbey run: 147 ms mean, chars 101 avg/203 max (+60 ms quartile). NPC render
   radius 130 -> 90 + bird-update radius matched (Switch). Targeting/aggro use
   gameplay distance — render-only change.
+
+## ConsolePort handheld integration: key learnings (2026-10-10, branch feature/consoleport-native-ui)
+
+How the stack actually works (verified against code + console logs, not docs):
+- Pad button -> F-key (input_switch.cpp, ConsolePort mode) -> WoW key
+  (calibration table, ConsolePortSettings) -> CP_* pad name (SetBinding) ->
+  override per modifier (SetTempBinding -> SetOverrideBinding on the handler)
+  -> GetBindingAction answers the override -> dispatchBindingKey executes.
+- Face buttons do NOT travel the secure-handler click path: dispatch calls
+  UseAction / frame:Click / C++ directly. So "CLICK CPB_* failed: Invalid
+  function body" in the log coexists with working spell casts - the clicks
+  fail, the slots still fire. Do not chase CLICK errors as "buttons broken".
+- `securehandlers.lua:805 "Invalid function body"` is a TYPE check
+  (`type(body) ~= "string"`), not a compile error: the body argument arrived
+  nil. It means `self:GetAttribute(...)` in the restricted env returned nil.
+  UpdateState survives because insecure code fetches its body; the drag/click
+  snippets fetch theirs inside the restricted wrapper. Attribute-vs-script
+  namespaces are separate (SetScript(nil) does NOT wipe attributes) - that
+  theory was checked and is dead.
+- clientActsOnBinding is a trap for pad keys: TOGGLEGAMEMENU/OPENCHAT/etc.
+  are "performed by the client" on ITS keys (Escape/Enter). A pad F-key bound
+  to one yields (`return false`) to a client that never sees F12 - the key
+  reads as dead. Fix is explicit dispatch cases, not rebinding.
+- SavedVariables shadow code defaults twice over: ConsolePortBindingSet (per
+  character) pins the button map, ConsolePortBarSetup pins layout+colors.
+  Every handheld default change needs a one-shot in-place migration
+  (woweeBindRev / woweeRev stamps) or existing characters never see it.
+- Button naming: ORBIS CROSS/A, CIRCLE/B, SQUARE/X, TRIANGLE/Y =
+  HidNpadButton_A/B/X/Y (switch_pad_buttons.h). F1..F4 = X,B,Y,A.
+  Calibration CP_R_UP=F1, CP_R_DOWN=F2, CP_R_LEFT=F3, CP_R_RIGHT=F4.
+- MPQ forensics from the host is fast and reliable: link dump tools against
+  wowee/build-host/lib/libstorm.a (-lz -lbz2), run from a workspace dir
+  (/tmp/opencode is noexec). Paths must be lowercased backslashes
+  (`interface\framexml\securehandlers.lua`); base FrameXML is in the LOCALE
+  archives (locale-enUS.MPQ, overridden by patch-enUS.MPQ), not common.MPQ.
+- Diagnosing UI on hardware: widget dump passes fire at load and world+600
+  frames only - a floater appearing later is invisible to them. The throttled
+  CENTER scan in reportWidgetDiagnostics exists for exactly this; [WOWEE_KEYTRACE]
+  settles "what does this button do" without a debugger. Both are debug-round
+  instruments - remove or gate before calling the branch done.
