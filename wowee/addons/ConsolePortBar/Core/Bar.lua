@@ -331,6 +331,8 @@ function Bar:OnLoad(cfg, benign)
     else
         self:UnregisterEvent('PLAYER_REGEN_ENABLED')
         self:UnregisterEvent('PLAYER_REGEN_DISABLED')
+        self:SetAlpha(1)
+        self:Show()
         self:FadeIn(self:GetAlpha())
     end
 

@@ -136,8 +136,8 @@ db.Controllers.SWITCH = {
 		},
 		-- Center buttons
 		['CP_X_LEFT'] = {
-			[''] 			= 'OPENALLBAGS',
-			['SHIFT-'] 		= 'TOGGLECHARACTER0',
+			[''] 			= 'CLICK ConsolePortUtilityToggle:LeftButton',
+			['SHIFT-'] 		= 'OPENALLBAGS',
 			['CTRL-'] 		= 'TOGGLESPELLBOOK',
 			['CTRL-SHIFT-'] = 'TOGGLETALENTS',
 		},
