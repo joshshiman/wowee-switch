@@ -1082,3 +1082,20 @@ flow is INFO-suppressed or unlogged. Nothing to diagnose from.
   revert and gate interiors differently — user asked to watch for it.
 - Expectation: indoor wmoDraws collapse; outdoor mostly unchanged (bounds
   path already culled). Next: character-draw spike indoors (separate).
+
+## Branch/repo state (2026-10-10, read this before touching git)
+- Work happens on `feature/consoleport-native-ui` (all session commits).
+  `main` holds an unrelated unpushed commit (cdf4012, ConsolePortLK native-UI
+  integration) that does NOT compile (input_switch namespace break). Do NOT
+  build from main, do NOT push main anywhere, do NOT revert cdf4012 without
+  asking — it is someone's active work. Merge order TBD with user.
+- `git push origin main` is BANNED from this workflow: with HEAD on the
+  feature branch it pushes the local main ref (the broken ConsolePort line).
+  Push the feature branch explicitly.
+- Verification rule (burned twice): content check (`strings`) + card/staged
+  md5 MATCH. Never trust bare md5s from memory.
+
+## Run 64: NPC radius 90 (build 72744904)
+- Abbey run: 147 ms mean, chars 101 avg/203 max (+60 ms quartile). NPC render
+  radius 130 -> 90 + bird-update radius matched (Switch). Targeting/aggro use
+  gameplay distance — render-only change.

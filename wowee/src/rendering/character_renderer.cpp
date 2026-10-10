@@ -2400,7 +2400,12 @@ void CharacterRenderer::update(float deltaTime, const glm::vec3& cameraPos,
     // rapid wing motion remains conspicuous at distance, and the render radius
     // can be larger than the generic animation radius.  Use the same boundary
     // as rendering so a visible bird never holds its last bone pose.
+    // Switch: 90 to match the render cut below (run 64).
+#ifdef WOWEE_SWITCH
+    const float birdUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 90));
+#else
     const float birdUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 130));
+#endif
     const float birdUpdateRadiusSq = birdUpdateRadius * birdUpdateRadius;
 
     // Single pass: fade-in, movement, and animation bone collection
@@ -2869,7 +2874,15 @@ void CharacterRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet,
         if (detail && !detail->empty()) { lastDrawDescription_ += ' '; lastDrawDescription_ += *detail; }
         return true;
     };
-    const float renderRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 130));
+    const float renderRadius =
+#ifdef WOWEE_SWITCH
+        // NPC-heavy views carry ~100-200 character draws at +60 ms across
+        // quartiles (run 64). 130 -> 90 on Switch; targeting/aggro use
+        // gameplay distance, not this, so nothing mechanical changes.
+        static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 90));
+#else
+        static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 130));
+#endif
     const float renderRadiusSq = renderRadius * renderRadius;
     const glm::vec3 camPos = camera.getPosition();
     const float frameTimeSeconds = std::chrono::duration<float>(
