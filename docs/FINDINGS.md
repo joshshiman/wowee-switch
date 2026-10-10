@@ -1213,3 +1213,47 @@ Comprehensive note per user request - the whole override picture in one place.
 - Rule: when retail Lua does handle-table indirection, check what `self`
   really is before blaming the data. And method no-op allowlists are
   environment-specific: verify restricted-path methods separately.
+
+## OPERATOR CORRECTIONS - normative (2026-10-10, user-issued, override code readings on conflict)
+- Traces measure DISPATCH (key->command), never fingers (physical button) or
+  effects (world result). On any conflict, the operator's report wins and the
+  trace is declared incomplete, not the operator wrong. Physical-button names
+  in the trace are pending work to close this gap for good.
+- Button naming is Switch-only everywhere user-facing: A/B/X/Y, L/R/ZL/ZR,
+  +/-, sticks. Any PlayStation naming ("O", "Cross", "Square", "Triangle",
+  "R2 + Cross" style labels) is a bug. Live instance: ring hint renders
+  "Hold O to ..." (ConsolePort `UTILITY_RING_BIND`/hint formatting resolving
+  a non-Switch glyph set - fix the glyph/name resolution to the SWITCH set,
+  not the text).
+- Y is FINE and UNTOUCHED. It toggles attack (press stops - matches
+  SpellHandler toggle verbatim) with undisclosed targeting behavior the
+  operator relies on. No removal, no rebinding, no "simplification" without
+  proof of the targeting source plus explicit sign-off.
+- X is UNTOUCHED (jump + observed attack/interact). Same protection as Y.
+- A MUST ALWAYS DO SOMETHING (operator instruction): A := X-class behavior
+  (interact / autoloot / auto-attack). A-on-a-bar-slot activates that slot
+  (contextual: cursor over action slot -> click it; else target-interact).
+  Silent A with empty hands is the failure mode being removed. Overlap with X
+  is acceptable and intended.
+- Vertical overlap is REAL (operator eyes beat mirrored screenshots): widen
+  row pitch between cluster rows and shrink satellites until daylight shows.
+  Numbers go in the build plan, screenshot verifies.
+- Dimming: operator REJECTS the state-tint theory (bright-with-no-target
+  observed; darkening arrives as an overlay). Do NOT gate tints on target.
+  Suspects, in order: stuck cooldown swipe, bar alpha < 1, Flash/shadow art.
+  Arbiter test (operator runs): untarget (ESC) in world -> brighten or not.
+  Brighten = state-linked (reopen tint review); stay dark = overlay hunt.
+- Ring must SHIP WITH DOORS (spellbook, talents, character, map) and a
+  pad-only select/commit gesture, or it is pointless. Empty default preset is
+  a content gap, not a visibility bug.
+- Plus must show a REAL, visible menu (settings explicit routing vs FrameXML
+  frame - whichever renders; "sound + nothing" is the current failure).
+- Drag-to-bar DEPRIORITIZED by operator. Requirement in its place: A-on-slot
+  activation (above). Secure-drop work pauses; do not delete the diagnostics.
+- Romfs wins for Lua: every round rebuilds + redeploys the .nro, no
+  exceptions. Lua-only FTP rounds are void (proven twice: L/R swap round,
+  repro-probe round). State the build contents explicitly each round.
+- Targeting gap (open design, do not "fix" blindly): nothing pad-side
+  acquires targets except cursor clicks; Y-attack needs a target. The
+  operator's Y-targets experience has no binding-side source (TAB is
+  enemy-only and unbound here) - suspect TargetAI/cursor, prove before use.
