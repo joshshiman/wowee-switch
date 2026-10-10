@@ -46,7 +46,6 @@ local function LoadDefaultBindings()
 	if ConsolePortOldConfig then
 		ConsolePortOldConfig:Hide()
 	end
-	ConsolePort:CheckLoadedSettings()
 end
 
 local function LoadWoWmapper()
@@ -105,6 +104,8 @@ function ConsolePort:LoadSettings()
 	db.Settings = ConsolePortSettings
 	db('calibration', db('calibration') or (ConsolePortSettings and ConsolePortSettings.calibration) or {})
 
+	self:LoadLookup()
+
 	if not ConsolePortBindingSet or not next(ConsolePortBindingSet) then
 		LoadDefaultBindings()
 	end
@@ -115,8 +116,6 @@ function ConsolePort:LoadSettings()
 	if selectController then
 		self:SelectController()
 	end
-
-	self:LoadLookup()
 
 	-----------------------------------------------------------
 	-- Set/load mouse settings

@@ -10,7 +10,7 @@ local HANDLE = CreateFrame('Frame', 'ConsolePortBarActionPlacer', UIParent, 'Sec
 RegisterStateDriver(HANDLE, 'cursor', '[cursor]true;nil')
 RegisterStateDriver(HANDLE, 'combat', '[combat]true;nil')
 
-HANDLE:SetAttribute('_onstate-combat', [[self:SetAttribute('incombat', newstate)]])
+HANDLE:SetAttribute('_onstate-combat', "self:SetAttribute('incombat', newstate)")
 HANDLE:SetAttribute('_onstate-cursor', "
 	if not self:GetAttribute('incombat') and newstate then
 		self:Show()

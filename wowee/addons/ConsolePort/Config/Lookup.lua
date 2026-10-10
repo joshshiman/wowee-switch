@@ -10,9 +10,17 @@ local tonumber, ipairs, pairs = tonumber, ipairs, pairs
 local spairs, copy = db.table.spairs, db.table.copy
 ---------------------------------------------------------------
 local Controller
+
+local function GetController()
+    if not Controller then
+        Controller = db.Controllers and (db.Controllers[db('type')] or db.Controllers.SWITCH)
+    end
+    return Controller
+end
+
 ---------------------------------------------------------------
 function ConsolePort:LoadLookup()
-    Controller = db.Controllers[db('type')]
+    Controller = db.Controllers and (db.Controllers[db('type')] or db.Controllers.SWITCH)
     self.LoadLookup = nil
 end
 ---------------------------------------------------------------
@@ -381,12 +389,20 @@ end
 ---------------------------------------------------------------
 -- Get the clean bindings for various uses
 ---------------------------------------------------------------
-function ConsolePort:GetBindings(tbl) return tbl and copy(Controller.Bindings) or spairs(Controller.Bindings) end
+function ConsolePort:GetBindings(tbl)
+    local c = GetController()
+    if not c or not c.Bindings then return {} end
+    return tbl and copy(c.Bindings) or spairs(c.Bindings)
+end
 
 ---------------------------------------------------------------
 -- Default faux binding settings
 ---------------------------------------------------------------
-function ConsolePort:GetDefaultBinding(key) return copy(Controller.Bindings[key]) end
+function ConsolePort:GetDefaultBinding(key)
+    local c = GetController()
+    if not c or not c.Bindings or not c.Bindings[key] then return {} end
+    return copy(c.Bindings[key])
+end
 
 ---------------------------------------------------------------
 -- Get the currently deployed binding set (can be manipulated)
@@ -509,8 +525,9 @@ function ConsolePort:GetDefaultAddonSettings(setting)
         ['unitHotkeyPool'] = 'player$;party%d$;raid%d+$',
         -------------------------------
     }
-    if Controller then
-        for key, value in pairs(Controller.Settings) do
+    local c = GetController()
+    if c and c.Settings then
+        for key, value in pairs(c.Settings) do
             settings[key] = value
         end
     end

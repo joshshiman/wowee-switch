@@ -6791,6 +6791,7 @@ void LuaEngine::registerCoreAPI() {
         "end\n"
         "function mt:SetFrameRef(label, ref)\n"
         "    if not label or not ref then return end\n"
+        "    label = tostring(label)\n"
         "    local store = rawget(self, '__framerefs')\n"
         "    if not store then store = {}; rawset(self, '__framerefs', store) end\n"
         "    store[label] = ref\n"
