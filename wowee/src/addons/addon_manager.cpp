@@ -368,7 +368,7 @@ bool AddonManager::beginOriginalInterfaceAttempt() {
     ui::frameXmlSetActive(false);
 #ifdef WOWEE_SWITCH
     const char* setting = std::getenv("WOWEE_LOAD_FRAMEXML");
-    if (!setting || std::strcmp(setting, "1") != 0) return false;
+    if (setting && std::strcmp(setting, "0") == 0) return false;
     originalRecoveryPath_ = frameXmlRecoveryPath(core::getConfigRoot());
     const auto previous = readFrameXmlRecovery(originalRecoveryPath_);
     if (!previous.allowsAttempt())
