@@ -1819,7 +1819,17 @@ bool M2Renderer::loadModel(const pipeline::M2Model& model, uint32_t modelId) {
                 // declares SHADER_READ_ONLY_OPTIMAL over it.
                 VkTexture* tex = gpuModel.particleTextures[ei];
                 if (!tex || !tex->isValid()) tex = whiteTexture_.get();
-                if (!tex || !tex->isValid()) continue;
+                if (!tex || !tex->isValid()) {
+                    // An allocated-but-never-written set is undefined to bind,
+                    // and the draw only tests for null - so free it back to
+                    // null rather than leave a live handle to garbage. On NVK
+                    // that bind is a lost device (issue #123), hit exactly
+                    // when streaming pressure exhausts the pool and the white
+                    // fallback is itself unsampleable: i.e. world entry.
+                    vkFreeDescriptorSets(device, materialDescPool_, 1, &gpuModel.particleTexSets[ei]);
+                    gpuModel.particleTexSets[ei] = VK_NULL_HANDLE;
+                    continue;
+                }
                 VkDescriptorImageInfo imgInfo = tex->descriptorInfo();
                 VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
                 write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1869,7 +1879,15 @@ bool M2Renderer::loadModel(const pipeline::M2Model& model, uint32_t modelId) {
                 if (vkAllocateDescriptorSets(device, &ai, &gpuModel.ribbonTexSets[ri]) == VK_SUCCESS) {
                     VkTexture* tex = gpuModel.ribbonTextures[ri];
                     if (!tex || !tex->isValid()) tex = whiteTexture_.get();
-                    if (!tex || !tex->isValid()) continue;
+                    if (!tex || !tex->isValid()) {
+                        // Same as particle sets above: never leave an
+                        // allocated-but-unwritten set behind - the draw tests
+                        // nullity, not written-ness, and NVK answers the bind
+                        // with a lost device.
+                        vkFreeDescriptorSets(device, materialDescPool_, 1, &gpuModel.ribbonTexSets[ri]);
+                        gpuModel.ribbonTexSets[ri] = VK_NULL_HANDLE;
+                        continue;
+                    }
                     VkDescriptorImageInfo imgInfo = tex->descriptorInfo();
                     VkWriteDescriptorSet write{.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
                     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

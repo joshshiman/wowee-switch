@@ -829,3 +829,30 @@ in an earlier streaming upload surfacing late.
   clean, concurrency is confirmed and selective serialization follows. If it
   still dies at the same point, concurrency is exonerated and the fault is in
   the content of an entry upload.
+
+## 2026-10-09 Run 54: null-descriptor audit → M2 particle/ribbon hole (FIXED)
+
+### Audit (issue #123 class: null view/bind = lost device on NVK)
+Terrain/WMO/M2-material/character/quest-marker writes+binds all guarded
+(pick-to-white, drop-unset, skip-null). Three live holes found:
+1. **M2 particle/ribbon pre-alloc sets** (m2_renderer.cpp:1822/:1872): on
+   failed resolve the code `continue`d after a SUCCESSFUL
+   vkAllocateDescriptorSets, leaving a non-null, never-written set that sails
+   through the bind-time null check (particles.cpp:849, ribbon :484). Trigger
+   is pool exhaustion + unsampleable white fallback coinciding = streaming
+   pressure = world entry. Matches all four entry deaths (intermittent by
+   timing). FIXED: free + NULL the slot on that path.
+2. **Footprint bind** (:367): no validity recheck; partial loadTextures
+   failure leaves null/unwritten slots bound unconditionally. FIXED: skip when
+   set null or texture invalid. Low likelihood (not streaming) but same class.
+3. **Preview shadow placeholder** (character_preview.cpp:490): writes NULL
+   view by construction if placeholder absent; sampler from getShadowSampler
+   (valid — created at renderer init, fatal if null). Portraits render through
+   this set in-world too. Placeholder upload succeeds in practice; left as-is,
+   note for the portrait investigation (which shows no log signal at all).
+
+### Change deployed (~23:10, md5 `ff618d21...`): the two frees + guard.
+### Serial-upload experiment inconclusive: run 23:09 died the same way WITH
+### serialization (immediate -4 at marker upload). Concurrency downgraded as
+### prime suspect; poison-descriptor (now fixed) takes its place. Serial mode
+### stays in (harmless, still informative if deaths stop).

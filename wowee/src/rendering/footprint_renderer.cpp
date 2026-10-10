@@ -355,6 +355,10 @@ void FootprintRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet,
             alpha = 1.0f - t;
         }
         if (alpha <= 0.001f || print.textureIndex >= kTextureCount) continue;
+        // Bind-time recheck: loadTextures can leave slots null/unwritten on a
+        // partial failure, and an unwritten set binds garbage on NVK (a lost
+        // device, issue #123) just as surely as a null one.
+        if (!textureSets_[print.textureIndex] || !textures_[print.textureIndex].isValid()) continue;
 
         glm::mat4 model = glm::translate(glm::mat4(1.0f), print.position);
         // The shipped masks point toward +V/local +Y; rotate that axis onto
