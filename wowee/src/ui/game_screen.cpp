@@ -1,6 +1,10 @@
 #include "ui/graphics_choices.hpp"
 #ifdef WOWEE_SWITCH
 #include "platform/switch/switch_platform.hpp"
+#ifdef WOWEE_SWITCH
+#include "platform/switch/input_switch.hpp"
+#include "platform/switch/switch_pad_buttons.h"
+#endif
 #endif
 #include "ui/game_screen.hpp"
 #include "rendering/render_setting_bridge.hpp"
@@ -1740,6 +1744,18 @@ void GameScreen::processTargetInput(game::GameHandler& gameHandler) {
             if (input.isKeyJustPressed(SDL_SCANCODE_PRINTSCREEN)) {
                 takeScreenshot();
             }
+#ifdef WOWEE_SWITCH
+            // L + B chord, read raw: the layer system maps B to interact and
+            // (with action bars up) bypasses the L1 layer entirely, so the
+            // chord never arrives as a scancode. Hold-L-then-B, edge on B.
+            {
+                const auto& pad = platform::switchport::padSnapshot();
+                if (pad.connected && (pad.buttons & ORBIS_PAD_BUTTON_L1) &&
+                    (pad.pressed & ORBIS_PAD_BUTTON_CIRCLE)) {
+                    takeScreenshot();
+                }
+            }
+#endif
 
             // Action bar keys (1-9, 0, -, =)
             static const SDL_Scancode actionBarKeys[] = {
