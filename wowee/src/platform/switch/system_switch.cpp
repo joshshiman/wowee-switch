@@ -65,6 +65,8 @@ bool g_splashHidden = false;
 bool g_frameTraceEnabled = false;
 bool g_exitRequested = false;
 bool g_romfsMounted = false;
+bool g_isAppletMode = false;
+uint64_t g_totalMemoryBytes = 0;
 // Whether the BSD socket service came up. Held rather than re-derived, because
 // socketInitializeDefault is called once here and its answer is the only thing
 // the client will ever know about it - a login that cannot connect has no other
@@ -215,6 +217,19 @@ bool initSystem() {
         klog("fsdevMountSdmc failed; sdmc:/ assets are unavailable");
     }
     appletInitialize();
+    {
+        AppletType at = appletGetAppletType();
+        u64 totalMemory = 0;
+        svcGetInfo(&totalMemory, InfoType_TotalMemorySize, CUR_PROCESS_HANDLE, 0);
+        g_totalMemoryBytes = totalMemory;
+        g_isAppletMode = (at != AppletType_Application) || (totalMemory < 1000ULL * 1024 * 1024);
+        klog("Execution mode: AppletType=%d, totalMemory=%llu MiB (%s)",
+             (int)at, (unsigned long long)(totalMemory / (1024 * 1024)),
+             g_isAppletMode ? "APPLET MODE (Album) - 453 MB RAM limit!" : "APPLICATION MODE (Title Override) - full ~3.2 GB RAM");
+        if (g_isAppletMode) {
+            reportBootStage("WARNING: Launched via Album (Applet Mode). Hold R on any game for Title Override!");
+        }
+    }
     if (R_FAILED(socketInitializeDefault())) {
         klog("socketInitializeDefault failed");
     } else {
@@ -562,6 +577,14 @@ bool resourceAssetsPresent() {
     // the check the root itself was selected on costs nothing, and keeps the
     // self-test line from ever disagreeing with the root it was resolved from.
     return holdsAssets(appRoot());
+}
+
+bool isAppletMode() {
+    return g_isAppletMode;
+}
+
+uint64_t totalMemoryBytes() {
+    return g_totalMemoryBytes;
 }
 
 uint32_t resolveIPv4(const std::string& host) {

@@ -419,6 +419,19 @@ void AuthScreen::render(auth::AuthHandler& authHandler) {
         ui_.setLayer(PaperLayer::Page);
     }
 
+#ifdef WOWEE_SWITCH
+    if (platform::switchport::isAppletMode()) {
+        ui_.setLayer(PaperLayer::Overlay);
+        const char* warnText = "WARNING: Running in Applet Mode (Album - 450 MB RAM)! Hold [R] on any game to launch Title Override with 3.2 GB RAM.";
+        const float warnSize = ui_.px(15);
+        const float warnW = ui_.textWidth(warnText, warnSize);
+        const ImVec2 at((screen.x - warnW) * 0.5f, ui_.px(8));
+        ui_.text(ImVec2(at.x + 1.0f, at.y + 1.0f), warnText, warnSize, IM_COL32(0, 0, 0, 220));
+        ui_.text(at, warnText, warnSize, IM_COL32(255, 80, 80, 255));
+        ui_.setLayer(PaperLayer::Page);
+    }
+#endif
+
     ui_.end();
 }
 

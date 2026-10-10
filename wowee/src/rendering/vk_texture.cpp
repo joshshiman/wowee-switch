@@ -228,31 +228,71 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
     // read back from the image anyway.
     const bool useHostCopy = ctx.isHostImageCopySupported() && !generateMips;
 
-    AllocatedBuffer staging{};
+    struct StagingCopy {
+        AllocatedBuffer buffer;
+        VkBufferImageCopy region;
+    };
+    std::vector<StagingCopy> stagingCopies;
     if (!useHostCopy) {
-        if (imageSize <= 256 * 1024) {
-            try {
-                staging = createBuffer(ctx.getAllocator(), imageSize,
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, where);
-                if (!staging.buffer) throw std::bad_alloc();
+        constexpr uint32_t kMaxSliceBytes = 256 * 1024;
+        try {
+            if (imageSize <= kMaxSliceBytes) {
+                AllocatedBuffer sliceBuf = createBuffer(ctx.getAllocator(), imageSize,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+                if (!sliceBuf.buffer) throw std::bad_alloc();
                 void* mapped = nullptr;
-                if (!mapStaging(ctx, staging, &mapped)) throw std::bad_alloc();
+                if (!mapStaging(ctx, sliceBuf, &mapped)) {
+                    destroyBuffer(ctx.getAllocator(), sliceBuf);
+                    throw std::bad_alloc();
+                }
                 std::memcpy(mapped, pixels, imageSize);
-                vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, imageSize);
-                vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
-            } catch (const std::exception& error) {
-                if (staging.buffer) destroyBuffer(ctx.getAllocator(), staging);
-                LOG_ERROR("Texture upload: direct staging failed: ", error.what());
-                return false;
+                vmaFlushAllocation(ctx.getAllocator(), sliceBuf.allocation, 0, imageSize);
+                vmaUnmapMemory(ctx.getAllocator(), sliceBuf.allocation);
+
+                VkBufferImageCopy region{};
+                region.bufferOffset = 0;
+                region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                region.imageSubresource.mipLevel = 0;
+                region.imageSubresource.baseArrayLayer = 0;
+                region.imageSubresource.layerCount = 1;
+                region.imageOffset = {0, 0, 0};
+                region.imageExtent = {width, height, 1};
+
+                stagingCopies.push_back({sliceBuf, region});
+            } else {
+                const uint32_t bytesPerRow = width * bpp;
+                const uint32_t chunkRows = std::max(1u, kMaxSliceBytes / bytesPerRow);
+                for (uint32_t y = 0; y < height; y += chunkRows) {
+                    const uint32_t curRows = std::min(chunkRows, height - y);
+                    const uint32_t sliceBytes = curRows * bytesPerRow;
+                    AllocatedBuffer sliceBuf = createBuffer(ctx.getAllocator(), sliceBytes,
+                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+                    if (!sliceBuf.buffer) throw std::bad_alloc();
+                    void* mapped = nullptr;
+                    if (!mapStaging(ctx, sliceBuf, &mapped)) {
+                        destroyBuffer(ctx.getAllocator(), sliceBuf);
+                        throw std::bad_alloc();
+                    }
+                    std::memcpy(mapped, pixels + static_cast<size_t>(y) * bytesPerRow, sliceBytes);
+                    vmaFlushAllocation(ctx.getAllocator(), sliceBuf.allocation, 0, sliceBytes);
+                    vmaUnmapMemory(ctx.getAllocator(), sliceBuf.allocation);
+
+                    VkBufferImageCopy region{};
+                    region.bufferOffset = 0;
+                    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    region.imageSubresource.mipLevel = 0;
+                    region.imageSubresource.baseArrayLayer = 0;
+                    region.imageSubresource.layerCount = 1;
+                    region.imageOffset = {0, static_cast<int32_t>(y), 0};
+                    region.imageExtent = {width, curRows, 1};
+
+                    stagingCopies.push_back({sliceBuf, region});
+                }
             }
-        } else {
-            try {
-                staging = uploadBytesChunked(ctx, pixels, imageSize,
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
-            } catch (const std::exception& error) {
-                LOG_ERROR("Texture upload: staging failed: ", error.what());
-                return false;
-            }
+        } catch (const std::exception& error) {
+            for (auto& sc : stagingCopies) destroyBuffer(ctx.getAllocator(), sc.buffer);
+            LOG_ERROR("Texture upload: staging failed: ", error.what());
+            return false;
         }
     }
 
@@ -271,10 +311,10 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
     device_ = ctx.getDevice();
     allocator_ = ctx.getAllocator();
     image_ = createImage(ctx.getDevice(), ctx.getAllocator(), width, height,
-        format, usage, VK_SAMPLE_COUNT_1_BIT, mipLevels_, where);
+        format, usage, VK_SAMPLE_COUNT_1_BIT, mipLevels_);
 
     if (!image_.image || !image_.imageView) {
-        if (!useHostCopy) destroyBuffer(ctx.getAllocator(), staging);
+        for (auto& sc : stagingCopies) destroyBuffer(ctx.getAllocator(), sc.buffer);
         destroy(device_, allocator_);
         return false;
     }
@@ -327,15 +367,10 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-        // Copy staging buffer to image (mip 0)
-        VkBufferImageCopy region{};
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.mipLevel = 0;
-        region.imageSubresource.layerCount = 1;
-        region.imageExtent = {.width = width, .height = height, .depth = 1};
-
-        vkCmdCopyBufferToImage(cmd, staging.buffer, image_.image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        for (const auto& sc : stagingCopies) {
+            vkCmdCopyBufferToImage(cmd, sc.buffer.buffer, image_.image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &sc.region);
+        }
 
         if (!generateMips) {
             // Transition to shader read
@@ -346,7 +381,7 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
     });
 
     if (!submitted) {
-        destroyBuffer(ctx.getAllocator(), staging);
+        for (auto& sc : stagingCopies) destroyBuffer(ctx.getAllocator(), sc.buffer);
         destroy(device_, allocator_);
         return false;
     }
@@ -354,10 +389,12 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
         generateMipmaps(ctx, format, width, height);
     }
 
-    if (ctx.isInUploadBatch()) {
-        ctx.deferStagingCleanup(staging);
-    } else {
-        destroyBuffer(ctx.getAllocator(), staging);
+    for (auto& sc : stagingCopies) {
+        if (ctx.isInUploadBatch()) {
+            ctx.deferStagingCleanup(sc.buffer);
+        } else {
+            destroyBuffer(ctx.getAllocator(), sc.buffer);
+        }
     }
     return true;
 }
@@ -388,35 +425,85 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
     // already busy heap failed - and because the vector sat before the try/catch
     // below, the failure surfaced as a bare bad_alloc with no texture error
     // attached. Reusing one buffer removes that churn entirely.
-    static std::vector<uint8_t> mipScratch;
-    AllocatedBuffer staging;
+    struct StagingCopy {
+        AllocatedBuffer buffer;
+        VkBufferImageCopy region;
+    };
+    std::vector<StagingCopy> stagingCopies;
+    constexpr uint32_t kMaxSliceBytes = 256 * 1024;
+    
     try {
-        // Inside the try: a resize of the scratch is a malloc, and the console
-        // has refused one here before - which surfaced as a bare bad_alloc from
-        // prepareScene with nothing naming the texture or the size. The size is
-        // logged so a future failure says what was asked for.
-        if (mipScratch.size() < totalSize) {
-            LOG_INFO("Texture mip upload: scratch grows to ", totalSize, " bytes");
-            mipScratch.resize(totalSize);
-        }
-        for (uint32_t i = 0; i < mipCount; i++)
-            std::memcpy(mipScratch.data() + levels[i].offset, mipData[i], levels[i].bytes);
-        if (totalSize <= 256 * 1024) {
-            staging = createBuffer(ctx.getAllocator(), totalSize,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-            if (!staging.buffer) throw std::bad_alloc();
-            void* mapped = nullptr;
-            if (!mapStaging(ctx, staging, &mapped)) throw std::bad_alloc();
-            std::memcpy(mapped, mipScratch.data(), totalSize);
-            vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, totalSize);
-            vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
-        } else {
-            staging = uploadBytesChunked(ctx, mipScratch.data(), totalSize,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
+        uint32_t curW = width;
+        uint32_t curH = height;
+        for (uint32_t i = 0; i < mipCount; ++i) {
+            const uint32_t mipW = curW;
+            const uint32_t mipH = curH;
+            const uint32_t blocksX = (mipW + block - 1) / block;
+            const uint32_t blocksY = (mipH + block - 1) / block;
+            const uint32_t bytesPerRow = blocksX * blockBytes;
+            const uint64_t levelBytes = levels[i].bytes;
+            const uint8_t* src = mipData[i];
+
+            if (levelBytes <= kMaxSliceBytes) {
+                AllocatedBuffer sliceBuf = createBuffer(ctx.getAllocator(), levelBytes,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+                if (!sliceBuf.buffer) throw std::bad_alloc();
+                void* mapped = nullptr;
+                if (!mapStaging(ctx, sliceBuf, &mapped)) {
+                    destroyBuffer(ctx.getAllocator(), sliceBuf);
+                    throw std::bad_alloc();
+                }
+                std::memcpy(mapped, src, levelBytes);
+                vmaFlushAllocation(ctx.getAllocator(), sliceBuf.allocation, 0, levelBytes);
+                vmaUnmapMemory(ctx.getAllocator(), sliceBuf.allocation);
+
+                VkBufferImageCopy region{};
+                region.bufferOffset = 0;
+                region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                region.imageSubresource.mipLevel = i;
+                region.imageSubresource.baseArrayLayer = 0;
+                region.imageSubresource.layerCount = 1;
+                region.imageOffset = {0, 0, 0};
+                region.imageExtent = {mipW, mipH, 1};
+
+                stagingCopies.push_back({sliceBuf, region});
+            } else {
+                const uint32_t chunkBlockRows = std::max(1u, kMaxSliceBytes / bytesPerRow);
+                for (uint32_t by = 0; by < blocksY; by += chunkBlockRows) {
+                    const uint32_t curBlockRows = std::min(chunkBlockRows, blocksY - by);
+                    const uint32_t sliceBytes = curBlockRows * bytesPerRow;
+                    AllocatedBuffer sliceBuf = createBuffer(ctx.getAllocator(), sliceBytes,
+                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+                    if (!sliceBuf.buffer) throw std::bad_alloc();
+                    void* mapped = nullptr;
+                    if (!mapStaging(ctx, sliceBuf, &mapped)) {
+                        destroyBuffer(ctx.getAllocator(), sliceBuf);
+                        throw std::bad_alloc();
+                    }
+                    std::memcpy(mapped, src + static_cast<size_t>(by) * bytesPerRow, sliceBytes);
+                    vmaFlushAllocation(ctx.getAllocator(), sliceBuf.allocation, 0, sliceBytes);
+                    vmaUnmapMemory(ctx.getAllocator(), sliceBuf.allocation);
+
+                    VkBufferImageCopy region{};
+                    region.bufferOffset = 0;
+                    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    region.imageSubresource.mipLevel = i;
+                    region.imageSubresource.baseArrayLayer = 0;
+                    region.imageSubresource.layerCount = 1;
+                    region.imageOffset = {0, static_cast<int32_t>(by * block), 0};
+                    region.imageExtent = {mipW, std::min(mipH - by * block, curBlockRows * block), 1};
+
+                    stagingCopies.push_back({sliceBuf, region});
+                }
+            }
+
+            curW = std::max(1u, curW / 2);
+            curH = std::max(1u, curH / 2);
         }
     } catch (const std::exception& error) {
+        for (auto& sc : stagingCopies) destroyBuffer(ctx.getAllocator(), sc.buffer);
         LOG_ERROR("Texture mip upload: staging failed: ", error.what(),
-                  " (totalSize=", totalSize, ", scratch=", mipScratch.size(), ")");
+                  " (totalSize=", totalSize, ")");
         return false;
     }
 
@@ -431,7 +518,7 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
         VK_SAMPLE_COUNT_1_BIT, mipLevels_);
 
     if (!image_.image || !image_.imageView) {
-        destroyBuffer(ctx.getAllocator(), staging);
+        for (auto& sc : stagingCopies) destroyBuffer(ctx.getAllocator(), sc.buffer);
         destroy(device_, allocator_);
         return false;
     }
@@ -441,20 +528,9 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-        uint32_t mipW = width, mipH = height;
-        for (uint32_t i = 0; i < mipCount; i++) {
-            VkBufferImageCopy region{};
-            region.bufferOffset = levels[i].offset;
-            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            region.imageSubresource.mipLevel = i;
-            region.imageSubresource.layerCount = 1;
-            region.imageExtent = {.width = mipW, .height = mipH, .depth = 1};
-
-            vkCmdCopyBufferToImage(cmd, staging.buffer, image_.image,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-            mipW = std::max(1u, mipW / 2);
-            mipH = std::max(1u, mipH / 2);
+        for (const auto& sc : stagingCopies) {
+            vkCmdCopyBufferToImage(cmd, sc.buffer.buffer, image_.image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &sc.region);
         }
 
         transitionImageLayout(cmd, image_.image,
@@ -463,14 +539,16 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
     });
 
     if (!submitted) {
-        destroyBuffer(ctx.getAllocator(), staging);
+        for (auto& sc : stagingCopies) destroyBuffer(ctx.getAllocator(), sc.buffer);
         destroy(device_, allocator_);
         return false;
     }
-    if (ctx.isInUploadBatch()) {
-        ctx.deferStagingCleanup(staging);
-    } else {
-        destroyBuffer(ctx.getAllocator(), staging);
+    for (auto& sc : stagingCopies) {
+        if (ctx.isInUploadBatch()) {
+            ctx.deferStagingCleanup(sc.buffer);
+        } else {
+            destroyBuffer(ctx.getAllocator(), sc.buffer);
+        }
     }
 #if defined(WOWEE_SWITCH)
     {

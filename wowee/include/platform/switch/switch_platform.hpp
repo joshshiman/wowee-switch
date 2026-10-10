@@ -55,6 +55,8 @@ bool firstFramePresented();    ///< a frame reached the screen
 bool socketsReady();          ///< socketInitializeDefault succeeded
 bool padsReady();             ///< the pad layer opened HID
 bool resourceAssetsPresent(); ///< the resource root carries the compiled shaders
+bool isAppletMode();          ///< true if running in Album applet mode (< 1 GB RAM)
+uint64_t totalMemoryBytes();   ///< Total process memory reported by Horizon kernel
 // Main-thread scope: extend backend breadcrumbs through the first world frames.
 void setFrameTraceEnabled(bool enabled);
 bool frameTraceEnabled();

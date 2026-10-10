@@ -10,6 +10,7 @@
 #include <imgui_impl_vulkan.h>
 #ifdef WOWEE_SWITCH
 #include "platform/switch/imgui_impl_switch.h"
+#include "platform/switch/switch_platform.hpp"
 #else
 #include <imgui_impl_sdl2.h>
 #endif
@@ -345,6 +346,14 @@ void LoadingScreen::renderOverlay() {
         const auto size = ImGui::CalcTextSize(text);
         draw->AddText({(io.DisplaySize.x - size.x) * 0.5f, io.DisplaySize.y * 0.5f}, IM_COL32_WHITE, text);
     }
+#ifdef WOWEE_SWITCH
+    if (platform::switchport::isAppletMode()) {
+        const char* warnText = "RUNNING IN APPLET MODE (Album) - RAM RESTRICTED TO 450 MB! Launch hbmenu with Title Override (hold [R] on any game) for 3.2 GB RAM.";
+        const auto warnSize = ImGui::CalcTextSize(warnText);
+        draw->AddRectFilled({0, 0}, {io.DisplaySize.x, warnSize.y + 14.0f}, IM_COL32(180, 20, 20, 230));
+        draw->AddText({(io.DisplaySize.x - warnSize.x) * 0.5f, 7.0f}, IM_COL32_WHITE, warnText);
+    }
+#endif
 }
 
 void LoadingScreen::render() {
