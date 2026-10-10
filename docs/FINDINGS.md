@@ -1038,3 +1038,28 @@ Also explains "Failed to upload chunk"=0 (only the full path warns).
 ### Change deployed (md5 `ae05f51a...`): clouds skipped on Switch (diagnostic)
 - If sky views jump in fps, proper fix = density gate + cheap shader.
 - If unchanged, clouds exonerated; next sky suspects celestial/starfield.
+
+## Deferred: inn death + stuck corpse (reported 2026-10-10 ~01:55, NOT diagnosed)
+
+### Symptoms (user report, run 01:54)
+- Character died inside an inn (Goldshire direction), apparently unprovoked
+  ("randomly died" — no attacker identified).
+- A modal reading "casting is..." appeared (truncated; cast bar vs static
+  popup unknown).
+- After dying, the character could not move (stuck; release/resurrect flow
+  did not restore movement, or never offered).
+- No crash, clean close. Last frame sample 100 ms/10 fps (best yet).
+
+### Log status: nothing
+Zero death/damage/spirit/corpse/resurrect/cast lines at WARNING — the whole
+flow is INFO-suppressed or unlogged. Nothing to diagnose from.
+
+### When this comes back: capture list
+1. Repro: which inn, what was aggro'd, hp before death, exact modal text.
+2. Add WARNING breadcrumbs (temporary): player-death event (killer guid +
+   damage source), spirit-release request/response, movement-lock set/clear
+   with reason, cast-bar show/hide with spell id. Then one repro run names it.
+3. Prime suspects from structure (unverified): death clearing the movement
+   lock only on one of several release paths; modal owning input focus and
+   never releasing it; local-realm death not generating the release event at
+   all (single-player content path, cf. local-realm save path bugs).
