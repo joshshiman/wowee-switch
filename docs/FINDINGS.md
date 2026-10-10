@@ -761,3 +761,24 @@ rejection. Verified in logs 2026-10-09_2143 (wowps.log 1.1 MB in-world).
 - Portraits (player + target): no PORTRAIT_MEMORY warnings, composite pass
   runs in-world via render graph. What's displayed vs expected unknown —
   photo needed.
+
+## 2026-10-09 Run 51: device-lost on a STALE build (do not chase)
+
+### What happened
+Three launches on the card's old build (SELF-TESTs 21:56, 22:03, 22:11; none
+has "switch performance" or WORLD_PERF lines, so predates 41c8ee0d/b1552fc).
+Last one died ~1 min after world loading: `immediate submit failed: -4`
+during quest-marker texture upload → fence wait -4 → clean device-lost exit.
+No VMA/CPU pressure in the log (142 MiB free). The paired hbloader report
+carries the *overridden title's* program ID (010001300d14a000, not the Album
+100d) — same nx-hbmenu abort signature, same teardown-noise verdict.
+
+### Black diagonals
+Shown after the device died mid-frame: a partially rendered tiled frame
+handed to the compositor. Corpse artifact of the device loss, not its own
+bug. If diagonals ever appear while the game *keeps running*, that is new.
+
+### Lesson: verify the card before diagnosing
+`RETR /switch/wowee/wowee.nro` + md5 matched local (`192edf17...`) — the new
+build (sink perf floor + stick fix) is intact on the card and has never run.
+Always confirm build-vs-log before analyzing a crash: this one cost nothing.
