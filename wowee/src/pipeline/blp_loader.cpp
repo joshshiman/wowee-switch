@@ -6,6 +6,7 @@
 #include <cstring>
 #include <algorithm>
 #include <new>
+#include "stb_image.h"
 
 namespace wowee {
 namespace pipeline {
@@ -161,26 +162,47 @@ size_t BLPLoader::requiredSourceBytes(BLPCompression compression, int width, int
 }
 
 BLPImage BLPLoader::load(const std::vector<uint8_t>& blpData, bool keepCompressed) {
-    if (blpData.size() < 8) {  // Minimum: magic + first field
-        LOG_ERROR("BLP data too small");
+    if (blpData.empty()) {
         return BLPImage();
     }
 
-    const uint8_t* data = blpData.data();
-    const char* magic = reinterpret_cast<const char*>(data);
+    if (blpData.size() >= 4) {
+        const uint8_t* data = blpData.data();
+        const char* magic = reinterpret_cast<const char*>(data);
 
-    // Check magic number
-    if (std::memcmp(magic, "BLP1", 4) == 0) {
-        return loadBLP1(blpData);
+        // Check magic number
+        if (std::memcmp(magic, "BLP1", 4) == 0) {
+            return loadBLP1(blpData);
+        }
+        if (std::memcmp(magic, "BLP2", 4) == 0) {
+            return loadBLP2(blpData, keepCompressed);
+        }
+        if (std::memcmp(magic, "BLP0", 4) == 0) {
+            LOG_WARNING("BLP0 format not fully supported");
+            return BLPImage();
+        }
     }
-    if (std::memcmp(magic, "BLP2", 4) == 0) {
-        return loadBLP2(blpData, keepCompressed);
+
+    // Fallback: If not BLP, attempt decoding as standard image format (TGA, PNG, etc.) via stb_image
+    int w = 0, h = 0, channels = 0;
+    unsigned char* pixels = stbi_load_from_memory(blpData.data(), static_cast<int>(blpData.size()), &w, &h, &channels, 4);
+    if (pixels) {
+        if (w > 0 && h > 0 && w <= 8192 && h <= 8192) {
+            BLPImage image;
+            image.width = w;
+            image.height = h;
+            image.channels = 4;
+            image.mipLevels = 1;
+            image.format = BLPFormat::BLP2;
+            image.compression = BLPCompression::ARGB8888;
+            image.data.assign(pixels, pixels + (static_cast<size_t>(w) * h * 4));
+            stbi_image_free(pixels);
+            return image;
+        }
+        stbi_image_free(pixels);
     }
-    if (std::memcmp(magic, "BLP0", 4) == 0) {
-        LOG_WARNING("BLP0 format not fully supported");
-        return BLPImage();
-    }
-    LOG_ERROR("Invalid BLP magic: ", std::string(magic, 4));
+
+    LOG_ERROR("Invalid BLP magic or image data: ", blpData.size() >= 4 ? std::string(reinterpret_cast<const char*>(blpData.data()), 4) : "<too small>");
     return BLPImage();
 }
 

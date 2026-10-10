@@ -72,6 +72,43 @@ size_t parseEnvCount(const char* name, size_t defValue) {
     }
     return static_cast<size_t>(n);
 }
+
+std::filesystem::path resolveChildInsensitive(const std::filesystem::path& base,
+                                             const std::string& name) {
+    std::error_code ec;
+    std::filesystem::path exact = base / name;
+    if (std::filesystem::exists(exact, ec)) return exact;
+
+    auto lower = [](std::string v) {
+        for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return v;
+    };
+    const std::string wanted = lower(name);
+    for (const auto& entry : std::filesystem::directory_iterator(base, ec)) {
+        if (lower(entry.path().filename().string()) == wanted) return entry.path();
+    }
+    return {};
+}
+
+std::string resolveCaseInsensitivePath(const std::string& baseStr,
+                                       const std::string& rel) {
+    std::error_code ec;
+    std::filesystem::path base(baseStr);
+    if (!std::filesystem::is_directory(base, ec)) return {};
+
+    std::string relForward = rel;
+    std::replace(relForward.begin(), relForward.end(), '\\', '/');
+    std::filesystem::path direct = base / relForward;
+    if (std::filesystem::exists(direct, ec)) return direct.string();
+
+    std::filesystem::path at = base;
+    for (const auto& part : std::filesystem::path(relForward)) {
+        if (part.empty() || part == ".") continue;
+        at = resolveChildInsensitive(at, part.string());
+        if (at.empty()) return {};
+    }
+    return at.string();
+}
 } // namespace
 
 AssetManager::AssetManager() = default;
@@ -377,6 +414,75 @@ std::string AssetManager::resolveFile(const std::string& normalizedPath) const {
     if (LooseFileReader::fileExists(looseCandidate)) {
         return looseCandidate;
     }
+
+    // Addon textures & assets (Interface\AddOns\<Addon>\...)
+    if (normalizedPath.rfind("interface\\addons\\", 0) == 0 ||
+        normalizedPath.rfind("interface/addons/", 0) == 0) {
+        std::string rel = normalizedPath.substr(17);
+#ifdef WOWEE_SWITCH
+        static const std::vector<std::string> s_addonRoots = {
+            "sdmc:/switch/wowee/addons",
+            "sdmc:/switch/wowee/data/addons",
+            "sdmc:/wowps/addons",
+            "sdmc:/wowps/interface/AddOns",
+            "sdmc:/wowps/Data/interface/AddOns",
+            "sdmc:/wowps/Data/Interface/AddOns",
+            "romfs:/addons"
+        };
+#else
+        static const std::vector<std::string> s_addonRoots = {
+            "addons",
+            "wowee/addons",
+            "../addons",
+            "../../addons"
+        };
+#endif
+        static std::unordered_map<std::string, std::string> s_addonPathCache;
+        static std::mutex s_addonCacheMutex;
+        {
+            std::lock_guard<std::mutex> lock(s_addonCacheMutex);
+            auto it = s_addonPathCache.find(normalizedPath);
+            if (it != s_addonPathCache.end()) return it->second;
+        }
+
+        std::string result;
+        for (const auto& root : s_addonRoots) {
+            std::string resolved = resolveCaseInsensitivePath(root, rel);
+            if (resolved.empty() && rel.find('.') == std::string::npos) {
+                resolved = resolveCaseInsensitivePath(root, rel + ".blp");
+                if (resolved.empty()) resolved = resolveCaseInsensitivePath(root, rel + ".tga");
+                if (resolved.empty()) resolved = resolveCaseInsensitivePath(root, rel + ".png");
+            }
+            if (resolved.empty() && rel.size() > 4 && rel.compare(rel.size() - 4, 4, ".blp") == 0) {
+                std::string alt = rel;
+                alt.replace(alt.size() - 4, 4, ".tga");
+                resolved = resolveCaseInsensitivePath(root, alt);
+                if (resolved.empty()) {
+                    alt.replace(alt.size() - 4, 4, ".png");
+                    resolved = resolveCaseInsensitivePath(root, alt);
+                }
+            }
+            if (resolved.empty() && rel.size() > 4 && rel.compare(rel.size() - 4, 4, ".tga") == 0) {
+                std::string alt = rel;
+                alt.replace(alt.size() - 4, 4, ".blp");
+                resolved = resolveCaseInsensitivePath(root, alt);
+                if (resolved.empty()) {
+                    alt.replace(alt.size() - 4, 4, ".png");
+                    resolved = resolveCaseInsensitivePath(root, alt);
+                }
+            }
+            if (!resolved.empty()) {
+                result = resolved;
+                break;
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(s_addonCacheMutex);
+            s_addonPathCache[normalizedPath] = result;
+        }
+        return result;
+    }
+
     return {};
 }
 

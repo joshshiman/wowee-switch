@@ -137,6 +137,10 @@ std::vector<uint8_t> WidgetRenderer::readTextureFile(const std::string& path,
 
     auto data = assets_->readFile(resolved);
     if (data.empty()) {
+        data = assets_->readFile(path);
+        if (!data.empty()) resolved = path;
+    }
+    if (data.empty()) {
         // The interface is WotLK's; the assets are whichever expansion this
         // install carries, and the two do not always agree on a folder. The
         // quest icon is the one that differs here - FrameXML asks for

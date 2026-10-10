@@ -336,11 +336,16 @@ local ENV_RADIAL = {
         end
 
         -- 3. Standard Show/Hide Logic
+        local handle = HANDLE or (self.GetFrameRef and self:GetFrameRef('HANDLE'))
         if self:GetAttribute('toggled') then
-            control:RunFor(HANDLE, HANDLE:GetAttribute('hBind'), self:GetName())
+            if handle and handle.GetAttribute and handle:GetAttribute('hBind') then
+                control:RunFor(handle, handle:GetAttribute('hBind'), self:GetName())
+            end
             self:Show()
         else
-            control:RunFor(HANDLE, HANDLE:GetAttribute('hClear'), self:GetName())
+            if handle and handle.GetAttribute and handle:GetAttribute('hClear') then
+                control:RunFor(handle, handle:GetAttribute('hClear'), self:GetName())
+            end
             self:Hide()
         end
     ]],
