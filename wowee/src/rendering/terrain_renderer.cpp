@@ -1181,6 +1181,33 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
                             " mega=", e.megaBaseVertex);
                 nearestSurvey_[k] = NearestSurveyEntry{};
             }
+#ifdef WOWEE_SWITCH
+            // Per-tile render-chunk histogram: which resident tiles actually
+            // own chunks in the draw list (run 58: only [32,49] of 9 tiles).
+            // Small fixed table, no allocation.
+            {
+                struct Bin { int tx = -1, ty = -1, n = 0; };
+                Bin bins[12];
+                int nbins = 0;
+                for (const auto& ch : chunks) {
+                    int b = 0;
+                    for (; b < nbins; ++b)
+                        if (bins[b].tx == ch.tileX && bins[b].ty == ch.tileY) break;
+                    if (b == nbins) {
+                        if (nbins >= 12) continue;
+                        bins[nbins].tx = ch.tileX;
+                        bins[nbins].ty = ch.tileY;
+                        nbins++;
+                    }
+                    bins[b].n++;
+                }
+                for (int b = 0; b < nbins; ++b)
+                    LOG_WARNING("TERRAIN_TILEHIST tile=[", bins[b].tx, ",",
+                                bins[b].ty, "] chunks=", bins[b].n);
+                LOG_WARNING("TERRAIN_TILEHIST total=", chunks.size(),
+                            " megaUsed=", megaVBUsed_);
+            }
+#endif
         }
     }
 #endif
