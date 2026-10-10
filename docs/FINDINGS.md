@@ -1272,3 +1272,24 @@ Comprehensive note per user request - the whole override picture in one place.
 - Calibration proof landed: [WOWEE_PAD] physical names on press edges
   (temporary). A-presses showed acquire+attack then attack in [WOWEE_ACT];
   theft dead (zero OVR click writes, all F-keys resolve handler-direct).
+
+## Icon dimming: Attack-usability + mask status (2026-10-10, operator-observed)
+- Operator note (verbatim mechanism): square icons bright at corners, dark
+  inside the circular button frames "as if a translucent dark grey filter".
+  Masks ruled out: NO mask implementation exists anywhere (renderer or
+  engine grep: zero hits) - mask layers cannot draw. Cooldown sweep ruled
+  out for idle (draw returns early on duration<=0/elapsed).
+- Code-proven contributor: IsUsableAction greyed anything not in knownSpells
+  (0.4,0.4,0.4), and Attack (SPELL_ID_ATTACK) is never in that set -> the
+  sword on Y was permanently grey while its ring art (untinted corners)
+  stayed bright. EXACTLY the reported shape. Fixed: Attack always usable.
+  Empty slots show the dark empty-skull art by design (not a dimming bug).
+- Remaining dimming, if any after this: OOR red (0.8,0.1,0.1, target-gated,
+  retail parity) / OOM blue / real cooldown sweeps. Those are correct.
+- X-identity timeline proof (2026-10-10 session): zero SQUARE presses all
+  session; 7x talk events all 0.1-0.3s after CROSS(A-right) presses; Y@18:53:30
+  then A-talk x7 (the "Y then X/Y works" report). Physical calibration
+  ([WOWEE_PAD]) is now the standing arbiter for button disputes.
+- Plus routing: callback-vs-frame branch now logged (via=settings/frame).
+- A-treat: talk re-fires per press by design (retail re-sends hello); left
+  as-is per operator tolerance note.

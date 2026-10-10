@@ -287,7 +287,14 @@ static int lua_IsUsableAction(lua_State* L) {
     bool usable = true;
     bool noMana = false;
     if (action.type == game::ActionBarSlot::SPELL) {
-        usable = gh->getKnownSpells().count(action.id) > 0;
+        // Attack is always usable: it is stanceless, resourceless melee, but
+        // it never appears in the known-spells set, which read it as unknown
+        // and greyed the icon (0.4) permanently - the "dark sword" on Y.
+        if (action.id == game::SPELL_ID_ATTACK) {
+            usable = true;
+        } else {
+            usable = gh->getKnownSpells().count(action.id) > 0;
+        }
         // Check power cost
         if (usable && action.id != 0) {
             auto spellData = gh->getSpellData(action.id);

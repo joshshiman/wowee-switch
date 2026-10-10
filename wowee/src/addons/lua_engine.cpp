@@ -10258,7 +10258,16 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
             // own the panel; when it does, the original shows a frame the
             // takeover suppresses (sound + nothing visible, thrice confirmed).
             // The engine owns GameMenu -> settings IS the menu.
-            executeString("if __WoweeOpenClientSettings then __WoweeOpenClientSettings() else ToggleGameMenu() end");
+            lua_getglobal(L_, "__WoweeOpenClientSettings");
+            const bool hasSettings = lua_isfunction(L_, -1);
+            lua_pop(L_, 1);
+            if (hasSettings) {
+                executeString("if __WoweeOpenClientSettings then __WoweeOpenClientSettings() end");
+                LOG_WARNING("[WOWEE_MENU] via=settings");
+            } else {
+                executeString("ToggleGameMenu()");
+                LOG_WARNING("[WOWEE_MENU] via=frame");
+            }
             // Which menu answered: the engine replaces ToggleGameMenu with the
             // client settings opener unless FrameXML owns the panel - and the
             // takeover suppresses FrameXML's frame when it owns it. Log both
