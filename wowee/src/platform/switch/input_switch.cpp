@@ -889,6 +889,19 @@ void pumpInput() {
             (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1)) {
         want[SDL_SCANCODE_RETURN] = true;
     }
+    // Screenshot chord: any shoulder + B, held. Synthesized here into `want`
+    // rather than read off padSnapshot() downstream, for two measured reasons:
+    // at world frame rates a tap falls between pumps so press edges never
+    // exist, and the layer system only ever delivers B as interact (the L1
+    // layer is bypassed entirely with action bars up). Held-state through
+    // `want` spans whatever pumps it spans, and the just-pressed edge downstream
+    // makes it once per press. Chat confirmation + log line say when it fired.
+    if (!s_applicationKeyboardOpen &&
+        (gameplayButtons & (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1 |
+                            ORBIS_PAD_BUTTON_L2 | ORBIS_PAD_BUTTON_R2)) != 0 &&
+        (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0) {
+        want[SDL_SCANCODE_PRINTSCREEN] = true;
+    }
     if (!s_applicationKeyboardOpen && !s_menuOwners) applyLeftStick(want);
     applyRightStick(dt, right);
     if (!s_applicationKeyboardOpen) applyWheel(wheel);

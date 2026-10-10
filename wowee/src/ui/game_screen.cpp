@@ -1740,34 +1740,11 @@ void GameScreen::processTargetInput(game::GameHandler& gameHandler) {
                 gameHandler.runInterfaceCommand("TogglePVPFrame()");
             }
 
-            // Screenshot (PrintScreen key)
+            // Screenshot (PrintScreen key; on Switch the pad layer synthesizes
+            // it from any-shoulder + B held — see input_switch.cpp)
             if (input.isKeyJustPressed(SDL_SCANCODE_PRINTSCREEN)) {
                 takeScreenshot();
             }
-#ifdef WOWEE_SWITCH
-            // L + B chord, read on HELD state with a latch, not the press
-            // edge: at entry/world frame rates (250 ms+) a quick tap can fall
-            // entirely between two pumps and the edge never exists. Holding
-            // both for any pump instant fires once; releasing B re-arms.
-            // (The layer system maps B to interact and bypasses L1 when bars
-            // are up, so the chord never arrives as a scancode — read raw.)
-            // Any shoulder counts: L vs ZL is ambiguous in prose and both
-            // select non-Base layers where B is free.
-            {
-                const auto& pad = platform::switchport::padSnapshot();
-                static bool chordFired = false;
-                const bool shoulder = pad.connected &&
-                    (pad.buttons & (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1)) != 0;
-                const bool chordHeld = shoulder &&
-                    (pad.buttons & ORBIS_PAD_BUTTON_CIRCLE) != 0;
-                if (chordHeld && !chordFired) {
-                    chordFired = true;
-                    takeScreenshot();
-                } else if (!(pad.buttons & ORBIS_PAD_BUTTON_CIRCLE)) {
-                    chordFired = false;
-                }
-            }
-#endif
 
             // Action bar keys (1-9, 0, -, =)
             static const SDL_Scancode actionBarKeys[] = {
