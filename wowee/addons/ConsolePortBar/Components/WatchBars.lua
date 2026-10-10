@@ -272,8 +272,10 @@ function WBC:AddBarFromTemplate(frameType, template)
 	--]==]
 	
 	table.insert(self.bars, bar)
-	bar.StatusBar.Background:Hide()
-	bar.StatusBar.BarTexture:SetTexture([[Interface\AddOns\ConsolePortBar\Textures\XPBar]])
+	if bar.StatusBar and bar.StatusBar.Background then bar.StatusBar.Background:Hide() end
+	if bar.StatusBar and bar.StatusBar.BarTexture then
+		bar.StatusBar.BarTexture:SetTexture([[Interface\AddOns\ConsolePortBar\Textures\XPBar]])
+	end
 	bar.SetBarColorRaw = bar.SetBarColor
 
 	bar:HookScript('OnEnter', function()

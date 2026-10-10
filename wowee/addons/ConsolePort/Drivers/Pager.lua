@@ -88,7 +88,10 @@ function ConsolePort:RegisterSpellHeader(header, omitFromStack)
 			--header:SetFrameRef('overrideBar', OverrideActionBar)
 
 			Pager:SetFrameRef('header', header)
-			Pager:Execute([[ headers[self:GetFrameRef('header')] = true ]])
+			Pager:Execute([[
+				local h = self:GetFrameRef('header')
+				if h then headers[h] = true end
+			]])
 		end
 	end
 end

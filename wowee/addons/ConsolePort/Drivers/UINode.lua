@@ -246,7 +246,7 @@ function Node:IsCloser(hz1, vt1, hz2, vt2)
 end
 
 function Node:PointInRange(pt, min, max)
-	return pt and pt >= min and pt <= max
+	return pt and min and max and pt >= min and pt <= max
 end
 
 function Node:CanLevelsIntersect(level1, level2)

@@ -1424,6 +1424,9 @@ struct Emitter {
             if (const std::string* file = bar->attr("file")) {
                 line(var + ":SetStatusBarTexture(" + quote(*file) + ")");
             }
+            if (const std::string* pk = bar->attr("parentKey")) {
+                line(var + "." + *pk + " = " + var + ":GetStatusBarTexture()");
+            }
         }
         if (const XmlNode* col = node.child("BarColor")) {
             line(var + ":SetStatusBarColor(" +
@@ -1650,7 +1653,7 @@ EmitResult emitFrameXml(const XmlNode& rootIn) {
     for (const XmlNode& node : root.children) {
         if (node.name == "Script") {
             if (const std::string* file = node.attr("file")) e.result.scriptFiles.push_back(*file);
-            else if (!node.text.empty()) e.result.lua += node.text + "\n";
+            else if (!node.text.empty()) e.result.templatesLua += node.text + "\n";
         } else if (node.name == "Include") {
             if (const std::string* file = node.attr("file")) e.result.includeFiles.push_back(*file);
         } else if (node.name == "Font") {

@@ -244,7 +244,9 @@ function ConsolePortMenuSecureMixin:DrawIndex(headerFunc)
 		self:SetFrameRef('newheader', header)
 		self:Execute([[
 			local newheader = self:GetFrameRef('newheader')
-			headers[newheader:GetID()] = newheader
+			if newheader then
+				headers[newheader:GetID()] = newheader
+			end
 		]])
 
 		if ( type(headerFunc) == 'function' ) then

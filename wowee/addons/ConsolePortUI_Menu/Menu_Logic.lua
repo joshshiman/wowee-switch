@@ -1,5 +1,6 @@
 local _, L = ...
 local Menu = L.Menu
+if not Menu then return end
 local Control = ConsolePortUI:GetControlHandle()
 local db = ConsolePort:GetData()
 local CPAPI = db.CPAPI

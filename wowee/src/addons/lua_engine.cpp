@@ -6780,6 +6780,8 @@ void LuaEngine::registerCoreAPI() {
         "    local store = rawget(self, '__framerefs')\n"
         "    if not store then store = {}; rawset(self, '__framerefs', store) end\n"
         "    store[label] = ref\n"
+        "    local handle = (GetFrameHandle and GetFrameHandle(ref, true)) or ref\n"
+        "    if self.SetAttribute then self:SetAttribute('frameref-' .. label, handle) end\n"
         "    if SecureHandlerSetFrameRef then pcall(SecureHandlerSetFrameRef, self, label, ref) end\n"
         "end\n"
         "function mt:GetFrameRef(label)\n"

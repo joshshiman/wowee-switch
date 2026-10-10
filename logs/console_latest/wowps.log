@@ -1,0 +1,1010 @@
+[2026-10-10 03:23:56.188] [WARN ] frame fence 0 = 0x2ea8ce7980
+[2026-10-10 03:23:56.194] [WARN ] frame fence 1 = 0x2ea8cf5cc0
+[2026-10-10 03:23:56.196] [WARN ] immediate fence = 0x2ea8ce7c40
+[2026-10-10 03:23:56.208] [WARN ] switch performance: shadow quality forced to 0 (clear-only pass)
+[2026-10-10 03:23:56.211] [WARN ] Shadow atlas: the driver reports no device-local memory; letting VMA choose from the host-visible types. Depth inspection is unavailable (and unused outside WOWEE_PS4).
+[2026-10-10 03:23:56.212] [WARN ] switch memory: 1 type(s) in 1 heap(s)
+[2026-10-10 03:23:56.214] [WARN ] switch memory type 0 heap=0 flags=14 (0xe) deviceLocal=0 hostVisible=1 hostCoherent=1 hostCached=1 lazilyAllocated=0
+[2026-10-10 03:23:56.215] [WARN ] switch memory heap 0 size=2415919104 flags=1
+[2026-10-10 03:23:56.228] [WARN ] [PIPELINE] assets/shaders/skybox.vert.spv + assets/shaders/skybox.frag.spv
+[2026-10-10 03:23:56.255] [WARN ] [PIPELINE] assets/shaders/celestial.vert.spv + assets/shaders/celestial.frag.spv
+[2026-10-10 03:23:56.300] [WARN ] [PIPELINE] assets/shaders/starfield.vert.spv + assets/shaders/starfield.frag.spv
+[2026-10-10 03:23:56.322] [WARN ] [PIPELINE] assets/shaders/clouds.vert.spv + assets/shaders/clouds.frag.spv
+[2026-10-10 03:23:56.739] [WARN ] [PIPELINE] assets/shaders/lens_flare.vert.spv + assets/shaders/lens_flare.frag.spv
+[2026-10-10 03:23:56.753] [WARN ] [PIPELINE] assets/shaders/weather.vert.spv + assets/shaders/weather.frag.spv
+[2026-10-10 03:23:56.772] [WARN ] [PIPELINE] assets/shaders/lightning_bolt.vert.spv + assets/shaders/lightning_bolt.frag.spv
+[2026-10-10 03:23:56.787] [WARN ] [PIPELINE] assets/shaders/lightning_flash.vert.spv + assets/shaders/lightning_flash.frag.spv
+[2026-10-10 03:23:56.800] [WARN ] [PIPELINE] assets/shaders/swim_ripple.vert.spv + assets/shaders/swim_ripple.frag.spv
+[2026-10-10 03:23:56.816] [WARN ] [PIPELINE] assets/shaders/swim_bubble.vert.spv + assets/shaders/swim_bubble.frag.spv
+[2026-10-10 03:23:56.827] [WARN ] [PIPELINE] assets/shaders/swim_ripple.vert.spv + assets/shaders/swim_insect.frag.spv
+[2026-10-10 03:23:56.839] [WARN ] [PIPELINE] assets/shaders/mount_dust.vert.spv + assets/shaders/mount_dust.frag.spv
+[2026-10-10 03:23:56.863] [WARN ] [PIPELINE] assets/shaders/charge_ribbon.vert.spv + assets/shaders/charge_ribbon.frag.spv
+[2026-10-10 03:23:56.887] [WARN ] [PIPELINE] assets/shaders/charge_dust.vert.spv + assets/shaders/charge_dust.frag.spv
+[2026-10-10 03:23:56.945] [WARN ] [PIPELINE] assets/shaders/grass.vert.spv + assets/shaders/grass.frag.spv
+[2026-10-10 03:23:57.027] [WARN ] Grass: the saved settings wants 348463 blades and the source buffer holds 65536 (4194304 bytes). The field is thinned evenly to fit until the client restarts.
+[2026-10-10 03:23:57.044] [WARN ] switch performance: volumetric/bloom forced off at startup
+[2026-10-10 03:23:57.196] [WARN ] MpqAssetSource: header sdmc:/wowps/Data/common.MPQ raw=4d50511a2c0000002eefbaab01000300ae8186abae81a6ab00000200d8460100 headerSize=44 archiveSize=2881154862 fmt=196609 hashTableSize=131072 blockTableSize=83672 onDisk=2881154862 -> hashEntries=131072 blockEntries=83672
+[2026-10-10 03:23:58.701] [WARN ] Interface fonts loaded: 5 of 5 from 
+[2026-10-10 03:23:59.138] [WARN ] LuaEngine: missing-API fallback is ON - unknown globals answer with a no-op, so feature detection will read as present
+[2026-10-10 03:23:59.140] [WARN ] AddonManager: found packaged Switch addon directory: sdmc:/switch/wowee/addons
+[2026-10-10 03:23:59.150] [WARN ] AddonManager: scanning for addons in sdmc:/switch/wowee/addons
+[2026-10-10 03:23:59.163] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_AchievementUI files=3
+[2026-10-10 03:23:59.165] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_ArenaUI files=2
+[2026-10-10 03:23:59.167] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_AuctionUI files=3
+[2026-10-10 03:23:59.169] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_BarberShopUI files=3
+[2026-10-10 03:23:59.171] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_BattlefieldMinimap files=2
+[2026-10-10 03:23:59.173] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_BindingUI files=2
+[2026-10-10 03:23:59.175] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_Calendar files=2
+[2026-10-10 03:23:59.178] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_CombatLog files=2
+[2026-10-10 03:23:59.180] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_CombatText files=2
+[2026-10-10 03:23:59.183] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_DebugTools files=4
+[2026-10-10 03:23:59.185] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_GlyphUI files=2
+[2026-10-10 03:23:59.188] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_GMChatUI files=3
+[2026-10-10 03:23:59.193] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_GMSurveyUI files=2
+[2026-10-10 03:23:59.196] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_GuildBankUI files=2
+[2026-10-10 03:23:59.199] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_InspectUI files=5
+[2026-10-10 03:23:59.202] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_ItemSocketingUI files=2
+[2026-10-10 03:23:59.205] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_MacroUI files=2
+[2026-10-10 03:23:59.208] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_RaidUI files=2
+[2026-10-10 03:23:59.211] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_TalentUI files=2
+[2026-10-10 03:23:59.214] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_TimeManager files=2
+[2026-10-10 03:23:59.216] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_TokenUI files=3
+[2026-10-10 03:23:59.219] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_TradeSkillUI files=2
+[2026-10-10 03:23:59.222] [WARN ] [FRAMEXML_MPQ] addon=Blizzard_TrainerUI files=2
+[2026-10-10 03:23:59.228] [WARN ] AddonManager: registered addon 'Console Port |cff739BD0LK|r' (58 files) from sdmc:/switch/wowee/addons/ConsolePort
+[2026-10-10 03:23:59.234] [WARN ] AddonManager: registered addon 'Console Port |cff739BD0LK|r |cff69ccf0Action Bar|r' (15 files) from sdmc:/switch/wowee/addons/ConsolePortBar
+[2026-10-10 03:23:59.240] [WARN ] AddonManager: registered addon 'Console Port |cff739BD0LK|r |cff69ccf0UI|r Loot' (1 files) from sdmc:/switch/wowee/addons/ConsolePortUI_Loot
+[2026-10-10 03:23:59.245] [WARN ] AddonManager: registered addon 'Console Port |cff739BD0LK|r |cff69ccf0UI|r Menu' (4 files) from sdmc:/switch/wowee/addons/ConsolePortUI_Menu
+[2026-10-10 03:23:59.251] [WARN ] AddonManager: registered addon 'WoWPS All Bags' (1 files) from sdmc:/switch/wowee/addons/WoweeAllBags
+[2026-10-10 03:23:59.255] [WARN ] AddonManager: scanned 6 directories, registered 6 addons (22 load-on-demand, 1 without a .toc, 0 duplicate)
+[2026-10-10 03:23:59.280] [WARN ] Frame timing profile enabled (WOWEE_FRAME_PROFILE=1) - the per-stage breakdown will be reported at warning
+[2026-10-10 03:23:59.755] [WARN ] Glue skin: client asset missing: Interface/Common/Common-Input-BorderLeft.blp
+[2026-10-10 03:23:59.758] [WARN ] Glue skin: client asset missing: Interface/Common/Common-Input-BorderMid.blp
+[2026-10-10 03:23:59.761] [WARN ] Glue skin: client asset missing: Interface/Common/Common-Input-BorderRight.blp
+[2026-10-10 03:23:59.788] [WARN ] Glue skin: client asset missing: Interface/Glues/CharacterSelect/Glues-CharacterSelect-Select.blp
+[2026-10-10 03:23:59.800] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=1280x720
+[2026-10-10 03:23:59.814] [WARN ] Previous message repeated 1 times
+[2026-10-10 03:23:59.815] [WARN ] [PIPELINE] assets/shaders/character.vert.spv + assets/shaders/character.frag.spv
+[2026-10-10 03:24:00.856] [WARN ] [PIPELINE] assets/shaders/m2_ribbon.vert.spv + assets/shaders/m2_ribbon.frag.spv
+[2026-10-10 03:24:00.932] [WARN ] Frame synchronisation reset after a rebuild: fences signalled, command buffers reset, back to slot 0
+[2026-10-10 03:24:00.987] [WARN ] [RENDERER] VkContext::endFrame returned
+[2026-10-10 03:24:05.038] [WARN ] Previous message repeated 2 times
+[2026-10-10 03:24:05.042] [WARN ] SLOW UI screen render: 341.094ms in appState=0
+[2026-10-10 03:24:05.100] [WARN ] Glue skin: client asset missing: Interface/Common/Common-Input-BorderLeft.blp
+[2026-10-10 03:24:05.103] [WARN ] Glue skin: client asset missing: Interface/Common/Common-Input-BorderMid.blp
+[2026-10-10 03:24:05.105] [WARN ] Glue skin: client asset missing: Interface/Common/Common-Input-BorderRight.blp
+[2026-10-10 03:24:05.117] [WARN ] Glue skin: client asset missing: Interface/Glues/CharacterSelect/Glues-CharacterSelect-Select.blp
+[2026-10-10 03:24:05.127] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=1280x720
+[2026-10-10 03:24:07.681] [WARN ] Previous message repeated 1 times
+[2026-10-10 03:24:07.683] [WARN ] [LOCAL_SESSION] before spell import freeMiB=142 measured=1 cached=0
+[2026-10-10 03:24:07.686] [WARN ] [LOCAL_SESSION] importing starter spells (first session only)
+[2026-10-10 03:24:08.905] [WARN ] [LOCAL_WORLD] AreaTrigger skipped id=5049 map=1 reason=empty/invalid box pos=-6161.97,-1331.44,-168.959 radius=0 box=0,0,0
+[2026-10-10 03:24:08.908] [WARN ] [LOCAL_WORLD] AreaTrigger skipped id=4836 map=451 reason=empty/invalid box pos=15838.5,15759.3,11.8056 radius=0 box=50.73,52.2,0
+[2026-10-10 03:24:08.912] [WARN ] [LOCAL_WORLD] AreaTrigger skipped id=5048 map=571 reason=empty/invalid box pos=4884.94,5175.64,-83.7029 radius=0 box=0,0,0
+[2026-10-10 03:24:08.914] [WARN ] [LOCAL_WORLD] AreaTrigger skipped id=5626 map=580 reason=empty/invalid box pos=1766.94,683.09,71.1902 radius=0 box=0,0,0
+[2026-10-10 03:24:09.282] [WARN ] Main-loop stall detected (1602ms) - requesting mouse capture release
+[2026-10-10 03:24:09.793] [WARN ] [PIPELINE] assets/shaders/terrain.vert.spv + assets/shaders/terrain.frag.spv
+[2026-10-10 03:24:10.004] [WARN ] [PIPELINE] assets/shaders/shadow.vert.spv + assets/shaders/shadow.frag.spv
+[2026-10-10 03:24:10.041] [WARN ] [PIPELINE] assets/shaders/water.vert.spv + assets/shaders/water.frag.spv
+[2026-10-10 03:24:10.411] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=768x768
+[2026-10-10 03:24:10.423] [WARN ] [PIPELINE] assets/shaders/minimap_tile.vert.spv + assets/shaders/minimap_tile.frag.spv
+[2026-10-10 03:24:10.435] [WARN ] [PIPELINE] assets/shaders/minimap_display.vert.spv + assets/shaders/minimap_display.frag.spv
+[2026-10-10 03:24:10.452] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=1024x768
+[2026-10-10 03:24:10.463] [WARN ] [PIPELINE] assets/shaders/world_map.vert.spv + assets/shaders/world_map.frag.spv
+[2026-10-10 03:24:10.474] [WARN ] [PIPELINE] assets/shaders/world_map.vert.spv + assets/shaders/world_map_fog.frag.spv
+[2026-10-10 03:24:10.501] [WARN ] [PIPELINE] assets/shaders/m2.vert.spv + assets/shaders/m2.frag.spv
+[2026-10-10 03:24:10.982] [WARN ] [PIPELINE] assets/shaders/m2_particle.vert.spv + assets/shaders/m2_particle.frag.spv
+[2026-10-10 03:24:11.006] [WARN ] [PIPELINE] assets/shaders/m2_smoke.vert.spv + assets/shaders/m2_smoke.frag.spv
+[2026-10-10 03:24:11.289] [WARN ] Main-loop stall detected (1518ms) - requesting mouse capture release
+[2026-10-10 03:24:11.412] [WARN ] [PIPELINE] assets/shaders/wmo.vert.spv + assets/shaders/wmo.frag.spv
+[2026-10-10 03:24:11.904] [WARN ] [PIPELINE] assets/shaders/wmo_shadow.vert.spv + assets/shaders/wmo_shadow.frag.spv
+[2026-10-10 03:24:11.927] [WARN ] [PIPELINE] assets/shaders/m2_shadow.vert.spv + assets/shaders/m2_shadow.frag.spv
+[2026-10-10 03:24:11.957] [WARN ] [PIPELINE] assets/shaders/m2_shadow_instanced.vert.spv + assets/shaders/m2_shadow.frag.spv
+[2026-10-10 03:24:12.909] [WARN ] [PIPELINE] assets/shaders/character_shadow.vert.spv + assets/shaders/character_shadow.frag.spv
+[2026-10-10 03:24:14.127] [WARN ] Character head detail: model asks for type 8: no | CharSections extra: '' | bound: '' | body: 'Character\Human\Female\HumanFemaleSkin00_00.blp'
+[2026-10-10 03:24:14.224] [WARN ] Ground clutter tile [32,48] added=768 attempts=3240 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=42
+[2026-10-10 03:24:14.635] [WARN ] Terrain finalize step overran: TERRAIN took 4.98706ms (budget 4ms) tile=[32,48] count=1 worstMs=4.98706
+[2026-10-10 03:24:14.663] [WARN ] Terrain finalize step overran: M2_MODELS took 14.9892ms (budget 4ms) tile=[32,48] count=2 worstMs=14.9892
+[2026-10-10 03:24:14.854] [WARN ] BLP2 mip 5 is 16 bytes, needs 32 for 2x8; uploading this 64x256 DXT3 texture with its 5 complete level(s)
+[2026-10-10 03:24:15.020] [WARN ] BLP2 mip 5 is 8 bytes, needs 16 for 2x8; uploading this 64x256 DXT1 texture with its 5 complete level(s)
+[2026-10-10 03:24:15.480] [WARN ] Previous message repeated 1 times
+[2026-10-10 03:24:15.483] [WARN ] BLP2 mip 4 is 8 bytes, needs 32 for 2x16; uploading this 32x256 DXT1 texture with its 4 complete level(s)
+[2026-10-10 03:24:15.518] [WARN ] BLP2 mip 5 is 8 bytes, needs 16 for 2x8; uploading this 64x256 DXT1 texture with its 5 complete level(s)
+[2026-10-10 03:24:15.526] [WARN ] BLP2 mip 4 is 8 bytes, needs 16 for 2x8; uploading this 32x128 DXT1 texture with its 4 complete level(s)
+[2026-10-10 03:24:15.633] [WARN ] BLP2 mip 3 is 8 bytes, needs 16 for 2x8; uploading this 16x64 DXT1 texture with its 3 complete level(s)
+[2026-10-10 03:24:15.641] [WARN ] BLP2 mip 4 is 8 bytes, needs 16 for 2x8; uploading this 32x128 DXT1 texture with its 4 complete level(s)
+[2026-10-10 03:24:23.346] [WARN ] Terrain finalize step overran: M2_MODELS took 10.1206ms (budget 4ms) tile=[32,48] count=3 worstMs=14.9892
+[2026-10-10 03:24:25.234] [WARN ] WMO group offers no floor: verts=2222 tris=1582 hull(0x08)=0 renderedSolid(0x20 not 0x04)=0 detail(0x04)=1582 - nothing here blocks, so anything standing on this group falls through it
+[2026-10-10 03:24:25.569] [WARN ] Terrain finalize step overran: WMO_MODELS took 5.7745ms (budget 4ms) tile=[32,48] count=60 worstMs=19.6999
+[2026-10-10 03:24:27.595] [WARN ] Terrain finalize step overran: WMO_DOODADS took 14.7903ms (budget 4ms) tile=[32,48] count=120 worstMs=26.1473
+[2026-10-10 03:24:28.817] [WARN ] Ground clutter tile [32,47] added=604 attempts=3156 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=0
+[2026-10-10 03:24:29.138] [WARN ] Ground clutter tile [31,48] added=405 attempts=1716 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=0
+[2026-10-10 03:24:29.410] [WARN ] Ground clutter tile [33,48] added=701 attempts=3120 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=0
+[2026-10-10 03:24:29.734] [WARN ] Ground clutter tile [32,49] added=768 attempts=3144 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=45
+[2026-10-10 03:24:30.022] [WARN ] Ground clutter tile [31,47] added=69 attempts=468 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=0
+[2026-10-10 03:24:30.332] [WARN ] Ground clutter tile [33,47] added=609 attempts=3092 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=6
+[2026-10-10 03:24:30.485] [WARN ] Terrain finalize step overran: TERRAIN took 4.49306ms (budget 4ms) tile=[33,47] count=180 worstMs=26.1473
+[2026-10-10 03:24:30.717] [WARN ] Ground clutter tile [31,49] added=753 attempts=3048 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=56
+[2026-10-10 03:24:31.053] [WARN ] Ground clutter tile [33,49] added=768 attempts=3084 proxyFallback=0 fallbackAdded=0 baselineAdded=0 roadRejected=1
+[2026-10-10 03:24:33.304] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=853x480
+[2026-10-10 03:24:33.318] [WARN ] Previous message repeated 1 times
+[2026-10-10 03:24:33.319] [WARN ] [PIPELINE] assets/shaders/postprocess.vert.spv + assets/shaders/fxaa.frag.spv
+[2026-10-10 03:24:33.484] [WARN ] [PIPELINE] assets/shaders/quest_marker.vert.spv + assets/shaders/quest_marker.frag.spv
+[2026-10-10 03:24:33.522] [WARN ] [PIPELINE] assets/shaders/footprint.vert.spv + assets/shaders/footprint.frag.spv
+[2026-10-10 03:24:33.602] [WARN ] [FRAMEXML_MEMORY] begin beforeMiB=142 afterMiB=142 reclaimedBytes=33552782 measured=1
+[2026-10-10 03:24:33.611] [WARN ] [FRAMEXML_RECOVERY] mandatory retry after state=failed stage=original UI preflight declined attempt readable=1
+[2026-10-10 03:24:33.627] [WARN ] [FRAMEXML_RECOVERY] cannot persist diagnostic marker; continuing mandatory UI load
+[2026-10-10 03:24:33.634] [WARN ] [FRAMEXML_RECOVERY] original UI attempt armed; manifest=mpq/Interface/FrameXML
+[2026-10-10 03:24:33.704] [WARN ] [Lua] missing API called: GetQuestRewardSpell
+[2026-10-10 03:24:33.707] [WARN ] [Lua] missing API called: GetQuestRewardTitle
+[2026-10-10 03:24:33.711] [WARN ] [Lua] missing API called: AttackTarget
+[2026-10-10 03:24:33.713] [WARN ] [Lua] missing API called: GetShapeshiftFormID
+[2026-10-10 03:24:33.914] [WARN ] [FRAMEXML_STAGE] initial layout begin; widgets=16
+[2026-10-10 03:24:33.917] [WARN ] [FRAMEXML_STAGE] initial layout complete
+[2026-10-10 03:24:33.920] [WARN ] [FRAMEXML_STAGE] resolve manifest; root=sdmc:/wowps/interface/FrameXML
+[2026-10-10 03:24:33.923] [WARN ] FrameXML: interface 30300 - handlers are given their arguments only
+[2026-10-10 03:24:33.925] [WARN ] FrameXML: attempting to load the original interface - 139 files from mpq/Interface/FrameXML
+[2026-10-10 03:24:34.259] [WARN ] [Lua] missing API called: noop:IgnoreDepth
+[2026-10-10 03:24:34.642] [WARN ] CreateFrame: template 'SecureFrameTemplate' is not defined by this interface - the frame is built without it, and anything reading a child it declares will find nothing
+[2026-10-10 03:24:35.043] [WARN ] Main-loop stall detected (1743ms) - requesting mouse capture release
+[2026-10-10 03:24:35.127] [WARN ] [Lua] missing API called: OptionsFrame_ToggleSubCategories
+[2026-10-10 03:24:35.129] [WARN ] [Lua] missing API called: widget:GetNormalFontObject
+[2026-10-10 03:24:35.130] [WARN ] [Lua] missing API called: VideoOptionsFrameDefault
+[2026-10-10 03:24:35.247] [WARN ] [Lua] missing API called: AudioOptionsFrameApply
+[2026-10-10 03:24:35.248] [WARN ] [Lua] missing API called: AudioOptionsFrameDefault
+[2026-10-10 03:24:35.684] [WARN ] [Lua] missing API called: ZonePVPType
+[2026-10-10 03:24:35.736] [WARN ] [Lua] missing API called: BattlefieldFrameInfoScrollFrameTop
+[2026-10-10 03:24:35.738] [WARN ] [Lua] missing API called: BattlefieldFrameInfoScrollFrameBottom
+[2026-10-10 03:24:35.739] [WARN ] [Lua] missing API called: BattlefieldFrameInfoScrollFrameMiddle
+[2026-10-10 03:24:35.891] [WARN ] [Lua] missing API called: noop:SetPlayerTextureHeight
+[2026-10-10 03:24:35.892] [WARN ] [Lua] missing API called: noop:SetPlayerTextureWidth
+[2026-10-10 03:24:36.494] [WARN ] [Lua] missing API called: ChatFrameMenuButton
+[2026-10-10 03:24:36.688] [WARN ] FrameXML: FloatingChatFrame.xml took 287ms
+[2026-10-10 03:24:36.873] [WARN ] [Lua] missing API called: widget:TextString
+[2026-10-10 03:24:36.875] [WARN ] [Lua] missing API called: PartyMemberBackground
+[2026-10-10 03:24:36.877] [WARN ] [Lua] missing API called: PetFrame
+[2026-10-10 03:24:36.955] [WARN ] [Lua] missing API called: TargetFrameToTTextureFrameHealthBarText
+[2026-10-10 03:24:36.956] [WARN ] [Lua] missing API called: TargetFrameToTTextureFrameManaBarText
+[2026-10-10 03:24:36.964] [WARN ] [Lua] missing API called: FocusFrameToTTextureFrameHealthBarText
+[2026-10-10 03:24:36.966] [WARN ] [Lua] missing API called: FocusFrameToTTextureFrameManaBarText
+[2026-10-10 03:24:37.260] [WARN ] [Lua] missing API called: GearManagerToggleButtonIcon
+[2026-10-10 03:24:37.516] [WARN ] [Lua] missing API called: QuestProgressRequiredMoneyFramePrefixText
+[2026-10-10 03:24:37.517] [WARN ] [Lua] missing API called: QuestProgressRequiredMoneyFrameSuffixText
+[2026-10-10 03:24:37.711] [WARN ] [Lua] missing API called: QuestInfoRequiredMoneyDisplayPrefixText
+[2026-10-10 03:24:37.712] [WARN ] [Lua] missing API called: QuestInfoRequiredMoneyDisplaySuffixText
+[2026-10-10 03:24:37.717] [WARN ] [Lua] missing API called: QuestInfoMoneyFramePrefixText
+[2026-10-10 03:24:37.719] [WARN ] [Lua] missing API called: QuestInfoMoneyFrameSuffixText
+[2026-10-10 03:24:37.785] [WARN ] [Lua] missing API called: MerchantBuyBackItemMoneyFramePrefixText
+[2026-10-10 03:24:37.786] [WARN ] [Lua] missing API called: MerchantBuyBackItemMoneyFrameSuffixText
+[2026-10-10 03:24:37.788] [WARN ] [Lua] missing API called: MerchantMoneyFramePrefixText
+[2026-10-10 03:24:37.790] [WARN ] [Lua] missing API called: MerchantMoneyFrameSuffixText
+[2026-10-10 03:24:37.836] [WARN ] [Lua] missing API called: TradeRecipientMoneyFramePrefixText
+[2026-10-10 03:24:37.837] [WARN ] [Lua] missing API called: TradeRecipientMoneyFrameSuffixText
+[2026-10-10 03:24:38.202] [WARN ] [Lua] missing API called: BankFrameDetailMoneyFramePrefixText
+[2026-10-10 03:24:38.203] [WARN ] [Lua] missing API called: BankFrameDetailMoneyFrameSuffixText
+[2026-10-10 03:24:38.206] [WARN ] [Lua] missing API called: BankFrameMoneyFramePrefixText
+[2026-10-10 03:24:38.209] [WARN ] [Lua] missing API called: BankFrameMoneyFrameSuffixText
+[2026-10-10 03:24:38.529] [WARN ] [Lua] missing API called: ChannelPulloutRosterScrollTopBtn
+[2026-10-10 03:24:38.530] [WARN ] [Lua] missing API called: ChannelPulloutRosterScrollBottomBtn
+[2026-10-10 03:24:38.533] [WARN ] [Lua] missing API called: ChannelPulloutDownArrow
+[2026-10-10 03:24:38.535] [WARN ] [Lua] missing API called: ChannelPulloutUpArrow
+[2026-10-10 03:24:38.688] [WARN ] [Lua] missing API called: VehicleMenuBar
+[2026-10-10 03:24:38.689] [WARN ] [Lua] missing API called: PossessBarFrame
+[2026-10-10 03:24:38.691] [WARN ] [Lua] missing API called: VehicleSeatIndicator
+[2026-10-10 03:24:38.694] [WARN ] [Lua] missing API called: DurabilityFrame
+[2026-10-10 03:24:38.696] [WARN ] [Lua] missing API called: DurabilityShield
+[2026-10-10 03:24:38.699] [WARN ] [Lua] missing API called: DurabilityOffWeapon
+[2026-10-10 03:24:38.701] [WARN ] [Lua] missing API called: DurabilityRanged
+[2026-10-10 03:24:38.816] [WARN ] [FrameXML] missing XML template: QuestPOIFrame
+[2026-10-10 03:24:38.817] [WARN ] [Lua] missing API called: noop:SetFillTexture
+[2026-10-10 03:24:38.819] [WARN ] [Lua] missing API called: noop:SetBorderTexture
+[2026-10-10 03:24:38.821] [WARN ] [Lua] missing API called: noop:SetFillAlpha
+[2026-10-10 03:24:38.823] [WARN ] [Lua] missing API called: noop:SetBorderAlpha
+[2026-10-10 03:24:38.825] [WARN ] [Lua] missing API called: noop:SetBorderScalar
+[2026-10-10 03:24:38.834] [WARN ] [Lua] missing API called: noop:SetSequence
+[2026-10-10 03:24:38.962] [WARN ] [Lua] missing API called: TabardFrameCostMoneyFramePrefixText
+[2026-10-10 03:24:38.963] [WARN ] [Lua] missing API called: TabardFrameCostMoneyFrameSuffixText
+[2026-10-10 03:24:38.968] [WARN ] [Lua] missing API called: TabardFrameMoneyFramePrefixText
+[2026-10-10 03:24:38.970] [WARN ] [Lua] missing API called: TabardFrameMoneyFrameSuffixText
+[2026-10-10 03:24:39.004] [WARN ] [Lua] missing API called: GuildRegistrarMoneyFramePrefixText
+[2026-10-10 03:24:39.006] [WARN ] [Lua] missing API called: GuildRegistrarMoneyFrameSuffixText
+[2026-10-10 03:24:39.152] [WARN ] [Lua] missing API called: KnowledgeBaseFrameCategoryDropDownLabel
+[2026-10-10 03:24:39.153] [WARN ] [Lua] missing API called: KnowledgeBaseFrameSubCategoryDropDownLabel
+[2026-10-10 03:24:39.285] [WARN ] [Lua] missing API called: SendMailCostMoneyFramePrefixText
+[2026-10-10 03:24:39.286] [WARN ] [Lua] missing API called: SendMailCostMoneyFrameSuffixText
+[2026-10-10 03:24:39.293] [WARN ] [Lua] missing API called: SendMailMoneyFramePrefixText
+[2026-10-10 03:24:39.296] [WARN ] [Lua] missing API called: SendMailMoneyFrameSuffixText
+[2026-10-10 03:24:39.307] [WARN ] [Lua] missing API called: OpenMailTransactionAmountMoneyFramePrefixText
+[2026-10-10 03:24:39.310] [WARN ] [Lua] missing API called: OpenMailTransactionAmountMoneyFrameSuffixText
+[2026-10-10 03:24:39.313] [WARN ] [Lua] missing API called: OpenMailDepositMoneyFramePrefixText
+[2026-10-10 03:24:39.315] [WARN ] [Lua] missing API called: OpenMailDepositMoneyFrameSuffixText
+[2026-10-10 03:24:39.318] [WARN ] [Lua] missing API called: OpenMailHouseCutMoneyFramePrefixText
+[2026-10-10 03:24:39.320] [WARN ] [Lua] missing API called: OpenMailHouseCutMoneyFrameSuffixText
+[2026-10-10 03:24:39.323] [WARN ] [Lua] missing API called: OpenMailSalePriceMoneyFramePrefixText
+[2026-10-10 03:24:39.325] [WARN ] [Lua] missing API called: OpenMailSalePriceMoneyFrameSuffixText
+[2026-10-10 03:24:39.369] [WARN ] [Lua] missing API called: PetStableMoneyFramePrefixText
+[2026-10-10 03:24:39.371] [WARN ] [Lua] missing API called: PetStableMoneyFrameSuffixText
+[2026-10-10 03:24:39.374] [WARN ] [Lua] missing API called: PetStableCostMoneyFramePrefixText
+[2026-10-10 03:24:39.376] [WARN ] [Lua] missing API called: PetStableCostMoneyFrameSuffixText
+[2026-10-10 03:24:39.451] [WARN ] [Lua] missing API called: CaptureBar_Hide
+[2026-10-10 03:24:39.685] [WARN ] [Lua] missing API called: PVPBattlegroundFrameInfoScrollFrameTop
+[2026-10-10 03:24:39.686] [WARN ] [Lua] missing API called: PVPBattlegroundFrameInfoScrollFrameBottom
+[2026-10-10 03:24:39.688] [WARN ] [Lua] missing API called: PVPBattlegroundFrameInfoScrollFrameMiddle
+[2026-10-10 03:24:39.694] [WARN ] [Lua] missing API called: widget:BGindex
+[2026-10-10 03:24:39.771] [WARN ] [Lua] missing API called: ArenaRegistrarMoneyFramePrefixText
+[2026-10-10 03:24:39.772] [WARN ] [Lua] missing API called: ArenaRegistrarMoneyFrameSuffixText
+[2026-10-10 03:24:39.868] [WARN ] [Lua] missing API called: LFDQueueFrameRandomScrollFrameChildFrameMoneyFramePrefixText
+[2026-10-10 03:24:39.870] [WARN ] [Lua] missing API called: LFDQueueFrameRandomScrollFrameChildFrameMoneyFrameSuffixText
+[2026-10-10 03:24:40.428] [WARN ] [Lua] missing API called: noop:UpdateColorByID
+[2026-10-10 03:24:40.480] [WARN ] FrameXML: 13 Lua files and 126 XML files loaded, 0 failed in 6526ms
+[2026-10-10 03:24:40.530] [WARN ] [Lua] missing API called: widget:SetFading
+[2026-10-10 03:24:40.539] [WARN ] FrameXML: 'raidwarning' is handed over with no check row - if its frames never build, nothing draws it and nothing notices
+[2026-10-10 03:24:40.541] [WARN ] FrameXML: 'dialogs' is handed over with no check row - if its frames never build, nothing draws it and nothing notices
+[2026-10-10 03:24:40.546] [WARN ] FrameXML: 'bgscore' is handed over with no check row - if its frames never build, nothing draws it and nothing notices
+[2026-10-10 03:24:40.582] [WARN ] [Lua] missing API called: TokenFrameMoneyFramePrefixText
+[2026-10-10 03:24:40.584] [WARN ] [Lua] missing API called: TokenFrameMoneyFrameSuffixText
+[2026-10-10 03:24:40.669] [WARN ] AddonManager: successfully loaded addon 'Blizzard_TokenUI'
+[2026-10-10 03:24:41.030] [WARN ] [Lua] missing API called: MouselookStart
+[2026-10-10 03:24:41.032] [WARN ] [Lua] missing API called: MouselookStop
+[2026-10-10 03:24:41.254] [WARN ] [Lua] missing API called: BackdropTemplateMixin
+[2026-10-10 03:24:41.437] [WARN ] [Lua] missing API called: IsMouselooking
+[2026-10-10 03:24:41.438] [WARN ] [Lua] missing API called: TargetPriorityHighlightStart
+[2026-10-10 03:24:41.440] [WARN ] [Lua] missing API called: TargetPriorityHighlightEnd
+[2026-10-10 03:24:41.442] [WARN ] [Lua] missing API called: FlipCameraYaw
+[2026-10-10 03:24:41.445] [WARN ] [Lua] missing API called: StrafeRightStart
+[2026-10-10 03:24:41.447] [WARN ] [Lua] missing API called: JumpOrAscendStart
+[2026-10-10 03:24:41.449] [WARN ] [Lua] missing API called: CameraOrSelectOrMoveStart
+[2026-10-10 03:24:41.451] [WARN ] [Lua] missing API called: MoveBackwardStart
+[2026-10-10 03:24:41.453] [WARN ] [Lua] missing API called: TurnOrActionStop
+[2026-10-10 03:24:41.455] [WARN ] [Lua] missing API called: TurnLeftStart
+[2026-10-10 03:24:41.457] [WARN ] [Lua] missing API called: TurnRightStart
+[2026-10-10 03:24:41.459] [WARN ] [Lua] missing API called: StrafeLeftStart
+[2026-10-10 03:24:41.462] [WARN ] [Lua] missing API called: CameraOrSelectOrMoveStop
+[2026-10-10 03:24:41.464] [WARN ] [Lua] missing API called: InteractUnit
+[2026-10-10 03:24:41.466] [WARN ] [Lua] missing API called: MoveForwardStart
+[2026-10-10 03:24:41.637] [ERROR] LuaEngine: script error: [string "local mt = __WoweeFrameMT..."]:34: attempt to index field '__attributes' (a nil value)
+      at [string "local mt = __WoweeFrameMT..."]:34 in SetAttribute
+      at ...switch/wowee/addons/ConsolePort/Drivers/TargetAI.lua:508
+[2026-10-10 03:24:41.651] [WARN ] Chat: fired CHAT_MSG_SYSTEM to the interface (local)
+[2026-10-10 03:24:41.653] [ERROR] AddonManager: 'ConsolePort' failed on Drivers/TargetAI.lua: [string "local mt = __WoweeFrameMT..."]:34: attempt to index field '__attributes' (a nil value)
+      at [string "local mt = __WoweeFrameMT..."]:34 in SetAttribute
+      at ...switch/wowee/addons/ConsolePort/Drivers/TargetAI.lua:508
+[2026-10-10 03:24:41.680] [WARN ] [Lua] missing API called: noop:GetSize
+[2026-10-10 03:24:41.692] [WARN ] [Lua] missing API called: HonorFrameSoloQueueButton
+[2026-10-10 03:24:41.694] [WARN ] [Lua] missing API called: QuestMapFrame
+[2026-10-10 03:24:41.696] [WARN ] [Lua] missing API called: LootFrameCloseButton
+[2026-10-10 03:24:41.699] [WARN ] [Lua] missing API called: SpellFlyout
+[2026-10-10 03:24:41.701] [ERROR] LuaEngine: script error: .../switch/wowee/addons/ConsolePort/Drivers/UIStack.lua:91: attempt to index local 'node' (a boolean value)
+      at .../switch/wowee/addons/ConsolePort/Drivers/UIStack.lua:91
+[2026-10-10 03:24:41.718] [ERROR] AddonManager: 'ConsolePort' failed on Drivers/UIStack.lua: .../switch/wowee/addons/ConsolePort/Drivers/UIStack.lua:91: attempt to index local 'node' (a boolean value)
+      at .../switch/wowee/addons/ConsolePort/Drivers/UIStack.lua:91
+[2026-10-10 03:24:41.765] [ERROR] LuaEngine: script error: ...witch/wowee/addons/ConsolePort/Cursors/Interface.lua:754: attempt to call method 'HasScript' (a nil value)
+      at ...witch/wowee/addons/ConsolePort/Cursors/Interface.lua:754 in setupScripts
+      at ...witch/wowee/addons/ConsolePort/Cursors/Interface.lua:759
+[2026-10-10 03:24:41.783] [ERROR] AddonManager: 'ConsolePort' failed on Cursors/Interface.lua: ...witch/wowee/addons/ConsolePort/Cursors/Interface.lua:754: attempt to call method 'HasScript' (a nil value)
+      at ...witch/wowee/addons/ConsolePort/Cursors/Interface.lua:754 in setupScripts
+      at ...witch/wowee/addons/ConsolePort/Cursors/Interface.lua:759
+[2026-10-10 03:24:41.795] [WARN ] [Lua] missing API called: HasVehicleActionBar
+[2026-10-10 03:24:41.796] [WARN ] [Lua] missing API called: HasOverrideActionBar
+[2026-10-10 03:24:41.799] [WARN ] [Lua] missing API called: HasTempShapeshiftActionBar
+[2026-10-10 03:24:41.801] [ERROR] LuaEngine: script error: mpq/interface/framexml/restrictedexecution.lua:781: Call failed: mpq/interface/framexml/restrictedexecution.lua:180: Invalid key type 'nil'
+      at [C]:-1 in error
+      at mpq/interface/framexml/restrictedexecution.lua:781
+      at (tail call):-1 in 
+      at (tail call):-1 in 
+      at mpq/interface/framexml/securehandlers.lua:545 in handler
+      at [string "local mt = __WoweeFrameMT..."]:36 in SetAttribute
+      at mpq/interface/framexml/securehandlers.lua:719
+      at (tail call):-1 in 
+      at ...c:/switch/wowee/addons/ConsolePort/Drivers/Pager.lua:91 in RegisterSpellHeader
+      at ...itch/wowee/addons/ConsolePort/Cursors/UnitFrames.lua:38
+[2026-10-10 03:24:41.821] [ERROR] AddonManager: 'ConsolePort' failed on Cursors/UnitFrames.lua: mpq/interface/framexml/restrictedexecution.lua:781: Call failed: mpq/interface/framexml/restrictedexecution.lua:180: Invalid key type 'nil'
+      at [C]:-1 in error
+      at mpq/interface/framexml/restrictedexecution.lua:781
+      at (tail call):-1 in 
+      at (tail call):-1 in 
+      at mpq/interface/framexml/securehandlers.lua:545 in handler
+      at [string "local mt = __WoweeFrameMT..."]:36 in SetAttribute
+      at mpq/interface/framexml/securehandlers.lua:719
+      at (tail call):-1 in 
+      at ...c:/switch/wowee/addons/ConsolePort/Drivers/Pager.lua:91 in RegisterSpellHeader
+      at ...itch/wowee/addons/ConsolePort/Cursors/UnitFrames.lua:38
+[2026-10-10 03:24:41.877] [WARN ] [Lua] missing API called: widget:AddFrame
+[2026-10-10 03:24:41.878] [ERROR] LuaEngine: script error: ...dmc:/switch/wowee/addons/ConsolePort/Frames/Item.lua:540: attempt to call method 'AddFrame' (a nil value)
+      at ...dmc:/switch/wowee/addons/ConsolePort/Frames/Item.lua:540
+[2026-10-10 03:24:41.898] [ERROR] AddonManager: 'ConsolePort' failed on Frames/Item.lua: ...dmc:/switch/wowee/addons/ConsolePort/Frames/Item.lua:540: attempt to call method 'AddFrame' (a nil value)
+      at ...dmc:/switch/wowee/addons/ConsolePort/Frames/Item.lua:540
+[2026-10-10 03:24:41.911] [ERROR] LuaEngine: script error: ...dmc:/switch/wowee/addons/ConsolePort/Frames/Unit.lua:617: attempt to call method 'AddFrame' (a nil value)
+      at ...dmc:/switch/wowee/addons/ConsolePort/Frames/Unit.lua:617
+[2026-10-10 03:24:41.929] [ERROR] AddonManager: 'ConsolePort' failed on Frames/Unit.lua: ...dmc:/switch/wowee/addons/ConsolePort/Frames/Unit.lua:617: attempt to call method 'AddFrame' (a nil value)
+      at ...dmc:/switch/wowee/addons/ConsolePort/Frames/Unit.lua:617
+[2026-10-10 03:24:41.980] [WARN ] [Lua] missing API called: widget:LeftButton
+[2026-10-10 03:24:41.981] [WARN ] [Lua] missing API called: widget:RightButton
+[2026-10-10 03:24:42.000] [WARN ] [Lua] missing API called: GetItemCooldown
+[2026-10-10 03:24:42.015] [ERROR] LuaEngine: script error: mpq/interface/framexml/securehandlers.lua:731: Invalid reference frame
+      at [C]:-1 in error
+      at mpq/interface/framexml/securehandlers.lua:731
+      at (tail call):-1 in 
+      at ...c:/switch/wowee/addons/ConsolePort/Frames/Flyout.lua:33
+[2026-10-10 03:24:42.036] [ERROR] AddonManager: 'ConsolePort' failed on Frames/Flyout.lua: mpq/interface/framexml/securehandlers.lua:731: Invalid reference frame
+      at [C]:-1 in error
+      at mpq/interface/framexml/securehandlers.lua:731
+      at (tail call):-1 in 
+      at ...c:/switch/wowee/addons/ConsolePort/Frames/Flyout.lua:33
+[2026-10-10 03:24:42.053] [WARN ] [Lua] missing API called: CPTotemManagerFrame
+[2026-10-10 03:24:42.056] [ERROR] LuaEngine: script error: ...mc:/switch/wowee/addons/ConsolePort/Frames/Totem.lua:390: attempt to call method 'AddFrame' (a nil value)
+      at ...mc:/switch/wowee/addons/ConsolePort/Frames/Totem.lua:390
+[2026-10-10 03:24:42.079] [ERROR] AddonManager: 'ConsolePort' failed on Frames/Totem.lua: ...mc:/switch/wowee/addons/ConsolePort/Frames/Totem.lua:390: attempt to call method 'AddFrame' (a nil value)
+      at ...mc:/switch/wowee/addons/ConsolePort/Frames/Totem.lua:390
+[2026-10-10 03:24:42.111] [WARN ] [Lua] missing API called: CompactUnitMixin
+[2026-10-10 03:24:42.112] [WARN ] [Lua] missing API called: C_NamePlate
+[2026-10-10 03:24:42.154] [WARN ] [Lua] missing API called: widget:AddPlugin
+[2026-10-10 03:24:42.155] [ERROR] LuaEngine: script error: ...ee/addons/ConsolePort/Plugins/Blizzard_BindingUI.lua:8: attempt to call method 'AddPlugin' (a nil value)
+      at ...ee/addons/ConsolePort/Plugins/Blizzard_BindingUI.lua:8
+[2026-10-10 03:24:42.178] [ERROR] AddonManager: sdmc:/switch/wowee/addons/ConsolePort/Plugins/Plugins.xml referenced Blizzard_BindingUI.lua which failed
+[2026-10-10 03:24:42.190] [ERROR] LuaEngine: script error: ...:/switch/wowee/addons/ConsolePort/Plugins/Bagnon.lua:6: attempt to call method 'AddPlugin' (a nil value)
+      at ...:/switch/wowee/addons/ConsolePort/Plugins/Bagnon.lua:6
+[2026-10-10 03:24:42.212] [ERROR] AddonManager: sdmc:/switch/wowee/addons/ConsolePort/Plugins/Plugins.xml referenced Bagnon.lua which failed
+[2026-10-10 03:24:42.223] [ERROR] LuaEngine: script error: ...:/switch/wowee/addons/ConsolePort/Plugins/Custom.lua:6: attempt to call method 'AddPlugin' (a nil value)
+      at ...:/switch/wowee/addons/ConsolePort/Plugins/Custom.lua:6
+[2026-10-10 03:24:42.245] [ERROR] AddonManager: sdmc:/switch/wowee/addons/ConsolePort/Plugins/Plugins.xml referenced Custom.lua which failed
+[2026-10-10 03:24:42.259] [ERROR] LuaEngine: script error: ...witch/wowee/addons/ConsolePort/Plugins/Storyline.lua:9: attempt to call method 'AddPlugin' (a nil value)
+      at ...witch/wowee/addons/ConsolePort/Plugins/Storyline.lua:9
+[2026-10-10 03:24:42.284] [ERROR] AddonManager: sdmc:/switch/wowee/addons/ConsolePort/Plugins/Plugins.xml referenced Storyline.lua which failed
+[2026-10-10 03:24:42.287] [ERROR] AddonManager: 'ConsolePort' failed on XML Plugins/Plugins.xml: script Blizzard_BindingUI.lua: ...ee/addons/ConsolePort/Plugins/Blizzard_BindingUI.lua:8: attempt to call method 'AddPlugin' (a nil value)
+      at ...ee/addons/ConsolePort/Plugins/Blizzard_BindingUI.lua:8
+[2026-10-10 03:24:42.289] [ERROR] AddonManager: addon 'ConsolePort' failed to load completely
+[2026-10-10 03:24:42.455] [WARN ] [Lua] missing API called: MicroButtonAndBagsBar
+[2026-10-10 03:24:42.456] [WARN ] [Lua] missing API called: StatusTrackingBarManager
+[2026-10-10 03:24:42.457] [WARN ] [Lua] missing API called: StanceBarFrame
+[2026-10-10 03:24:42.459] [WARN ] [Lua] missing API called: OverrideActionBar
+[2026-10-10 03:24:42.462] [WARN ] [Lua] missing API called: ObjectiveTrackerFrame
+[2026-10-10 03:24:42.566] [WARN ] CreateFrame: template 'CP_ReputationStatusBarTemplate' is not defined by this interface - the frame is built without it, and anything reading a child it declares will find nothing
+[2026-10-10 03:24:42.567] [WARN ] [Lua] missing API called: widget:StatusBar
+[2026-10-10 03:24:42.569] [ERROR] LuaEngine: script error: ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:275: attempt to index field 'StatusBar' (a nil value)
+      at ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:275 in AddBarFromTemplate
+      at ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:336
+[2026-10-10 03:24:42.604] [ERROR] AddonManager: sdmc:/switch/wowee/addons/ConsolePortBar/Components/WatchBars.xml referenced WatchBars.lua which failed
+[2026-10-10 03:24:42.607] [ERROR] AddonManager: 'ConsolePortBar' failed on XML Components/WatchBars.xml: script WatchBars.lua: ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:275: attempt to index field 'StatusBar' (a nil value)
+      at ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:275 in AddBarFromTemplate
+      at ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:336
+[2026-10-10 03:24:42.623] [ERROR] AddonManager: addon 'ConsolePortBar' failed to load completely
+[2026-10-10 03:24:42.680] [WARN ] [Lua] missing API called: widget:Container
+[2026-10-10 03:24:42.681] [WARN ] [Lua] missing API called: widget:Header
+[2026-10-10 03:24:42.686] [WARN ] [Lua] missing API called: widget:AdjustHeight
+[2026-10-10 03:24:42.690] [WARN ] [Lua] missing API called: widget:ForbidFrame
+[2026-10-10 03:24:42.692] [ERROR] LuaEngine: script error: .../switch/wowee/addons/ConsolePort/Drivers/UIProbe.lua:59: attempt to call method 'ForbidFrame' (a nil value)
+      at .../switch/wowee/addons/ConsolePort/Drivers/UIProbe.lua:59 in HideFrame
+      at ...mc:/switch/wowee/addons/ConsolePortUI_Loot/Frame.lua:45
+[2026-10-10 03:24:42.721] [ERROR] AddonManager: sdmc:/switch/wowee/addons/ConsolePortUI_Loot/Frame.xml referenced Frame.lua which failed
+[2026-10-10 03:24:42.725] [ERROR] AddonManager: 'ConsolePortUI_Loot' failed on XML Frame.xml: script Frame.lua: .../switch/wowee/addons/ConsolePort/Drivers/UIProbe.lua:59: attempt to call method 'ForbidFrame' (a nil value)
+      at .../switch/wowee/addons/ConsolePort/Drivers/UIProbe.lua:59 in HideFrame
+      at ...mc:/switch/wowee/addons/ConsolePortUI_Loot/Frame.lua:45
+[2026-10-10 03:24:42.727] [ERROR] AddonManager: addon 'ConsolePortUI_Loot' failed to load completely
+[2026-10-10 03:24:42.771] [WARN ] [Lua] missing API called: CollectionsMicroButton
+[2026-10-10 03:24:42.772] [WARN ] [Lua] missing API called: PathToAscensionMicroButton
+[2026-10-10 03:24:42.774] [WARN ] [Lua] missing API called: ChallengesMicroButton
+[2026-10-10 03:24:42.776] [WARN ] [Lua] missing API called: EncounterJournalMicroButton
+[2026-10-10 03:24:42.779] [WARN ] [Lua] missing API called: GameMenuButtonAudioOptions
+[2026-10-10 03:24:42.781] [WARN ] [Lua] missing API called: GameMenuButtonHelp
+[2026-10-10 03:24:42.783] [WARN ] [Lua] missing API called: noop:SetPosition
+[2026-10-10 03:24:42.786] [WARN ] [Lua] missing API called: widget:Gameplay
+[2026-10-10 03:24:42.788] [WARN ] [Lua] missing API called: widget:Teleport
+[2026-10-10 03:24:42.792] [WARN ] [Lua] missing API called: widget:Img
+[2026-10-10 03:24:42.795] [WARN ] [Lua] missing API called: widget:QuestLog
+[2026-10-10 03:24:42.799] [WARN ] [Lua] missing API called: widget:Notice
+[2026-10-10 03:24:42.801] [WARN ] [Lua] missing API called: widget:Texture
+[2026-10-10 03:24:42.803] [WARN ] [Lua] missing API called: widget:RefTo
+[2026-10-10 03:24:42.805] [WARN ] [Lua] missing API called: widget:Desc
+[2026-10-10 03:24:42.807] [WARN ] [Lua] missing API called: widget:Achievements
+[2026-10-10 03:24:42.812] [WARN ] [Lua] missing API called: widget:PathToAscension
+[2026-10-10 03:24:42.816] [WARN ] [Lua] missing API called: widget:WorldMap
+[2026-10-10 03:24:42.819] [WARN ] [Lua] missing API called: widget:Trials
+[2026-10-10 03:24:42.823] [WARN ] [Lua] missing API called: widget:EncounterJournal
+[2026-10-10 03:24:42.829] [WARN ] [Lua] missing API called: widget:PVPFinder
+[2026-10-10 03:24:42.833] [WARN ] [Lua] missing API called: widget:PVEFinder
+[2026-10-10 03:24:42.838] [WARN ] [Lua] missing API called: widget:Character
+[2026-10-10 03:24:42.840] [WARN ] [Lua] missing API called: widget:Inventory
+[2026-10-10 03:24:42.845] [WARN ] [Lua] missing API called: widget:Count
+[2026-10-10 03:24:42.847] [WARN ] [Lua] missing API called: widget:Collections
+[2026-10-10 03:24:42.852] [WARN ] [Lua] missing API called: widget:Info
+[2026-10-10 03:24:42.856] [WARN ] [Lua] missing API called: widget:Level
+[2026-10-10 03:24:42.860] [WARN ] [Lua] missing API called: widget:UpdateLevel
+[2026-10-10 03:24:42.862] [WARN ] [Lua] missing API called: widget:Totem
+[2026-10-10 03:24:42.867] [WARN ] [Lua] missing API called: widget:Spec
+[2026-10-10 03:24:42.871] [WARN ] [Lua] missing API called: widget:EvaluateAlertVisibility
+[2026-10-10 03:24:42.874] [WARN ] [Lua] missing API called: widget:Spellbook
+[2026-10-10 03:24:42.878] [WARN ] [Lua] missing API called: widget:Social
+[2026-10-10 03:24:42.882] [WARN ] [Lua] missing API called: widget:Friends
+[2026-10-10 03:24:42.886] [WARN ] [Lua] missing API called: widget:Party
+[2026-10-10 03:24:42.891] [WARN ] [Lua] missing API called: widget:Guild
+[2026-10-10 03:24:42.895] [WARN ] [Lua] missing API called: widget:Calendar
+[2026-10-10 03:24:42.900] [WARN ] [Lua] missing API called: widget:Raid
+[2026-10-10 03:24:42.904] [WARN ] [Lua] missing API called: widget:System
+[2026-10-10 03:24:42.907] [WARN ] [Lua] missing API called: widget:Exit
+[2026-10-10 03:24:42.912] [WARN ] [Lua] missing API called: widget:Audio
+[2026-10-10 03:24:42.917] [WARN ] [Lua] missing API called: widget:Return
+[2026-10-10 03:24:42.921] [WARN ] [Lua] missing API called: widget:Controller
+[2026-10-10 03:24:42.926] [WARN ] [Lua] missing API called: widget:Logout
+[2026-10-10 03:24:42.931] [WARN ] [Lua] missing API called: widget:Video
+[2026-10-10 03:24:42.935] [WARN ] [Lua] missing API called: widget:AddOns
+[2026-10-10 03:24:42.939] [WARN ] [Lua] missing API called: widget:Help
+[2026-10-10 03:24:42.944] [WARN ] [Lua] missing API called: widget:Macros
+[2026-10-10 03:24:42.948] [WARN ] [Lua] missing API called: widget:LoadScript
+[2026-10-10 03:24:42.951] [WARN ] [Lua] missing API called: widget:KeyBindings
+[2026-10-10 03:24:42.955] [WARN ] [Lua] missing API called: widget:Interface
+[2026-10-10 03:24:42.960] [WARN ] [Lua] missing API called: widget:ControlHints
+[2026-10-10 03:24:42.965] [ERROR] LuaEngine: script error: mpq/interface/framexml/restrictedexecution.lua:781: Call failed: [string "			local newheader = self:GetFrameRef('newh..."]:2: attempt to index local 'newheader' (a nil value)
+      at [C]:-1 in error
+      at mpq/interface/framexml/restrictedexecution.lua:781
+      at (tail call):-1 in 
+      at (tail call):-1 in 
+      at mpq/interface/framexml/securehandlers.lua:545 in handler
+      at [string "local mt = __WoweeFrameMT..."]:36 in SetAttribute
+      at mpq/interface/framexml/securehandlers.lua:719
+      at (tail call):-1 in 
+      at ...ch/wowee/addons/ConsolePort/XML/Templates/MenuUI.lua:245 in ?
+      at ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Frame.lua:866
+[2026-10-10 03:24:42.991] [ERROR] AddonManager: 'ConsolePortUI_Menu' failed on Menu_Frame.lua: mpq/interface/framexml/restrictedexecution.lua:781: Call failed: [string "			local newheader = self:GetFrameRef('newh..."]:2: attempt to index local 'newheader' (a nil value)
+      at [C]:-1 in error
+      at mpq/interface/framexml/restrictedexecution.lua:781
+      at (tail call):-1 in 
+      at (tail call):-1 in 
+      at mpq/interface/framexml/securehandlers.lua:545 in handler
+      at [string "local mt = __WoweeFrameMT..."]:36 in SetAttribute
+      at mpq/interface/framexml/securehandlers.lua:719
+      at (tail call):-1 in 
+      at ...ch/wowee/addons/ConsolePort/XML/Templates/MenuUI.lua:245 in ?
+      at ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Frame.lua:866
+[2026-10-10 03:24:43.002] [ERROR] LuaEngine: script error: ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Logic.lua:7: attempt to index local 'Menu' (a nil value)
+      at ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Logic.lua:7
+[2026-10-10 03:24:43.027] [ERROR] AddonManager: 'ConsolePortUI_Menu' failed on Menu_Logic.lua: ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Logic.lua:7: attempt to index local 'Menu' (a nil value)
+      at ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Logic.lua:7
+[2026-10-10 03:24:43.028] [ERROR] AddonManager: addon 'ConsolePortUI_Menu' failed to load completely
+[2026-10-10 03:24:43.048] [WARN ] [Lua] missing API called: WoweeAllBagsMoneyPrefixText
+[2026-10-10 03:24:43.049] [WARN ] [Lua] missing API called: WoweeAllBagsMoneySuffixText
+[2026-10-10 03:24:43.051] [WARN ] [Lua] missing API called: ToggleAllBags
+[2026-10-10 03:24:43.057] [WARN ] [Lua] missing API called: CinematicFrameCloseDialogConfirmButton
+[2026-10-10 03:24:43.060] [WARN ] [Lua] missing API called: widget:CloseDialog
+[2026-10-10 03:24:43.063] [WARN ] [Lua] missing API called: widget:LoadRaidCursor
+[2026-10-10 03:24:43.065] [ERROR] LuaEngine: frame OnEvent error: event=ADDON_LOADED argc=1: ...dmc:/switch/wowee/addons/ConsolePort/Core/Events.lua:223: attempt to call method 'LoadRaidCursor' (a nil value)
+[2026-10-10 03:24:43.090] [WARN ] AddonManager: successfully loaded addon 'WoweeAllBags'
+[2026-10-10 03:24:43.091] [WARN ] Switch HID: ConsolePort mode enabled
+[2026-10-10 03:24:43.093] [WARN ] AddonManager: loaded 2 addons, 4 failed
+[2026-10-10 03:24:43.096] [WARN ] [LOCAL_FRAMEXML] original interface loaded=1 local bridge active=1
+[2026-10-10 03:24:43.100] [WARN ] interface command: 
+for i = 1, NUM_CHAT_WINDOWS do
+    local e = _G['ChatFrame' .. i .. 'EditBox']
+    if e and not e:HasFocus() then
+        ChatEdit_DeactivateChat(e)
+        if GetCVar('chatStyle') == 'classic' then e:Hide() end
+    end
+end
+if GetCVar('chatStyle') == 'im' then
+    local send = ChatEdit_ChooseBoxForSend()
+    if send and not send:HasFocus() then send:Show() end
+end
+
+[2026-10-10 03:24:43.142] [WARN ] [Lua] missing API called: widget:ShouldBeVisible
+[2026-10-10 03:24:43.144] [ERROR] LuaEngine: frame OnEvent error: event=CVAR_UPDATE argc=2: ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:51: attempt to call method 'ShouldBeVisible' (a nil value)
+[2026-10-10 03:24:43.188] [WARN ] [Lua] missing API called: ChannelPulloutTabMiddleDisabled
+[2026-10-10 03:24:43.189] [WARN ] [Lua] missing API called: ChannelPulloutTabHighlightTexture
+[2026-10-10 03:24:43.628] [WARN ] [Lua] missing API called: widget:LoadSettings
+[2026-10-10 03:24:43.630] [ERROR] LuaEngine: frame OnEvent error: event=ADDON_LOADED argc=1: ...dmc:/switch/wowee/addons/ConsolePort/Core/Events.lua:218: attempt to call method 'LoadSettings' (a nil value)
+[2026-10-10 03:24:43.834] [WARN ] AddonManager: successfully loaded addon 'Blizzard_CombatLog'
+[2026-10-10 03:24:43.836] [WARN ] [Lua] missing API called: widget:PLAYER_LOGIN
+[2026-10-10 03:24:43.856] [WARN ] [Lua] missing API called: widget:HotKey
+[2026-10-10 03:24:43.907] [WARN ] [Lua] missing API called: widget:UpdateFrames
+[2026-10-10 03:24:43.910] [ERROR] LuaEngine: frame OnEvent error: event=PLAYER_LOGIN argc=0: ...dmc:/switch/wowee/addons/ConsolePort/Core/Events.lua:188: attempt to call method 'UpdateFrames' (a nil value)
+[2026-10-10 03:24:43.942] [WARN ] [Lua] missing API called: widget:GetCurrentValue
+[2026-10-10 03:24:43.997] [ERROR] LuaEngine: frame OnEvent error: event=CVAR_UPDATE argc=2: ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:51: attempt to call method 'ShouldBeVisible' (a nil value)
+[2026-10-10 03:24:44.160] [ERROR] LuaEngine: frame OnEvent error: event=ADDON_LOADED argc=1: ...dmc:/switch/wowee/addons/ConsolePort/Core/Events.lua:218: attempt to call method 'LoadSettings' (a nil value)
+[2026-10-10 03:24:44.161] [WARN ] AddonManager: successfully loaded addon 'Blizzard_CombatText'
+[2026-10-10 03:24:44.215] [ERROR] LuaEngine: frame OnEvent error: event=CVAR_UPDATE argc=2: ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:51: attempt to call method 'ShouldBeVisible' (a nil value)
+[2026-10-10 03:24:44.361] [ERROR] Previous message repeated 4 times
+[2026-10-10 03:24:44.362] [WARN ] [Lua] missing API called: LFRRaidList
+[2026-10-10 03:24:44.396] [ERROR] LuaEngine: frame OnEvent error: event=PLAYER_ENTERING_WORLD argc=0: ...wowee/addons/ConsolePortBar/Components/WatchBars.lua:95: attempt to call method 'ShouldBeVisible' (a nil value)
+[2026-10-10 03:24:44.425] [ERROR] LuaEngine: frame OnEvent error: event=PLAYER_ENTERING_WORLD argc=0: ...witch/wowee/addons/ConsolePortUI_Menu/Menu_Frame.lua:59: attempt to call method 'UpdateLevel' (a nil value)
+[2026-10-10 03:24:44.467] [WARN ] [FRAMEXML_RECOVERY] cannot persist active session marker; continuing anyway
+[2026-10-10 03:24:44.468] [WARN ] [FRAMEXML_RECOVERY] original UI active; crash recovery remains armed
+[2026-10-10 03:24:44.571] [WARN ] SLOW render stage 'beginFrame': 91.4155ms (1 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:24:44.574] [WARN ] switch performance: cloud layer skipped
+[2026-10-10 03:24:44.607] [WARN ] [FX_GATE] laid out on 1 of the last 1 frames; this one because first=widget_tree.cpp:160 create last=lua_engine.cpp:375 marks=113473. A gate that never holds is the sizing walk and the solve on every frame - the site named first is the one raising the generation on a frame where nothing moved
+[2026-10-10 03:24:44.667] [WARN ] Text wider than its rect: AudioOptionsVoicePanelDisabledMessageText "Voice Chat Disabled" draws 112.5 into 1 - fontHeight=12 size=12 face=Fonts\FRIZQT__.TTF currentFontSize=15 scale=0.9375 - whatever its right edge is anchored to is being drawn over
+[2026-10-10 03:24:44.676] [ERROR] LuaEngine: OnShow on ConsolePortBar error: mpq/interface/framexml/restrictedexecution.lua:781: Call failed: [string "		for key, button in pairs(bindings) do..."]:4: attempt to index global 'mouse' (a nil value)
+      at [C]:-1 in error
+      at mpq/interface/framexml/restrictedexecution.lua:781
+      at (tail call):-1 in 
+      at (tail call):-1 in 
+      at mpq/interface/framexml/securehandlers.lua:137 in SecureHandler_OnSimpleEvent
+      at [string "local __w = {}..."]:67 in orig
+      at [string "local mt = __WoweeFrameMT..."]:201
+[2026-10-10 03:24:44.737] [WARN ] UI textures allocate from this context's own descriptor pool, so they outlive an ImGui backend restart
+[2026-10-10 03:24:44.739] [WARN ] Widget texture not found: Interface\AddOns\ConsolePort\Textures\Line
+[2026-10-10 03:24:44.853] [WARN ] frame budget over 43s: 133 frames, 3.03227 fps, 329.786ms each
+[2026-10-10 03:24:44.854] [WARN ]   prepareGlueScene: 24.1208ms/frame avg, 1620.27ms worst, 7% of the window
+[2026-10-10 03:24:44.856] [WARN ]   endFrame: 20.8868ms/frame avg, 104.941ms worst, 6% of the window
+[2026-10-10 03:24:44.858] [WARN ]   beginFrame: 15.7484ms/frame avg, 107.529ms worst, 4% of the window
+[2026-10-10 03:24:44.860] [WARN ]   local authority/snapshots: 14.9849ms/frame avg, 1992.9ms worst, 4% of the window
+[2026-10-10 03:24:44.862] [WARN ]   uiManager->render: 3.07958ms/frame avg, 348.354ms worst, 0% of the window
+[2026-10-10 03:24:44.864] [WARN ]   addonWidgets: 0.901915ms/frame avg, 119.955ms worst, 0% of the window
+[2026-10-10 03:24:44.866] [WARN ]   renderWorld: 0.177778ms/frame avg, 23.6445ms worst, 0% of the window
+[2026-10-10 03:24:44.867] [WARN ]   frameXml->draw: 0.0902247ms/frame avg, 11.9999ms worst, 0% of the window
+[2026-10-10 03:24:44.869] [WARN ]   renderHUD: 0.0741497ms/frame avg, 2.79042ms worst, 0% of the window
+[2026-10-10 03:24:44.870] [WARN ] Watchdog: force-released mouse capture on main thread
+[2026-10-10 03:24:44.992] [WARN ] Humanoid display 2072 -> model 49 -> Character\Human\Male\HumanMale.m2
+[2026-10-10 03:24:45.089] [WARN ] [Lua] missing API called: widget:SPELLS_CHANGED
+[2026-10-10 03:24:45.091] [WARN ] [Lua] missing API called: widget:SetupRaidCursor
+[2026-10-10 03:24:45.093] [ERROR] LuaEngine: frame OnEvent error: event=SPELLS_CHANGED argc=0: ...dmc:/switch/wowee/addons/ConsolePort/Core/Events.lua:166: attempt to call method 'SetupRaidCursor' (a nil value)
+[2026-10-10 03:24:45.221] [WARN ] SLOW update stage 'renderer->update': 57.5146ms
+[2026-10-10 03:24:45.287] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=64x64
+[2026-10-10 03:24:46.429] [WARN ] Previous message repeated 1 times
+[2026-10-10 03:24:46.430] [WARN ] Widget texture not found: Interface\AddOns\ConsolePort\Textures\IconMask
+[2026-10-10 03:24:46.549] [WARN ] Humanoid display 1859 -> model 49 -> Character\Human\Male\HumanMale.m2
+[2026-10-10 03:24:46.621] [WARN ] FrameXML: 'ChatFrameMenuButton' is on screen and no element accounts for it - if this client draws the same thing, both are up
+[2026-10-10 03:24:46.624] [WARN ] FrameXML: 'FriendsMicroButton' is on screen and no element accounts for it - if this client draws the same thing, both are up
+[2026-10-10 03:24:46.629] [WARN ] FrameXML: 'WorldStateAlwaysUpFrame' is on screen and no element accounts for it - if this client draws the same thing, both are up
+[2026-10-10 03:24:46.634] [WARN ] FrameXML: 'ConsolePortMouseHandle' is on screen and no element accounts for it - if this client draws the same thing, both are up
+[2026-10-10 03:24:46.639] [WARN ] FrameXML: 'ConsolePortBar' is on screen and no element accounts for it - if this client draws the same thing, both are up
+[2026-10-10 03:24:46.644] [WARN ] FrameXML: 'CombatText' is on screen and no element accounts for it - if this client draws the same thing, both are up
+[2026-10-10 03:24:46.922] [WARN ] Humanoid display 3251 -> model 49 -> Character\Human\Male\HumanMale.m2
+[2026-10-10 03:24:47.298] [WARN ] Humanoid display 5526 -> model 49 -> Character\Human\Male\HumanMale.m2
+[2026-10-10 03:24:47.500] [WARN ] Humanoid display 2072 -> model 49 -> Character\Human\Male\HumanMale.m2
+[2026-10-10 03:24:47.954] [WARN ] Widget texture not found: Interface\AddOns\ConsolePort\Textures\Lines
+[2026-10-10 03:24:48.128] [WARN ] Widget texture not found: Interface\AddOns\ConsolePortBar\Textures\Blank64
+[2026-10-10 03:24:48.139] [WARN ] Widget texture not found: Interface\AddOns\ConsolePortBar\Textures\Bag64
+[2026-10-10 03:24:48.148] [WARN ] Widget texture not found: Interface\AddOns\ConsolePortBar\Textures\Button\BigShadow
+[2026-10-10 03:24:48.327] [WARN ] Widget texture not found: Interface\AddOns\ConsolePortBar\Textures\Hide
+[2026-10-10 03:24:48.491] [WARN ] SLOW update stage 'renderer->update': 52.9404ms
+[2026-10-10 03:24:48.950] [WARN ] SLOW update stage 'renderer->update': 135.403ms
+[2026-10-10 03:24:49.475] [WARN ] SLOW update stage 'renderer->update': 100.649ms
+[2026-10-10 03:24:49.912] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=102 catalogDiskReads=1242 catalogCacheHits=5014 catalogCacheBytes=789504
+[2026-10-10 03:24:49.914] [WARN ] [WORLD_PERF] loopFps=3.96709 frameMeanMs=252.074 frameMaxMs=1489.8 frameP50Ms=186.106 frameP95Ms=270.197 frameP99Ms=1489.8 percentileSamples=20 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=20/20 targetFps=40 frameBudgetMs=25 over25ms=20/20 updateOver25ms=14 renderOver25ms=20 otherAndPacingMeanMs=0.104866 updateMeanMs=61.493 renderMeanMs=190.476 prepareMs=0 shadowMs=6.61528 reflectionMs=4.47351 cameraMs=0.918944 terrainMs=0.570492 wmoMs=0.110032 m2Ms=3.1409 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.333112 fxLayoutSkipped=1 fxSolveMs=1.2247 fxOrderMs=0.032916 fxSolved=596 fxWidgets=27407 fxVisMs=0.163956 fxVisVisits=440 fxSizeMs=0.049608 fxMsgMs=0.000416 fxScrollMs=0.027092 fxOnUpdateMs=0.822848 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=40 geometryPeakMiB=59 geometryAllocFailures=0 tiles=9 pending=1 terrainDrawn=148 terrainCulled=2156 m2Instances=12763 m2Draws=67 m2VisibilityTests=5723 m2ClusterSkipped=7040 wmoDraws=24 wmoFrustumSkipped=33 characterDraws=24 characterPos=-8965.86,-134.076,82.8133 cameraPos=-8969.34,-137.418,86.1704 viewDistance=400 discardedFrames=0
+[2026-10-10 03:24:49.918] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.41355 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.673503,-0.503194,0.54147 cameraForward=0.697167,0.668559,-0.258819 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:24:51.936] [WARN ] SLOW update stage 'renderer->update': 52.0059ms
+[2026-10-10 03:24:53.364] [WARN ] Widget texture not found: Interface\AddOns\ConsolePortBar\Textures\Button\BigHilite
+[2026-10-10 03:24:54.679] [WARN ] Floor jump: player z=86.811 prev z=86.811 -> chose 87.8342 (terrain=87.8342 wmo=-99999 m2=-99999) - moved 1.02316
+[2026-10-10 03:24:54.785] [WARN ] TERRAIN_DIAG drawn=127 culled=2177 nearestDrawn=18.9999 nearestCulled=47.9733 cam=(-8968.97,-137.56,86.6048)
+[2026-10-10 03:24:54.786] [WARN ] TERRAIN_NEAREST rank=0 dist=19.1873 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:24:54.788] [WARN ] TERRAIN_NEAREST rank=1 dist=19.1873 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:24:54.791] [WARN ] TERRAIN_NEAREST rank=2 dist=19.1873 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:24:54.793] [WARN ] TERRAIN_NEAREST rank=3 dist=19.1873 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:24:54.796] [WARN ] TERRAIN_NEAREST rank=4 dist=19.1873 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:24:54.798] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:24:54.801] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:24:54.803] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:24:54.805] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:24:54.807] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:24:54.810] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:24:54.812] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:24:54.815] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:24:54.816] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:24:54.819] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:24:54.897] [WARN ] SLOW render stage 'endFrame': 72.3205ms (59 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:24:54.900] [WARN ] frame budget over 10s: 59 frames, 5.87216 fps, 170.295ms each
+[2026-10-10 03:24:54.902] [WARN ]   endFrame: 88.6596ms/frame avg, 110.607ms worst, 52% of the window
+[2026-10-10 03:24:54.905] [WARN ]   addonWidgets: 18.2509ms/frame avg, 913.692ms worst, 10% of the window
+[2026-10-10 03:24:54.907] [WARN ]   beginFrame: 16.787ms/frame avg, 57.994ms worst, 9% of the window
+[2026-10-10 03:24:54.910] [WARN ]   local entity loading: 7.81083ms/frame avg, 62.0743ms worst, 4% of the window
+[2026-10-10 03:24:54.912] [WARN ]   frameXml->draw: 6.04395ms/frame avg, 52.5664ms worst, 3% of the window
+[2026-10-10 03:24:54.915] [WARN ]   local authority/snapshots: 4.9029ms/frame avg, 120.073ms worst, 2% of the window
+[2026-10-10 03:24:54.917] [WARN ]   renderWorld: 4.20675ms/frame avg, 39.5271ms worst, 2% of the window
+[2026-10-10 03:24:54.920] [WARN ]   local FrameXML update: 2.38435ms/frame avg, 86.1331ms worst, 1% of the window
+[2026-10-10 03:24:54.922] [WARN ]   uiManager->render: 0.466894ms/frame avg, 2.89167ms worst, 0% of the window
+[2026-10-10 03:24:54.925] [WARN ]   local character sync: 0.154084ms/frame avg, 2.96691ms worst, 0% of the window
+[2026-10-10 03:24:54.927] [WARN ]   renderHUD: 0.120047ms/frame avg, 4.74157ms worst, 0% of the window
+[2026-10-10 03:24:54.929] [WARN ]   prepareGlueScene: 0.118667ms/frame avg, 4.32968ms worst, 0% of the window
+[2026-10-10 03:24:54.931] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=102 catalogDiskReads=1242 catalogCacheHits=5644 catalogCacheBytes=789504
+[2026-10-10 03:24:54.933] [WARN ] [WORLD_PERF] loopFps=7.78486 frameMeanMs=128.454 frameMaxMs=207.683 frameP50Ms=126.793 frameP95Ms=182.674 frameP99Ms=207.683 percentileSamples=39 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=39/39 targetFps=40 frameBudgetMs=25 over25ms=39/39 updateOver25ms=8 renderOver25ms=39 otherAndPacingMeanMs=0.028752 updateMeanMs=20.1523 renderMeanMs=108.273 prepareMs=0 shadowMs=3.53688 reflectionMs=1.22028 cameraMs=0.53482 terrainMs=36.7623 wmoMs=0.119028 m2Ms=2.01698 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.311948 fxLayoutSkipped=1 fxSolveMs=1.22195 fxOrderMs=0.031044 fxSolved=596 fxWidgets=27407 fxVisMs=0.166868 fxVisVisits=440 fxSizeMs=0.049036 fxMsgMs=0.000208 fxScrollMs=0.028756 fxOnUpdateMs=0.8814 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=39 geometryPeakMiB=59 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=127 terrainCulled=2177 m2Instances=15118 m2Draws=66 m2VisibilityTests=6464 m2ClusterSkipped=8654 wmoDraws=17 wmoFrustumSkipped=54 characterDraws=30 characterPos=-8965.86,-134.076,82.8133 cameraPos=-8968.97,-137.56,86.6048 viewDistance=400 discardedFrames=0
+[2026-10-10 03:24:54.937] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.41494 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.673649,-0.503319,0.541173 cameraForward=0.623092,0.69689,-0.355107 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:24:55.662] [WARN ] [FX_GATE] laid out on 16 of the last 66 frames; this one because first=lua_engine.cpp:375 last=lua_engine.cpp:375 marks=2. A gate that never holds is the sizing walk and the solve on every frame - the site named first is the one raising the generation on a frame where nothing moved
+[2026-10-10 03:24:56.779] [WARN ] Floor jump: player z=88.9475 prev z=88.9475 -> chose 87.1407 (terrain=87.1407 wmo=-99999 m2=-99999) - moved -1.8068
+[2026-10-10 03:24:59.997] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=103 catalogDiskReads=1242 catalogCacheHits=6274 catalogCacheBytes=789504
+[2026-10-10 03:24:59.999] [WARN ] [WORLD_PERF] loopFps=8.10707 frameMeanMs=123.349 frameMaxMs=175.017 frameP50Ms=129.008 frameP95Ms=153.487 frameP99Ms=175.017 percentileSamples=41 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=41/41 targetFps=40 frameBudgetMs=25 over25ms=41/41 updateOver25ms=10 renderOver25ms=41 otherAndPacingMeanMs=0.381079 updateMeanMs=18.0751 renderMeanMs=104.893 prepareMs=0 shadowMs=3.59559 reflectionMs=1.25273 cameraMs=1.17775 terrainMs=0.58214 wmoMs=0.249964 m2Ms=2.31202 charsMs=0 postMs=0 fxLayoutMs=6.24146 fxSizingMs=4.98113 fxDrawMs=0.294112 fxLayoutSkipped=0 fxSolveMs=1.22933 fxOrderMs=0.030524 fxSolved=596 fxWidgets=27407 fxVisMs=0.104572 fxVisVisits=440 fxSizeMs=0.04056 fxMsgMs=0.000364 fxScrollMs=0.025688 fxOnUpdateMs=1.12809 fxOnUpdateCalls=14 flexibleFreeMiB=142 measured=1 geometryDirectMiB=39 geometryPeakMiB=59 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=150 terrainCulled=2154 m2Instances=15546 m2Draws=160 m2VisibilityTests=6394 m2ClusterSkipped=9152 wmoDraws=122 wmoFrustumSkipped=278 characterDraws=91 characterPos=-8960.96,-131.983,82.8523 cameraPos=-8965.51,-132.413,86.9816 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:00.004] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.41636 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.673791,-0.503442,0.540881 cameraForward=0.909491,0.0859724,-0.406737 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:03.007] [WARN ] TERRAIN_DIAG drawn=153 culled=2151 nearestDrawn=18.9995 nearestCulled=26.9283 cam=(-8961.2,-132.011,86.6569)
+[2026-10-10 03:25:03.010] [WARN ] TERRAIN_NEAREST rank=0 dist=17.6667 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:03.012] [WARN ] TERRAIN_NEAREST rank=1 dist=17.9998 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:03.013] [WARN ] TERRAIN_NEAREST rank=2 dist=17.9998 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:03.015] [WARN ] TERRAIN_NEAREST rank=3 dist=18.0084 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:03.017] [WARN ] TERRAIN_NEAREST rank=4 dist=18.2174 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:03.018] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:25:03.020] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:25:03.021] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:25:03.023] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:25:03.024] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:25:03.026] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:25:03.028] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:25:03.029] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:25:03.031] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:25:03.032] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:25:03.037] [WARN ] Event listeners: UNIT_HEALTH=30 UNIT_MAXHEALTH=19 UNIT_MANA=17 UNIT_MAXMANA=17 UNIT_RAGE=15 UNIT_ENERGY=15 UNIT_DISPLAYPOWER=35 PLAYER_ENTERING_WORLD=94 PLAYER_TARGET_CHANGED=7 UNIT_AURA=14 PLAYER_XP_UPDATE=2 BAG_UPDATE=9 
+[2026-10-10 03:25:03.194] [WARN ] FrameXML takeover check at load, on 1280x720 px (scale 0.9375):
+[2026-10-10 03:25:03.196] [WARN ]   OFF SCREEN GeneralDockManagerScrollFrameChild rect=(nan,238.5 1x26)
+[2026-10-10 03:25:03.202] [WARN ]   NO SIZE ConsolePortBarWatchBars asks for 804x16 and resolves to 0x16 (scale 1)
+[2026-10-10 03:25:03.218] [WARN ]   PlayerFrame shown takesMouse anchors=1 strata=1 level=3 rect=(-19,664 232x100)
+[2026-10-10 03:25:03.219] [WARN ]   PlayerFrameTexture shown kind=texture anchors=0 strata=1 level=6 texcoord=[1.000000,0.093750,0.000000,0.781250] rect=(-19,664 232x100) tex=Interface\TargetingFrame\UI-TargetingFrame
+[2026-10-10 03:25:03.221] [WARN ]   PlayerPortrait shown kind=texture anchors=1 strata=1 level=4 rect=(23,688 64x64) LIVE
+[2026-10-10 03:25:03.222] [WARN ]   PlayerFrameHealthBar shown takesMouse anchors=1 strata=1 level=4 value=52.000000 of [0.000000,52.000000] rect=(87,711 119x12)
+[2026-10-10 03:25:03.224] [WARN ]   PlayerFrameManaBar shown takesMouse anchors=1 strata=1 level=4 value=165.000000 of [0.000000,165.000000] rect=(87,700 119x12)
+[2026-10-10 03:25:03.226] [WARN ]   PlayerName shown kind=label anchors=1 strata=1 level=6 text="Aa" rect=(97,727 100x12)
+[2026-10-10 03:25:03.228] [WARN ]   PlayerLevelText shown kind=label anchors=1 strata=1 level=6 text="1" rect=(30.8,692 6.4x12)
+[2026-10-10 03:25:03.229] [WARN ]   PlayerFrameHealthBarText shown kind=label anchors=1 strata=1 level=6 text="52 / 52" rect=(129.44,711 35.12x12)
+[2026-10-10 03:25:03.231] [WARN ]   PlayerFrameManaBarText shown kind=label anchors=1 strata=1 level=6 text="165 / 165" rect=(123.04,700 47.92x12)
+[2026-10-10 03:25:03.233] [WARN ]   TargetFrame HIDDEN takesMouse anchors=1 strata=2 level=3 rect=(250,664 232x100)
+[2026-10-10 03:25:03.234] [WARN ]   TargetFrameTextureFrame HIDDEN anchors=2 strata=3 level=4 NOSIZE rect=(0,0 0x0)
+[2026-10-10 03:25:03.235] [WARN ]   TargetFramePortrait HIDDEN kind=texture anchors=1 strata=3 level=4 rect=(0,0 64x64)
+[2026-10-10 03:25:03.237] [WARN ]   TargetFrameHealthBar HIDDEN takesMouse anchors=1 strata=3 level=3 value=1.000000 of [0.000000,1.000000] rect=(0,0 119x12)
+[2026-10-10 03:25:03.238] [WARN ]   TargetFrameManaBar HIDDEN takesMouse anchors=1 strata=3 level=3 value=0.000000 of [0.000000,0.000000] rect=(0,0 119x12)
+[2026-10-10 03:25:03.240] [WARN ]   TargetFrameTextureFrameName HIDDEN kind=label anchors=1 strata=3 level=5 text="Unknown" rect=(0,0 100x10)
+[2026-10-10 03:25:03.243] [WARN ]   TargetFrameNameBackground HIDDEN kind=texture anchors=1 strata=3 level=4 rect=(0,0 119x19) tex=Interface\TargetingFrame\UI-TargetingFrame-LevelBackground
+[2026-10-10 03:25:03.245] [WARN ]   PetFrame HIDDEN takesMouse anchors=1 strata=2 level=4 rect=(61,651 128x53)
+[2026-10-10 03:25:03.247] [WARN ]   PetFrameHealthBar HIDDEN takesMouse anchors=1 strata=3 level=5 value=1.000000 of [0.000000,1.000000] rect=(0,0 69x8)
+[2026-10-10 03:25:03.249] [WARN ]   PetFrameManaBar HIDDEN takesMouse anchors=1 strata=3 level=5 value=0.000000 of [0.000000,0.000000] rect=(0,0 69x8)
+[2026-10-10 03:25:03.251] [WARN ]   PetCastingBarFrame HIDDEN anchors=1 strata=3 level=3 value=0.000000 of [0.000000,1.000000] rect=(585.167,140 195x13)
+[2026-10-10 03:25:03.253] [WARN ]   Minimap shown takesMouse anchors=1 strata=1 level=4 rect=(1208.33,606 140x140)
+[2026-10-10 03:25:03.255] [WARN ]   MinimapBorder shown kind=texture anchors=0 strata=1 level=6 texcoord=[0.250000,1.000000,0.125000,0.875000] rect=(1173.33,556 192x192) tex=Interface\Minimap\UI-Minimap-Border
+[2026-10-10 03:25:03.257] [WARN ]   MinimapZoomIn shown takesMouse anchors=1 strata=1 level=6 rect=(1324.33,616 32x32)
+[2026-10-10 03:25:03.260] [WARN ]   MinimapZoneText shown kind=label anchors=1 strata=1 level=5 text="Elwynn Forest" rect=(1201.33,750 150x12)
+[2026-10-10 03:25:03.262] [WARN ]   MainMenuBar shown anchors=1 strata=3 level=3 rect=(170.667,0 1024x53)
+[2026-10-10 03:25:03.264] [WARN ]   MainMenuBarArtFrame HIDDEN anchors=2 strata=3 level=5 NOSIZE rect=(0,0 0x0)
+[2026-10-10 03:25:03.266] [WARN ]   MainMenuBarLeftEndCap HIDDEN kind=texture anchors=1 strata=3 level=6 rect=(0,0 128x128) tex=Interface\MainMenuBar\UI-MainMenuBar-EndCap-Dwarf
+[2026-10-10 03:25:03.268] [WARN ]   MainMenuBarRightEndCap HIDDEN kind=texture anchors=1 strata=3 level=6 texcoord=[1.000000,0.000000,0.000000,1.000000] rect=(0,0 128x128) tex=Interface\MainMenuBar\UI-MainMenuBar-EndCap-Dwarf
+[2026-10-10 03:25:03.270] [WARN ]   ActionButton1 HIDDEN takesMouse anchors=1 strata=3 level=6 rect=(0,0 36x36)
+[2026-10-10 03:25:03.272] [WARN ]   ActionButton12 HIDDEN takesMouse anchors=1 strata=3 level=6 rect=(0,0 36x36)
+[2026-10-10 03:25:03.274] [WARN ]   MultiBarBottomLeft HIDDEN anchors=1 strata=3 level=3 rect=(0,0 500x38)
+[2026-10-10 03:25:03.276] [WARN ]   MultiBarBottomRight HIDDEN anchors=1 strata=3 level=3 rect=(0,0 500x38)
+[2026-10-10 03:25:03.278] [WARN ]   MultiBarLeft HIDDEN anchors=1 strata=3 level=3 rect=(0,0 38x500)
+[2026-10-10 03:25:03.280] [WARN ]   MultiBarRight HIDDEN anchors=1 strata=3 level=3 rect=(0,0 38x500)
+[2026-10-10 03:25:03.282] [WARN ]   MainMenuBarBackpackButton HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(750.667,2 36x36)
+[2026-10-10 03:25:03.285] [WARN ]   CharacterBag0Slot HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(790.667,2 36x36)
+[2026-10-10 03:25:03.286] [WARN ]   CharacterMicroButton HIDDEN takesMouse anchors=1 strata=3 level=6 rect=(0,0 28x58)
+[2026-10-10 03:25:03.288] [WARN ]   MainMenuBarPerformanceBar HIDDEN kind=texture anchors=1 strata=3 level=7 rect=(0,0 14x7) tex=Interface\MainMenuBar\UI-MainMenuBar-PerformanceBar
+[2026-10-10 03:25:03.291] [WARN ]   MainMenuExpBar HIDDEN takesMouse anchors=1 strata=3 level=4 value=0.000000 of [0.000000,400.000000] rect=(0,0 1024x13)
+[2026-10-10 03:25:03.293] [WARN ]   ExhaustionTick HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 32x32)
+[2026-10-10 03:25:03.295] [WARN ]   MinimapCluster shown takesMouse anchors=1 strata=1 level=3 rect=(1173.33,576 192x192)
+[2026-10-10 03:25:03.297] [WARN ]   BuffFrame shown anchors=1 strata=2 level=3 rect=(1135.33,705 50x50)
+[2026-10-10 03:25:03.299] [WARN ]   DurabilityFrame HIDDEN anchors=1 strata=2 level=2 rect=(1305.33,511 60x65)
+[2026-10-10 03:25:03.301] [WARN ]   ReputationWatchBar HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 1024x11)
+[2026-10-10 03:25:03.303] [WARN ]   ReputationWatchStatusBar HIDDEN anchors=1 strata=3 level=5 value=0.000000 of [0.000000,1.000000] rect=(0,0 1024x8)
+[2026-10-10 03:25:03.305] [WARN ]   ShapeshiftBarFrame HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 29x32)
+[2026-10-10 03:25:03.307] [WARN ]   ShapeshiftButton1 HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(0,0 30x30)
+[2026-10-10 03:25:03.310] [WARN ]   CastingBarFrame HIDDEN anchors=1 strata=3 level=3 value=0.000000 of [0.000000,1.000000] rect=(585.167,115 195x13)
+[2026-10-10 03:25:03.312] [WARN ]   CastingBarFrameBorder HIDDEN kind=texture anchors=1 strata=3 level=4 rect=(0,0 256x64) tex=Interface\CastingBar\UI-CastingBar-Border
+[2026-10-10 03:25:03.315] [WARN ]   CastingBarFrameText HIDDEN kind=label anchors=1 strata=3 level=4 text=(empty) rect=(0,0 185x16)
+[2026-10-10 03:25:03.316] [WARN ]   ChatFrame1 shown anchors=1 strata=1 level=3 rect=(35,115 430x120)
+[2026-10-10 03:25:03.319] [WARN ]   ChatFrame1EditBox shown takesMouse anchors=2 strata=2 level=4 rect=(30,81 440x32)
+[2026-10-10 03:25:03.321] [WARN ]   GeneralDockManager shown anchors=2 strata=2 level=3 rect=(35,241 430x26)
+[2026-10-10 03:25:03.323] [WARN ]   ZoneTextFrame HIDDEN anchors=1 strata=2 level=3 rect=(618.667,512 128x128)
+[2026-10-10 03:25:03.325] [WARN ]   ZoneTextString HIDDEN kind=label anchors=1 strata=3 level=4 text=(empty) NOSIZE rect=(0,0 512x0)
+[2026-10-10 03:25:03.328] [WARN ]   SubZoneTextFrame HIDDEN anchors=1 strata=2 level=3 rect=(618.667,512 128x128)
+[2026-10-10 03:25:03.330] [WARN ]   WatchFrame shown anchors=2 strata=2 level=3 rect=(1161.33,85 204x511)
+[2026-10-10 03:25:03.332] [WARN ]   WatchFrameTitle HIDDEN kind=label anchors=1 strata=2 level=5 text="Objectives" NOSIZE rect=(1161.33,570 0x0)
+[2026-10-10 03:25:03.334] [WARN ]   FocusFrame HIDDEN takesMouse anchors=1 strata=2 level=3 rect=(187.5,513 174x75)
+[2026-10-10 03:25:03.337] [WARN ]   FocusFrameHealthBar HIDDEN takesMouse anchors=1 strata=3 level=3 value=1.000000 of [0.000000,1.000000] rect=(0,0 119x12)
+[2026-10-10 03:25:03.339] [WARN ]   WorldMapFrame HIDDEN takesMouse anchors=2 strata=3 level=87 rect=(0,0 1365.33x768)
+[2026-10-10 03:25:03.342] [WARN ]   WorldMapDetailFrame HIDDEN anchors=1 strata=3 level=88 rect=(181.001,238.003 692.382x461.588)
+[2026-10-10 03:25:03.344] [WARN ]   WorldMapButton HIDDEN takesMouse anchors=1 strata=3 level=90 rect=(0,0 1002x668)
+[2026-10-10 03:25:03.347] [WARN ]   WorldMapZoneMinimapDropDown HIDDEN takesMouse anchors=1 strata=3 level=88 rect=(0,0 200x32)
+[2026-10-10 03:25:03.349] [WARN ]   CharacterFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.351] [WARN ]   PaperDollFrame HIDDEN takesMouse anchors=2 strata=3 level=4 rect=(0,152 384x512)
+[2026-10-10 03:25:03.353] [WARN ]   CharacterModelFrame HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(0,0 233x215)
+[2026-10-10 03:25:03.356] [WARN ]   CharacterNameText HIDDEN kind=label anchors=1 strata=3 level=6 text="Name" rect=(48,634 300x12)
+[2026-10-10 03:25:03.358] [WARN ]   CharacterHeadSlot HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(0,0 37x37)
+[2026-10-10 03:25:03.361] [WARN ]   CharacterResistanceFrame HIDDEN anchors=1 strata=3 level=5 rect=(0,0 32x160)
+[2026-10-10 03:25:03.363] [WARN ]   CharacterAttributesFrame HIDDEN anchors=1 strata=3 level=5 rect=(0,0 230x78)
+[2026-10-10 03:25:03.365] [WARN ]   MagicResFrame1 HIDDEN takesMouse anchors=1 strata=3 level=6 rect=(0,0 32x29)
+[2026-10-10 03:25:03.367] [WARN ]   CharacterMainHandSlot HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(0,0 37x37)
+[2026-10-10 03:25:03.369] [WARN ]   CharacterModelFrameRotateLeftButton HIDDEN takesMouse anchors=1 strata=3 level=6 rect=(0,0 35x35)
+[2026-10-10 03:25:03.371] [WARN ]   CharacterModelFrameRotateRightButton HIDDEN takesMouse anchors=1 strata=3 level=6 rect=(0,0 35x35)
+[2026-10-10 03:25:03.374] [WARN ]   ContainerFrame1 HIDDEN takesMouse anchors=0 strata=3 level=3 rect=(554.667,256 256x256)
+[2026-10-10 03:25:03.376] [WARN ]   ContainerFrame1Item1 HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 37x37)
+[2026-10-10 03:25:03.379] [WARN ]   ContainerFrame1Name HIDDEN kind=label anchors=1 strata=3 level=4 text=(empty) rect=(0,0 112x12)
+[2026-10-10 03:25:03.381] [WARN ]   ContainerFrame2 HIDDEN takesMouse anchors=0 strata=3 level=3 rect=(554.667,256 256x256)
+[2026-10-10 03:25:03.383] [WARN ]   ContainerFrame2Portrait HIDDEN kind=texture anchors=1 strata=3 level=4 rect=(0,0 40x40)
+[2026-10-10 03:25:03.385] [WARN ]   ContainerFrame2BackgroundTop HIDDEN kind=texture anchors=1 strata=3 level=4 rect=(0,0 256x512) tex=Interface\ContainerFrame\UI-Bag-Components
+[2026-10-10 03:25:03.387] [WARN ]   ContainerFrame2BackgroundMiddle1 HIDDEN kind=texture anchors=1 strata=3 level=4 texcoord=[0.000000,1.000000,0.351562,0.851562] rect=(0,0 256x512) tex=Interface\ContainerFrame\UI-Bag-Components
+[2026-10-10 03:25:03.389] [WARN ]   ContainerFrame2BackgroundBottom HIDDEN kind=texture anchors=1 strata=3 level=4 texcoord=[0.000000,1.000000,0.330078,0.349609] rect=(0,0 256x10) tex=Interface\ContainerFrame\UI-Bag-Components
+[2026-10-10 03:25:03.392] [WARN ]   SpellBookFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.395] [WARN ]   SpellButton1 HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 37x37)
+[2026-10-10 03:25:03.397] [WARN ]   SpellBookSkillLineTab1 HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 32x32)
+[2026-10-10 03:25:03.400] [WARN ]   QuestLogFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,321 682x447)
+[2026-10-10 03:25:03.402] [WARN ]   QuestLogScrollFrame HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(19,358 305x335)
+[2026-10-10 03:25:03.405] [WARN ]   QuestLogDetailScrollFrame HIDDEN anchors=1 strata=3 level=4 rect=(0,0 298x334)
+[2026-10-10 03:25:03.407] [WARN ]   QuestFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.409] [WARN ]   QuestFrameNpcNameText HIDDEN kind=label anchors=0 strata=3 level=7 text="Title Text" rect=(0,0 235x20)
+[2026-10-10 03:25:03.412] [WARN ]   QuestFrameDetailPanel HIDDEN anchors=1 strata=3 level=4 rect=(0,0 384x512)
+[2026-10-10 03:25:03.414] [WARN ]   QuestFrameAcceptButton HIDDEN takesMouse anchors=1 strata=3 level=5 rect=(0,0 77x22)
+[2026-10-10 03:25:03.417] [WARN ]   QuestDetailScrollChildFrame HIDDEN anchors=1 strata=3 level=6 rect=(0,0 300x334)
+[2026-10-10 03:25:03.419] [WARN ]   QuestInfoFadingFrame HIDDEN anchors=0 strata=3 level=4 rect=(0,0 1x1)
+[2026-10-10 03:25:03.421] [WARN ]   QuestInfoRewardsFrame HIDDEN anchors=1 strata=3 level=3 rect=(540.167,379 285x10)
+[2026-10-10 03:25:03.424] [WARN ]   QuestInfoItem1 HIDDEN takesMouse anchors=0 strata=3 level=4 rect=(0,0 147x41)
+[2026-10-10 03:25:03.427] [WARN ]   GossipFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.429] [WARN ]   GossipFrameNpcNameText HIDDEN kind=label anchors=2 strata=3 level=7 text=(empty) rect=(0,0 235x20)
+[2026-10-10 03:25:03.432] [WARN ]   GossipFrameGreetingPanel HIDDEN anchors=1 strata=3 level=4 rect=(0,0 384x512)
+[2026-10-10 03:25:03.434] [WARN ]   MailFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.437] [WARN ]   InboxFrame HIDDEN anchors=1 strata=3 level=4 rect=(0,152 384x512)
+[2026-10-10 03:25:03.439] [WARN ]   MailFrameTab1 HIDDEN takesMouse anchors=1 strata=3 level=8 rect=(0,0 10x32)
+[2026-10-10 03:25:03.441] [WARN ]   MerchantFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.443] [WARN ]   MerchantItem1 HIDDEN anchors=1 strata=3 level=4 rect=(24,540 153x44)
+[2026-10-10 03:25:03.445] [WARN ]   MerchantMoneyFrame HIDDEN anchors=1 strata=3 level=4 rect=(216,219 33.68x13)
+[2026-10-10 03:25:03.447] [WARN ]   MerchantNameText HIDDEN kind=label anchors=1 strata=3 level=4 text="Merchant Name" NOSIZE rect=(0,0 0x0)
+[2026-10-10 03:25:03.450] [WARN ]   LootFrame HIDDEN anchors=0 strata=4 level=3 NOSIZE rect=(682.667,384 0x0)
+[2026-10-10 03:25:03.451] [WARN ]   LootButton1 HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 37x37)
+[2026-10-10 03:25:03.455] [WARN ]   BankFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 425x512)
+[2026-10-10 03:25:03.458] [WARN ]   BankFrameTitleText HIDDEN kind=label anchors=1 strata=3 level=4 text=(empty) NOSIZE rect=(0,0 0x0)
+[2026-10-10 03:25:03.460] [WARN ]   BuffFrame shown anchors=1 strata=2 level=3 rect=(1135.33,705 50x50)
+[2026-10-10 03:25:03.462] [WARN ]   TemporaryEnchantFrame shown anchors=1 strata=2 level=3 rect=(1149.33,719 36x36)
+[2026-10-10 03:25:03.464] [WARN ]   DurabilityFrame HIDDEN anchors=1 strata=2 level=2 rect=(1305.33,511 60x65)
+[2026-10-10 03:25:03.465] [WARN ]   PartyMemberFrame1 HIDDEN takesMouse anchors=1 strata=2 level=3 rect=(10,555 128x53)
+[2026-10-10 03:25:03.467] [WARN ]   PartyMemberFrame1HealthBar HIDDEN takesMouse anchors=1 strata=3 level=4 value=1.000000 of [0.000000,1.000000] rect=(0,0 70x8)
+[2026-10-10 03:25:03.469] [WARN ]   PartyMemberFrame1Name HIDDEN kind=label anchors=1 strata=3 level=6 text=(empty) NOSIZE rect=(0,0 0x0)
+[2026-10-10 03:25:03.470] [WARN ]   FriendsFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.472] [WARN ]   FriendsFrameTitleText HIDDEN kind=label anchors=1 strata=3 level=4 text=(empty) rect=(0,0 250x16)
+[2026-10-10 03:25:03.474] [WARN ]   TradeFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.475] [WARN ]   TradeFrameRecipientNameText HIDDEN kind=label anchors=1 strata=3 level=4 text="Player Name" rect=(0,0 80x12)
+[2026-10-10 03:25:03.477] [WARN ]   ReadyCheckFrame HIDDEN anchors=1 strata=3 level=3 rect=(521.167,325.5 323x97)
+[2026-10-10 03:25:03.479] [WARN ]   ReadyCheckFrameText HIDDEN kind=label anchors=1 strata=3 level=5 text=(empty) NOSIZE rect=(0,0 0x0)
+[2026-10-10 03:25:03.480] [WARN ]   TaxiFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.482] [WARN ]   TaxiRouteMap HIDDEN anchors=1 strata=3 level=4 rect=(0,0 316x352)
+[2026-10-10 03:25:03.483] [WARN ]   PetStableFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.485] [WARN ]   ItemTextFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.486] [WARN ]   ItemTextPageText HIDDEN anchors=1 strata=3 level=6 rect=(0,0 270x304)
+[2026-10-10 03:25:03.488] [WARN ]   GameMenuFrame HIDDEN takesMouse anchors=1 strata=5 level=3 rect=(585.167,264 195x240)
+[2026-10-10 03:25:03.490] [WARN ]   GameMenuButtonLogout HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 144x21)
+[2026-10-10 03:25:03.491] [WARN ]   HelpFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(362.667,118 640x532)
+[2026-10-10 03:25:03.493] [WARN ]   TicketStatusFrame HIDDEN anchors=1 strata=3 level=3 rect=(977.333,693 208x75)
+[2026-10-10 03:25:03.495] [WARN ]   TotemFrame HIDDEN anchors=1 strata=1 level=4 rect=(80,649 128x53)
+[2026-10-10 03:25:03.496] [WARN ]   MultiCastActionBarFrame HIDDEN takesMouse anchors=1 strata=3 level=4 rect=(0,0 230x38)
+[2026-10-10 03:25:03.498] [WARN ]   UIErrorsFrame shown anchors=1 strata=4 level=3 rect=(426.667,586 512x60)
+[2026-10-10 03:25:03.500] [WARN ]   PlayerTalentFrame - NOT BUILT
+[2026-10-10 03:25:03.504] [WARN ]   TradeSkillFrame - NOT BUILT
+[2026-10-10 03:25:03.509] [WARN ]   ClassTrainerFrame - NOT BUILT
+[2026-10-10 03:25:03.516] [WARN ]   AuctionFrame - NOT BUILT
+[2026-10-10 03:25:03.519] [WARN ]   GuildBankFrame - NOT BUILT
+[2026-10-10 03:25:03.522] [WARN ]   InspectFrame - NOT BUILT
+[2026-10-10 03:25:03.526] [WARN ]   AchievementFrame - NOT BUILT
+[2026-10-10 03:25:03.529] [WARN ]   BarberShopFrame - NOT BUILT
+[2026-10-10 03:25:03.531] [WARN ]   LFDParentFrame HIDDEN takesMouse anchors=0 strata=3 level=3 rect=(505.167,164 355x440)
+[2026-10-10 03:25:03.533] [WARN ]   PetitionFrame HIDDEN takesMouse anchors=1 strata=3 level=3 rect=(0,152 384x512)
+[2026-10-10 03:25:03.539] [WARN ] SLOW render stage 'frameXml->draw': 344.606ms (1 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:03.725] [WARN ] SLOW update stage 'renderer->update': 50.6519ms
+[2026-10-10 03:25:05.009] [WARN ] SLOW render stage 'endFrame': 149.334ms (59 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:05.011] [WARN ] frame budget over 10s: 68 frames, 6.7258 fps, 148.681ms each
+[2026-10-10 03:25:05.012] [WARN ]   endFrame: 101.358ms/frame avg, 159.651ms worst, 68% of the window
+[2026-10-10 03:25:05.014] [WARN ]   beginFrame: 13.7951ms/frame avg, 44.7069ms worst, 9% of the window
+[2026-10-10 03:25:05.016] [WARN ]   frameXml->draw: 5.37206ms/frame avg, 344.606ms worst, 3% of the window
+[2026-10-10 03:25:05.018] [WARN ]   local entity loading: 5.08278ms/frame avg, 35.6418ms worst, 3% of the window
+[2026-10-10 03:25:05.020] [WARN ]   renderWorld: 4.3521ms/frame avg, 30.5533ms worst, 2% of the window
+[2026-10-10 03:25:05.022] [WARN ]   addonWidgets: 3.98672ms/frame avg, 19.9519ms worst, 2% of the window
+[2026-10-10 03:25:05.024] [WARN ]   local authority/snapshots: 3.2909ms/frame avg, 4.39192ms worst, 2% of the window
+[2026-10-10 03:25:05.026] [WARN ]   local FrameXML update: 1.01601ms/frame avg, 2.08328ms worst, 0% of the window
+[2026-10-10 03:25:05.029] [WARN ]   uiManager->render: 0.37912ms/frame avg, 0.795444ms worst, 0% of the window
+[2026-10-10 03:25:05.031] [WARN ]   local character sync: 0.374934ms/frame avg, 3.42805ms worst, 0% of the window
+[2026-10-10 03:25:05.032] [WARN ]   prepareGlueScene: 0.00267418ms/frame avg, 0.003432ms worst, 0% of the window
+[2026-10-10 03:25:05.034] [WARN ]   renderHUD: 0.000439706ms/frame avg, 0.002808ms worst, 0% of the window
+[2026-10-10 03:25:05.036] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=112 catalogDiskReads=1242 catalogCacheHits=6814 catalogCacheBytes=789504
+[2026-10-10 03:25:05.039] [WARN ] [WORLD_PERF] loopFps=5.3768 frameMeanMs=185.984 frameMaxMs=499.917 frameP50Ms=170.175 frameP95Ms=228.106 frameP99Ms=499.917 percentileSamples=27 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=27/27 targetFps=40 frameBudgetMs=25 over25ms=27/27 updateOver25ms=6 renderOver25ms=27 otherAndPacingMeanMs=0.0292837 updateMeanMs=18.4716 renderMeanMs=167.484 prepareMs=0 shadowMs=4.67459 reflectionMs=1.3976 cameraMs=0.908128 terrainMs=0.592904 wmoMs=0.289172 m2Ms=2.33251 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.271544 fxLayoutSkipped=1 fxSolveMs=1.2207 fxOrderMs=0.030212 fxSolved=596 fxWidgets=27407 fxVisMs=0.166348 fxVisVisits=440 fxSizeMs=0.047892 fxMsgMs=0.000104 fxScrollMs=0.0286 fxOnUpdateMs=0.807456 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=48 geometryPeakMiB=59 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=175 terrainCulled=2129 m2Instances=16597 m2Draws=194 m2VisibilityTests=5504 m2ClusterSkipped=11093 wmoDraws=148 wmoFrustumSkipped=338 characterDraws=115 characterPos=-8956.33,-131.43,82.941 cameraPos=-8960.25,-128.643,86.3949 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:05.043] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.41774 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.673929,-0.503561,0.540597 cameraForward=0.784331,-0.557395,-0.27228 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:05.967] [WARN ] SLOW update stage 'renderer->update': 56.9031ms
+[2026-10-10 03:25:07.740] [WARN ] Floor jump: player z=86.4006 prev z=86.4006 -> chose 87.4341 (terrain=87.4341 wmo=-99999 m2=-99999) - moved 1.03349
+[2026-10-10 03:25:08.037] [WARN ] SLOW update stage 'renderer->update': 294.312ms
+[2026-10-10 03:25:08.804] [WARN ] Floor jump: player z=88.3627 prev z=88.3627 -> chose 87.3152 (terrain=87.3152 wmo=-99999 m2=-99999) - moved -1.04748
+[2026-10-10 03:25:10.098] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=112 catalogDiskReads=1242 catalogCacheHits=7264 catalogCacheBytes=789504
+[2026-10-10 03:25:10.099] [WARN ] [WORLD_PERF] loopFps=5.93814 frameMeanMs=168.403 frameMaxMs=395.569 frameP50Ms=166.965 frameP95Ms=264.366 frameP99Ms=395.569 percentileSamples=30 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=30/30 targetFps=40 frameBudgetMs=25 over25ms=30/30 updateOver25ms=5 renderOver25ms=30 otherAndPacingMeanMs=0.130288 updateMeanMs=24.6139 renderMeanMs=143.659 prepareMs=0 shadowMs=4.39265 reflectionMs=1.54497 cameraMs=0.931684 terrainMs=0.59046 wmoMs=0.254072 m2Ms=2.30844 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.266292 fxLayoutSkipped=1 fxSolveMs=1.2207 fxOrderMs=0.030212 fxSolved=596 fxWidgets=27407 fxVisMs=0.174772 fxVisVisits=440 fxSizeMs=0.049712 fxMsgMs=5.2e-05 fxScrollMs=0.028964 fxOnUpdateMs=0.81484 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=53 geometryPeakMiB=59 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=164 terrainCulled=2140 m2Instances=17954 m2Draws=148 m2VisibilityTests=6690 m2ClusterSkipped=11264 wmoDraws=111 wmoFrustumSkipped=242 characterDraws=90 characterPos=-8950.79,-131.894,83.459 cameraPos=-8955.52,-133.057,86.1999 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:10.104] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.41916 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674074,-0.503687,0.5403 cameraForward=0.947001,0.232606,-0.221549 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:10.696] [WARN ] SLOW render stage 'beginFrame': 66.6761ms (2 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:13.908] [WARN ] SLOW update stage 'renderer->update': 50.8817ms
+[2026-10-10 03:25:14.165] [WARN ] SLOW update stage 'renderer->update': 53.4082ms
+[2026-10-10 03:25:14.179] [WARN ] TERRAIN_DIAG drawn=177 culled=2127 nearestDrawn=14.8455 nearestCulled=32.8016 cam=(-8953.83,-131.009,85.8473)
+[2026-10-10 03:25:14.180] [WARN ] TERRAIN_NEAREST rank=0 dist=14.9824 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:14.182] [WARN ] TERRAIN_NEAREST rank=1 dist=14.985 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:14.184] [WARN ] TERRAIN_NEAREST rank=2 dist=14.9933 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:14.186] [WARN ] TERRAIN_NEAREST rank=3 dist=15.0052 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:14.188] [WARN ] TERRAIN_NEAREST rank=4 dist=15.0192 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:14.190] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:25:14.193] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:25:14.195] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:25:14.197] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:25:14.199] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:25:14.201] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:25:14.203] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:25:14.205] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:25:14.207] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:25:14.210] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:25:14.460] [WARN ] SLOW update stage 'renderer->update': 58.6775ms
+[2026-10-10 03:25:14.722] [WARN ] SLOW update stage 'renderer->update': 52.7318ms
+[2026-10-10 03:25:14.978] [WARN ] SLOW update stage 'renderer->update': 51.6112ms
+[2026-10-10 03:25:15.178] [WARN ] SLOW render stage 'endFrame': 180.845ms (55 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:15.180] [WARN ] frame budget over 10s: 55 frames, 5.4083 fps, 184.901ms each
+[2026-10-10 03:25:15.182] [WARN ]   endFrame: 141.804ms/frame avg, 180.845ms worst, 76% of the window
+[2026-10-10 03:25:15.185] [WARN ]   beginFrame: 12.9179ms/frame avg, 66.6761ms worst, 6% of the window
+[2026-10-10 03:25:15.187] [WARN ]   renderWorld: 5.02313ms/frame avg, 38.9279ms worst, 2% of the window
+[2026-10-10 03:25:15.189] [WARN ]   local authority/snapshots: 3.38314ms/frame avg, 4.11866ms worst, 1% of the window
+[2026-10-10 03:25:15.191] [WARN ]   addonWidgets: 1.45333ms/frame avg, 7.29213ms worst, 0% of the window
+[2026-10-10 03:25:15.194] [WARN ]   local FrameXML update: 0.93319ms/frame avg, 1.14026ms worst, 0% of the window
+[2026-10-10 03:25:15.196] [WARN ]   uiManager->render: 0.442689ms/frame avg, 0.52806ms worst, 0% of the window
+[2026-10-10 03:25:15.199] [WARN ]   local character sync: 0.363743ms/frame avg, 2.08733ms worst, 0% of the window
+[2026-10-10 03:25:15.201] [WARN ]   frameXml->draw: 0.334755ms/frame avg, 1.7095ms worst, 0% of the window
+[2026-10-10 03:25:15.203] [WARN ]   local entity loading: 0.0178265ms/frame avg, 0.111176ms worst, 0% of the window
+[2026-10-10 03:25:15.205] [WARN ]   prepareGlueScene: 0.00282596ms/frame avg, 0.011752ms worst, 0% of the window
+[2026-10-10 03:25:15.208] [WARN ]   renderHUD: 0.000483127ms/frame avg, 0.002652ms worst, 0% of the window
+[2026-10-10 03:25:15.210] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=112 catalogDiskReads=1242 catalogCacheHits=7714 catalogCacheBytes=789504
+[2026-10-10 03:25:15.213] [WARN ] [WORLD_PERF] loopFps=4.89911 frameMeanMs=204.119 frameMaxMs=290.988 frameP50Ms=207.528 frameP95Ms=288.415 frameP99Ms=290.988 percentileSamples=25 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=25/25 targetFps=40 frameBudgetMs=25 over25ms=25/25 updateOver25ms=5 renderOver25ms=25 otherAndPacingMeanMs=0.366997 updateMeanMs=18.3463 renderMeanMs=185.405 prepareMs=0 shadowMs=3.6959 reflectionMs=1.42891 cameraMs=0.90714 terrainMs=0.6019 wmoMs=0.28366 m2Ms=4.66372 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.289796 fxLayoutSkipped=1 fxSolveMs=1.2207 fxOrderMs=0.030212 fxSolved=596 fxWidgets=27407 fxVisMs=0.166868 fxVisVisits=440 fxSizeMs=0.050492 fxMsgMs=0.000312 fxScrollMs=0.028184 fxOnUpdateMs=0.884208 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=61 geometryPeakMiB=61 geometryAllocFailures=0 tiles=9 pending=1 terrainDrawn=177 terrainCulled=2127 m2Instances=17977 m2Draws=199 m2VisibilityTests=5305 m2ClusterSkipped=12672 wmoDraws=145 wmoFrustumSkipped=347 characterDraws=143 characterPos=-8948.32,-132.342,83.6116 cameraPos=-8953.15,-131.173,85.9135 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:15.217] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.42054 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674211,-0.503805,0.54002 cameraForward=0.963866,-0.233183,-0.128796 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:17.381] [WARN ] Floor jump: player z=80.9344 prev z=80.9344 -> chose 82.3435 (terrain=82.3435 wmo=-99999 m2=-99999) - moved 1.40914
+[2026-10-10 03:25:18.915] [WARN ] [FX_GATE] laid out on 27 of the last 146 frames; this one because first=lua_engine.cpp:10638 last=lua_engine.cpp:10638 marks=1. A gate that never holds is the sizing walk and the solve on every frame - the site named first is the one raising the generation on a frame where nothing moved
+[2026-10-10 03:25:20.299] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=112 catalogDiskReads=1242 catalogCacheHits=8344 catalogCacheBytes=789504
+[2026-10-10 03:25:20.301] [WARN ] [WORLD_PERF] loopFps=7.8751 frameMeanMs=126.983 frameMaxMs=225.139 frameP50Ms=121.936 frameP95Ms=210.35 frameP99Ms=225.139 percentileSamples=40 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=40/40 targetFps=40 frameBudgetMs=25 over25ms=40/40 updateOver25ms=3 renderOver25ms=40 otherAndPacingMeanMs=0.259271 updateMeanMs=16.0201 renderMeanMs=110.703 prepareMs=0 shadowMs=3.3033 reflectionMs=1.50186 cameraMs=1.00162 terrainMs=0.60996 wmoMs=0.092976 m2Ms=2.20048 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.3068 fxLayoutSkipped=1 fxSolveMs=1.20942 fxOrderMs=0.030732 fxSolved=596 fxWidgets=27407 fxVisMs=0.167388 fxVisVisits=440 fxSizeMs=0.050596 fxMsgMs=0.00026 fxScrollMs=0.0273 fxOnUpdateMs=0.836836 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=65 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=1 terrainDrawn=157 terrainCulled=2147 m2Instances=17977 m2Draws=37 m2VisibilityTests=8121 m2ClusterSkipped=9856 wmoDraws=16 wmoFrustumSkipped=339 characterDraws=47 characterPos=-8953.1,-132.644,83.315 cameraPos=-8948.93,-135.048,87.0408 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:20.306] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.42201 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674365,-0.503939,0.539701 cameraForward=-0.83079,0.479657,-0.282342 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:21.034] [WARN ] SLOW update stage 'renderer->update': 51.3805ms
+[2026-10-10 03:25:21.213] [WARN ] SLOW update stage 'renderer->update': 51.5564ms
+[2026-10-10 03:25:21.231] [WARN ] [SWITCH_ATTACHMENT_MEMORY] Garlic unavailable; original policy fallback preferredMask=0 preferredResult=-8 result=0 extent=64x64
+[2026-10-10 03:25:22.212] [WARN ] Previous message repeated 1 times
+[2026-10-10 03:25:22.216] [WARN ] SLOW render stage 'addonWidgets': 982.435ms (2 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:22.361] [WARN ] SLOW update stage 'renderer->update': 50.5473ms
+[2026-10-10 03:25:22.536] [WARN ] SLOW update stage 'renderer->update': 52.1522ms
+[2026-10-10 03:25:22.699] [WARN ] SLOW update stage 'renderer->update': 56.4506ms
+[2026-10-10 03:25:22.860] [WARN ] SLOW update stage 'renderer->update': 53.4219ms
+[2026-10-10 03:25:23.193] [WARN ] SLOW update stage 'renderer->update': 50.6971ms
+[2026-10-10 03:25:23.378] [WARN ] SLOW update stage 'renderer->update': 51.1965ms
+[2026-10-10 03:25:23.560] [WARN ] SLOW update stage 'renderer->update': 54.0477ms
+[2026-10-10 03:25:23.743] [WARN ] SLOW update stage 'renderer->update': 51.5819ms
+[2026-10-10 03:25:23.754] [WARN ] TERRAIN_DIAG drawn=151 culled=2153 nearestDrawn=15.9314 nearestCulled=30.0671 cam=(-8956.91,-135.647,86.1284)
+[2026-10-10 03:25:23.755] [WARN ] TERRAIN_NEAREST rank=0 dist=13.6995 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:23.757] [WARN ] TERRAIN_NEAREST rank=1 dist=14.1443 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:23.758] [WARN ] TERRAIN_NEAREST rank=2 dist=14.663 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:23.761] [WARN ] TERRAIN_NEAREST rank=3 dist=14.9492 tile=[32,48] buffers=0 set=1 mega=28420
+[2026-10-10 03:25:23.762] [WARN ] TERRAIN_NEAREST rank=4 dist=14.981 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:23.764] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:25:23.765] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:25:23.767] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:25:23.768] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:25:23.770] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:25:23.772] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:25:23.774] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:25:23.776] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:25:23.778] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:25:23.781] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:25:23.952] [WARN ] SLOW update stage 'renderer->update': 51.0226ms
+[2026-10-10 03:25:24.143] [WARN ] SLOW update stage 'renderer->update': 53.1811ms
+[2026-10-10 03:25:24.334] [WARN ] SLOW update stage 'renderer->update': 52.3732ms
+[2026-10-10 03:25:24.520] [WARN ] SLOW update stage 'renderer->update': 52.279ms
+[2026-10-10 03:25:24.708] [WARN ] SLOW update stage 'renderer->update': 57.6948ms
+[2026-10-10 03:25:24.889] [WARN ] SLOW update stage 'renderer->update': 54.5316ms
+[2026-10-10 03:25:25.071] [WARN ] SLOW update stage 'renderer->update': 52.9268ms
+[2026-10-10 03:25:25.183] [WARN ] SLOW render stage 'endFrame': 92.8999ms (55 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:25.184] [WARN ] frame budget over 10s: 64 frames, 6.39768 fps, 156.307ms each
+[2026-10-10 03:25:25.186] [WARN ]   endFrame: 94.6949ms/frame avg, 180.773ms worst, 60% of the window
+[2026-10-10 03:25:25.188] [WARN ]   addonWidgets: 17.592ms/frame avg, 982.435ms worst, 11% of the window
+[2026-10-10 03:25:25.190] [WARN ]   beginFrame: 9.4837ms/frame avg, 56.9655ms worst, 6% of the window
+[2026-10-10 03:25:25.193] [WARN ]   renderWorld: 4.69642ms/frame avg, 34.5313ms worst, 3% of the window
+[2026-10-10 03:25:25.195] [WARN ]   local authority/snapshots: 3.29476ms/frame avg, 4.01118ms worst, 2% of the window
+[2026-10-10 03:25:25.197] [WARN ]   local FrameXML update: 1.10747ms/frame avg, 10.1909ms worst, 0% of the window
+[2026-10-10 03:25:25.200] [WARN ]   uiManager->render: 0.416288ms/frame avg, 1.2311ms worst, 0% of the window
+[2026-10-10 03:25:25.202] [WARN ]   local entity loading: 0.408115ms/frame avg, 24.4078ms worst, 0% of the window
+[2026-10-10 03:25:25.204] [WARN ]   frameXml->draw: 0.378201ms/frame avg, 4.64058ms worst, 0% of the window
+[2026-10-10 03:25:25.206] [WARN ]   local character sync: 0.375185ms/frame avg, 2.57816ms worst, 0% of the window
+[2026-10-10 03:25:25.208] [WARN ]   prepareGlueScene: 0.00261056ms/frame avg, 0.003484ms worst, 0% of the window
+[2026-10-10 03:25:25.211] [WARN ]   renderHUD: 0.000413562ms/frame avg, 0.00078ms worst, 0% of the window
+[2026-10-10 03:25:25.273] [WARN ] SLOW update stage 'renderer->update': 56.1414ms
+[2026-10-10 03:25:25.385] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=112 catalogDiskReads=1242 catalogCacheHits=8862 catalogCacheBytes=789504
+[2026-10-10 03:25:25.387] [WARN ] [WORLD_PERF] loopFps=4.92315 frameMeanMs=203.122 frameMaxMs=1147.46 frameP50Ms=179.566 frameP95Ms=213.38 frameP99Ms=1147.46 percentileSamples=25 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=25/25 targetFps=40 frameBudgetMs=25 over25ms=25/25 updateOver25ms=19 renderOver25ms=25 otherAndPacingMeanMs=0.274044 updateMeanMs=48.2294 renderMeanMs=154.619 prepareMs=0 shadowMs=4.03967 reflectionMs=1.18888 cameraMs=0.966992 terrainMs=0.574652 wmoMs=0.100152 m2Ms=4.49436 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.297076 fxLayoutSkipped=1 fxSolveMs=1.22751 fxOrderMs=0.032552 fxSolved=597 fxWidgets=27408 fxVisMs=0.172328 fxVisVisits=441 fxSizeMs=0.050284 fxMsgMs=0.000364 fxScrollMs=0.028288 fxOnUpdateMs=0.885508 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=59 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=1 terrainDrawn=150 terrainCulled=2154 m2Instances=18689 m2Draws=61 m2VisibilityTests=7744 m2ClusterSkipped=10945 wmoDraws=5 wmoFrustumSkipped=129 characterDraws=86 characterPos=-8953.1,-132.644,83.315 cameraPos=-8954.91,-137.134,86.1791 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:25.391] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.4234 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674503,-0.504058,0.539417 cameraForward=0.362837,0.898055,-0.24869 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:25.453] [WARN ] SLOW update stage 'renderer->update': 54.8464ms
+[2026-10-10 03:25:25.630] [WARN ] SLOW update stage 'renderer->update': 53.826ms
+[2026-10-10 03:25:25.802] [WARN ] SLOW update stage 'renderer->update': 56.7227ms
+[2026-10-10 03:25:25.975] [WARN ] SLOW update stage 'renderer->update': 54.2116ms
+[2026-10-10 03:25:26.146] [WARN ] SLOW update stage 'renderer->update': 54.2499ms
+[2026-10-10 03:25:26.315] [WARN ] SLOW update stage 'renderer->update': 54.0514ms
+[2026-10-10 03:25:26.487] [WARN ] SLOW update stage 'renderer->update': 54.8879ms
+[2026-10-10 03:25:26.663] [WARN ] SLOW update stage 'renderer->update': 54.853ms
+[2026-10-10 03:25:26.842] [WARN ] SLOW update stage 'renderer->update': 60.5721ms
+[2026-10-10 03:25:29.000] [WARN ] SLOW render stage 'beginFrame': 72.104ms (2 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:30.488] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=112 catalogDiskReads=1242 catalogCacheHits=9650 catalogCacheBytes=789504
+[2026-10-10 03:25:30.489] [WARN ] [WORLD_PERF] loopFps=8.04779 frameMeanMs=124.258 frameMaxMs=178.946 frameP50Ms=108.589 frameP95Ms=177.764 frameP99Ms=178.946 percentileSamples=41 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=41/41 targetFps=40 frameBudgetMs=25 over25ms=41/41 updateOver25ms=9 renderOver25ms=41 otherAndPacingMeanMs=0.905513 updateMeanMs=19.1836 renderMeanMs=104.169 prepareMs=0 shadowMs=3.99703 reflectionMs=1.40847 cameraMs=1.31227 terrainMs=0.63908 wmoMs=0.115336 m2Ms=2.2866 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.308984 fxLayoutSkipped=1 fxSolveMs=1.22751 fxOrderMs=0.032552 fxSolved=597 fxWidgets=27408 fxVisMs=0.165412 fxVisVisits=441 fxSizeMs=0.051324 fxMsgMs=5.2e-05 fxScrollMs=0.028392 fxOnUpdateMs=0.819676 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=59 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=158 terrainCulled=2146 m2Instances=19021 m2Draws=37 m2VisibilityTests=8192 m2ClusterSkipped=10829 wmoDraws=25 wmoFrustumSkipped=382 characterDraws=43 characterPos=-8956.05,-129.405,83.0758 cameraPos=-8951.35,-129.61,87.0468 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:30.493] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.42484 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674652,-0.504188,0.53911 cameraForward=-0.93646,0.0392489,-0.348572 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:31.424] [WARN ] SLOW update stage 'renderer->update': 242.201ms
+[2026-10-10 03:25:31.883] [WARN ] TERRAIN_DIAG drawn=156 culled=2148 nearestDrawn=12.2285 nearestCulled=37.3602 cam=(-8952.03,-128.726,86.9667)
+[2026-10-10 03:25:31.884] [WARN ] TERRAIN_NEAREST rank=0 dist=12.6253 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:31.886] [WARN ] TERRAIN_NEAREST rank=1 dist=12.7724 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:31.888] [WARN ] TERRAIN_NEAREST rank=2 dist=12.9177 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:31.890] [WARN ] TERRAIN_NEAREST rank=3 dist=13.1398 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:31.892] [WARN ] TERRAIN_NEAREST rank=4 dist=13.2558 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:31.895] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:25:31.897] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:25:31.899] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:25:31.902] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:25:31.904] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:25:31.906] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:25:31.910] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:25:31.912] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:25:31.915] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:25:31.917] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:25:32.517] [WARN ] [FX_GATE] laid out on 6 of the last 93 frames; this one because first=lua_engine.cpp:10638 last=lua_engine.cpp:10638 marks=1. A gate that never holds is the sizing walk and the solve on every frame - the site named first is the one raising the generation on a frame where nothing moved
+[2026-10-10 03:25:35.319] [WARN ] SLOW render stage 'endFrame': 162.337ms (72 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:35.320] [WARN ] frame budget over 10s: 72 frames, 7.10346 fps, 140.777ms each
+[2026-10-10 03:25:35.322] [WARN ]   endFrame: 104.321ms/frame avg, 169.219ms worst, 74% of the window
+[2026-10-10 03:25:35.324] [WARN ]   beginFrame: 9.31068ms/frame avg, 72.104ms worst, 6% of the window
+[2026-10-10 03:25:35.327] [WARN ]   renderWorld: 4.55435ms/frame avg, 39.9162ms worst, 3% of the window
+[2026-10-10 03:25:35.329] [WARN ]   local authority/snapshots: 3.28722ms/frame avg, 4.58198ms worst, 2% of the window
+[2026-10-10 03:25:35.331] [WARN ]   addonWidgets: 1.59471ms/frame avg, 14.8381ms worst, 1% of the window
+[2026-10-10 03:25:35.333] [WARN ]   local FrameXML update: 0.928982ms/frame avg, 1.23152ms worst, 0% of the window
+[2026-10-10 03:25:35.335] [WARN ]   uiManager->render: 0.408092ms/frame avg, 0.902252ms worst, 0% of the window
+[2026-10-10 03:25:35.338] [WARN ]   frameXml->draw: 0.298528ms/frame avg, 0.4238ms worst, 0% of the window
+[2026-10-10 03:25:35.340] [WARN ]   local character sync: 0.208012ms/frame avg, 0.3562ms worst, 0% of the window
+[2026-10-10 03:25:35.342] [WARN ]   local entity loading: 0.0150266ms/frame avg, 0.104676ms worst, 0% of the window
+[2026-10-10 03:25:35.345] [WARN ]   prepareGlueScene: 0.00272783ms/frame avg, 0.009256ms worst, 0% of the window
+[2026-10-10 03:25:35.347] [WARN ]   renderHUD: 0.000414556ms/frame avg, 0.000832ms worst, 0% of the window
+[2026-10-10 03:25:35.539] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=110 catalogDiskReads=1242 catalogCacheHits=10280 catalogCacheBytes=789504
+[2026-10-10 03:25:35.541] [WARN ] [WORLD_PERF] loopFps=6.14705 frameMeanMs=162.68 frameMaxMs=355.017 frameP50Ms=182.408 frameP95Ms=230.659 frameP99Ms=355.017 percentileSamples=31 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=31/31 targetFps=40 frameBudgetMs=25 over25ms=31/31 updateOver25ms=1 renderOver25ms=31 otherAndPacingMeanMs=1.18082 updateMeanMs=16.0459 renderMeanMs=145.453 prepareMs=0 shadowMs=5.55984 reflectionMs=1.67242 cameraMs=1.4794 terrainMs=0.617344 wmoMs=0.28548 m2Ms=2.44176 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.299312 fxLayoutSkipped=1 fxSolveMs=1.23469 fxOrderMs=0.031356 fxSolved=597 fxWidgets=27408 fxVisMs=0.180752 fxVisVisits=441 fxSizeMs=0.16042 fxMsgMs=0.000104 fxScrollMs=0.049504 fxOnUpdateMs=0.881972 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=64 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=179 terrainCulled=2125 m2Instances=19021 m2Draws=142 m2VisibilityTests=7424 m2ClusterSkipped=11597 wmoDraws=132 wmoFrustumSkipped=349 characterDraws=74 characterPos=-8956.72,-128.521,83.1137 cameraPos=-8956.92,-123.584,86.0545 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:35.547] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.42622 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674787,-0.504305,0.538831 cameraForward=0.0413831,-0.987361,-0.152986 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:35.740] [WARN ] F8: WMO floor debug at render pos (-8956.72, -128.521, 83.1137)
+[2026-10-10 03:25:35.741] [WARN ] === WMO Floor Debug at render(-8956.72, -128.521, 83.1137) ===
+[2026-10-10 03:25:35.743] [WARN ] === Total: 0 instances, 0 overlapping groups, 0 floor hits ===
+[2026-10-10 03:25:38.146] [WARN ] MODIFIER_STATE_CHANGED fired for LSHIFT down - the client sees shift
+[2026-10-10 03:25:38.148] [WARN ] [Lua] missing API called: widget:Scroll
+[2026-10-10 03:25:38.149] [WARN ] [Lua] missing API called: widget:Indicator
+[2026-10-10 03:25:40.671] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=110 catalogDiskReads=1242 catalogCacheHits=10730 catalogCacheBytes=789504
+[2026-10-10 03:25:40.672] [WARN ] [WORLD_PERF] loopFps=5.46636 frameMeanMs=182.937 frameMaxMs=205.954 frameP50Ms=183.382 frameP95Ms=192.221 frameP99Ms=205.954 percentileSamples=28 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=28/28 targetFps=40 frameBudgetMs=25 over25ms=28/28 updateOver25ms=0 renderOver25ms=28 otherAndPacingMeanMs=0.693806 updateMeanMs=7.98729 renderMeanMs=174.256 prepareMs=0 shadowMs=3.12177 reflectionMs=1.26578 cameraMs=1.49412 terrainMs=0.6136 wmoMs=0.219596 m2Ms=2.26408 charsMs=0 postMs=0 fxLayoutMs=6.43432 fxSizingMs=5.18019 fxDrawMs=0.286572 fxLayoutSkipped=0 fxSolveMs=1.22164 fxOrderMs=0.031408 fxSolved=597 fxWidgets=27408 fxVisMs=0.104052 fxVisVisits=441 fxSizeMs=0.040924 fxMsgMs=0.000312 fxScrollMs=0.026156 fxOnUpdateMs=0.9347 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=64 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=178 terrainCulled=2126 m2Instances=19021 m2Draws=118 m2VisibilityTests=6784 m2ClusterSkipped=12237 wmoDraws=89 wmoFrustumSkipped=213 characterDraws=88 characterPos=-8956.72,-128.521,83.1137 cameraPos=-8961.28,-130.552,85.1941 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:40.675] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.42765 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.674933,-0.504432,0.538529 cameraForward=0.912605,0.406318,-0.0453631 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:42.412] [WARN ] TERRAIN_DIAG drawn=168 culled=2136 nearestDrawn=12.8614 nearestCulled=37.4758 cam=(-8951.92,-129.384,84.1261)
+[2026-10-10 03:25:42.413] [WARN ] TERRAIN_NEAREST rank=0 dist=8.72814 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:42.414] [WARN ] TERRAIN_NEAREST rank=1 dist=9.35283 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:42.416] [WARN ] TERRAIN_NEAREST rank=2 dist=9.35938 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:42.417] [WARN ] TERRAIN_NEAREST rank=3 dist=9.63896 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:42.419] [WARN ] TERRAIN_NEAREST rank=4 dist=9.80959 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:42.420] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:25:42.422] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:25:42.424] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:25:42.427] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:25:42.429] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:25:42.431] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:25:42.434] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:25:42.436] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:25:42.438] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:25:42.440] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:25:42.573] [ERROR] LuaEngine: OnEnter on ConsolePortBarShowHideButtons error: ...h/wowee/addons/ConsolePortBar/Components/MenuBar.lua:69: attempt to index field 'cfg' (a nil value)
+      at ...h/wowee/addons/ConsolePortBar/Components/MenuBar.lua:69
+[2026-10-10 03:25:42.712] [WARN ] [FX_GATE] laid out on 4 of the last 57 frames; this one because first=lua_engine.cpp:10638 last=lua_engine.cpp:10638 marks=1. A gate that never holds is the sizing walk and the solve on every frame - the site named first is the one raising the generation on a frame where nothing moved
+[2026-10-10 03:25:44.665] [WARN ] WidgetInput: dragged from 'Minimap', but neither it nor anything above it is registered for drag on this button
+[2026-10-10 03:25:45.000] [WARN ] WidgetInput: release on Minimap - cursor had moved off it
+[2026-10-10 03:25:45.410] [WARN ] SLOW render stage 'endFrame': 86.5355ms (67 frames over 50ms since the last report 10s ago)
+[2026-10-10 03:25:45.411] [WARN ] frame budget over 10s: 67 frames, 6.63929 fps, 150.618ms each
+[2026-10-10 03:25:45.413] [WARN ]   endFrame: 125.921ms/frame avg, 173.425ms worst, 83% of the window
+[2026-10-10 03:25:45.415] [WARN ]   beginFrame: 8.25175ms/frame avg, 22.3621ms worst, 5% of the window
+[2026-10-10 03:25:45.417] [WARN ]   renderWorld: 4.28502ms/frame avg, 33.9697ms worst, 2% of the window
+[2026-10-10 03:25:45.419] [WARN ]   local authority/snapshots: 3.22765ms/frame avg, 3.9727ms worst, 2% of the window
+[2026-10-10 03:25:45.422] [WARN ]   addonWidgets: 2.47917ms/frame avg, 33.3205ms worst, 1% of the window
+[2026-10-10 03:25:45.424] [WARN ]   local FrameXML update: 0.925002ms/frame avg, 1.08904ms worst, 0% of the window
+[2026-10-10 03:25:45.426] [WARN ]   uiManager->render: 0.382101ms/frame avg, 0.531388ms worst, 0% of the window
+[2026-10-10 03:25:45.429] [WARN ]   frameXml->draw: 0.303966ms/frame avg, 0.463788ms worst, 0% of the window
+[2026-10-10 03:25:45.431] [WARN ]   local character sync: 0.198372ms/frame avg, 0.22776ms worst, 0% of the window
+[2026-10-10 03:25:45.434] [WARN ]   local entity loading: 0.0148619ms/frame avg, 0.105872ms worst, 0% of the window
+[2026-10-10 03:25:45.436] [WARN ]   prepareGlueScene: 0.00281654ms/frame avg, 0.0091ms worst, 0% of the window
+[2026-10-10 03:25:45.438] [WARN ]   renderHUD: 0.000410567ms/frame avg, 0.000728ms worst, 0% of the window
+[2026-10-10 03:25:45.782] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=110 catalogDiskReads=1242 catalogCacheHits=11450 catalogCacheBytes=789504
+[2026-10-10 03:25:45.784] [WARN ] [WORLD_PERF] loopFps=8.03121 frameMeanMs=124.514 frameMaxMs=198.8 frameP50Ms=112.671 frameP95Ms=184.723 frameP99Ms=198.8 percentileSamples=41 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=41/41 targetFps=40 frameBudgetMs=25 over25ms=41/41 updateOver25ms=0 renderOver25ms=41 otherAndPacingMeanMs=0.102274 updateMeanMs=7.79689 renderMeanMs=116.615 prepareMs=0 shadowMs=3.69756 reflectionMs=1.28596 cameraMs=1.53005 terrainMs=0.623688 wmoMs=0.092196 m2Ms=2.08042 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.31538 fxLayoutSkipped=1 fxSolveMs=1.2532 fxOrderMs=0.030888 fxSolved=597 fxWidgets=27408 fxVisMs=0.164736 fxVisVisits=441 fxSizeMs=0.050232 fxMsgMs=0.000364 fxScrollMs=0.025896 fxOnUpdateMs=0.825084 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=64 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=168 terrainCulled=2136 m2Instances=19021 m2Draws=31 m2VisibilityTests=7616 m2ClusterSkipped=11405 wmoDraws=12 wmoFrustumSkipped=387 characterDraws=32 characterPos=-8956.61,-128.067,83.137 cameraPos=-8953.01,-124.808,86.43 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:45.788] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.42908 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.67508,-0.50456,0.538225 cameraForward=-0.718799,-0.651768,-0.241922 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:50.169] [WARN ] Floor jump: player z=84.1506 prev z=84.1506 -> chose 85.359 (terrain=85.359 wmo=-99999 m2=-99999) - moved 1.20838
+[2026-10-10 03:25:50.185] [WARN ] TERRAIN_DIAG drawn=157 culled=2147 nearestDrawn=9.61791 nearestCulled=38.699 cam=(-8954.41,-125.214,87.6434)
+[2026-10-10 03:25:50.186] [WARN ] TERRAIN_NEAREST rank=0 dist=8.857 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:50.188] [WARN ] TERRAIN_NEAREST rank=1 dist=8.857 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:50.190] [WARN ] TERRAIN_NEAREST rank=2 dist=8.857 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:50.192] [WARN ] TERRAIN_NEAREST rank=3 dist=8.857 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:50.194] [WARN ] TERRAIN_NEAREST rank=4 dist=9.05734 tile=[32,48] buffers=0 set=1 mega=28275
+[2026-10-10 03:25:50.197] [WARN ] TERRAIN_TILEHIST tile=[32,48] chunks=256
+[2026-10-10 03:25:50.199] [WARN ] TERRAIN_TILEHIST tile=[32,47] chunks=256
+[2026-10-10 03:25:50.201] [WARN ] TERRAIN_TILEHIST tile=[31,48] chunks=256
+[2026-10-10 03:25:50.204] [WARN ] TERRAIN_TILEHIST tile=[33,48] chunks=256
+[2026-10-10 03:25:50.206] [WARN ] TERRAIN_TILEHIST tile=[32,49] chunks=256
+[2026-10-10 03:25:50.208] [WARN ] TERRAIN_TILEHIST tile=[31,47] chunks=256
+[2026-10-10 03:25:50.211] [WARN ] TERRAIN_TILEHIST tile=[33,47] chunks=256
+[2026-10-10 03:25:50.213] [WARN ] TERRAIN_TILEHIST tile=[31,49] chunks=256
+[2026-10-10 03:25:50.215] [WARN ] TERRAIN_TILEHIST tile=[33,49] chunks=256
+[2026-10-10 03:25:50.217] [WARN ] TERRAIN_TILEHIST total=2304 megaUsed=130935
+[2026-10-10 03:25:50.827] [WARN ] [LOCAL_PERF] bots=0 intro=0 buffering=0 npcs=110 catalogDiskReads=1242 catalogCacheHits=12080 catalogCacheBytes=789504
+[2026-10-10 03:25:50.828] [WARN ] [WORLD_PERF] loopFps=7.34582 frameMeanMs=136.132 frameMaxMs=184.313 frameP50Ms=141.029 frameP95Ms=184.289 frameP99Ms=184.313 percentileSamples=37 timingDomain=cpu-wall passSamples=last-frame gpuTimingStatus=uncalibrated-switch gpuTimingValid=0 sceneWidth=853 sceneHeight=480 msaa=1 frameCap=0 vsync=1 shadowQuality=0 shadowDistance=100 volumetricQuality=0 volumetricRendered=0 volumetricStatus=off raysEnabled=0 volumetricFogEnabled=0 volumetricFogIntensity=0.35 bloomEnabled=0 bloomIntensity=0.25 bloomRendered=0 bloomStatus=disabled over40ms=37/37 targetFps=40 frameBudgetMs=25 over25ms=37/37 updateOver25ms=0 renderOver25ms=37 otherAndPacingMeanMs=0.112314 updateMeanMs=8.15025 renderMeanMs=127.869 prepareMs=0 shadowMs=3.15297 reflectionMs=1.7953 cameraMs=1.33921 terrainMs=0.643396 wmoMs=0.098956 m2Ms=2.03814 charsMs=0 postMs=0 fxLayoutMs=0 fxSizingMs=0 fxDrawMs=0.3094 fxLayoutSkipped=1 fxSolveMs=1.21488 fxOrderMs=0.033904 fxSolved=597 fxWidgets=27408 fxVisMs=0.16718 fxVisVisits=441 fxSizeMs=0.05252 fxMsgMs=0.000208 fxScrollMs=0.028964 fxOnUpdateMs=0.816088 fxOnUpdateCalls=13 flexibleFreeMiB=142 measured=1 geometryDirectMiB=64 geometryPeakMiB=66 geometryAllocFailures=0 tiles=9 pending=0 terrainDrawn=157 terrainCulled=2147 m2Instances=19021 m2Draws=35 m2VisibilityTests=7232 m2ClusterSkipped=11789 wmoDraws=18 wmoFrustumSkipped=388 characterDraws=55 characterPos=-8956.7,-128.969,83.0925 cameraPos=-8954.41,-125.214,87.6434 viewDistance=400 discardedFrames=0
+[2026-10-10 03:25:50.833] [WARN ] [WORLD_SCENE] zone=12 map=0 hour=3.43049 weather=0 weatherIntensity=0 playerIndoors=0 cameraIndoors=0 sky= ambient=0.192412,0.221274,0.288618 diffuse=0.177512,0.258781,0.376469 solarTravel=0.675223,-0.504684,0.53793 cameraForward=-0.458305,-0.750825,-0.475624 fogStart=750 fogEnd=3750 fogStrength=0.4 brightness=1 outputWidth=1280 outputHeight=720
+[2026-10-10 03:25:51.197] [WARN ] Floor jump: player z=84.1506 prev z=84.1506 -> chose 85.2886 (terrain=85.2886 wmo=-99999 m2=-99999) - moved 1.13796
+[2026-10-10 03:25:53.431] [WARN ] SLOW render stage 'beginFrame': 121.363ms (1 frames over 50ms since the last report 10s ago)
