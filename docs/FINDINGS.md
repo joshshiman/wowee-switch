@@ -894,3 +894,28 @@ User-noted lag toward Stormwind (denser WMO) fits fill-bound.
 - If scene fill is the remaining ~230 ms, expect roughly half. WORLD_PERF
   next run confirms; if FSR resolve itself misbehaves on NVK it shows
   immediately (never exercised there before).
+
+## 2026-10-09 Run 57: no floor (geometry, not texture) + 540p scene default
+
+### User report (run 23:33, build a0bc10bb): no ground geometry at all
+Distant mountains visible, nothing underfoot — yet 9 tiles resident,
+terrainDrawn=11-105/frame, zero texture failures, zero white fallbacks.
+Not yet diagnosed (needs eyes): culling is distance+frustum with valid+set
+gates, all shared paths audited guarded. Character/NPC/WMO draws all nonzero
+(22-175/40-230), so the world draws around a missing floor. Also still: no
+self portrait, no quest icons seen.
+
+### FSR1 force reverted + scene height 540 (build 387a2da9)
+- `setFSREnabled` hard-blocks FSR1 on Switch ("fixed world-resolution profile
+  and FXAA remain") — the force only produced a confusing log pair. Removed;
+  pass-through restored.
+- Switch scene-height default 720→540 (sanctioned lever: off-screen world
+  target + FXAA resolve, UI/menus stay 720p, runtime-raisible in options).
+  Expect scene fill ~55% of before. WORLD_PERF sceneWidth/Height will confirm
+  960x540 next run.
+
+### Screenshot path that works over FTP
+Renderer::captureScreenshot exists, bound to gamepad circle on the HUD
+(game_screen_hud.cpp:1785), saves to <home>/.wowps/screenshots/WoWPS_*.png =
+sdmc:/wowps/wowps/.wowps/screenshots/ — retrievable via ftpd, unlike the
+Album (emuMMC raw partition). Asked user to press circle in-world.

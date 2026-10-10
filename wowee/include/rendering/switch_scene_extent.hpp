@@ -19,7 +19,16 @@ inline uint32_t parseSwitchSceneHeight(const char* value) noexcept {
     if (value && (std::strcmp(value, "native") == 0 || std::strcmp(value, "1080") == 0))
         return 0;
     if (value && std::strcmp(value, "900") == 0) return 900;
+#ifdef WOWEE_SWITCH
+    // In-world frames are ~240 ms of GPU fill at 720p with shadows, volumetric
+    // and bloom all off (run 56) — fill is what's left, so the default world
+    // height is 540 (1280x720 output keeps 720p UI/menus). FSR1 is blocked on
+    // nxvk, so this profile is the render-scale lever. Raisable at runtime in
+    // the video options; the env var still seeds it.
+    return 540;
+#else
     return 720;
+#endif
 }
 
 // B39: selectable at runtime.
