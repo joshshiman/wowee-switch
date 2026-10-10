@@ -4206,6 +4206,15 @@ void VkContext::finishInterruptedUploadBatch() {
 void VkContext::finishUploadBatch(bool synchronous) {
     if (uploadBatchDepth_ <= 0) return;
     if (uploadBatchDepth_ > 1) { --uploadBatchDepth_; return; }
+#ifdef WOWEE_SWITCH
+    // World-entry serial mode (see setSerialUploads): every batch waits for
+    // its own fence before returning, so at most one upload batch is ever in
+    // flight and no batch submit overlaps frame submits or immediate ones.
+    // Entry bursts died with submit -4 three times with no CPU-side distress;
+    // this removes submit concurrency as a variable. Slower loads, maximal
+    // information.
+    if (serialUploads_) synchronous = true;
+#endif
 
     // beginUploadBatch reserves the bounded ownership table before any
     // staging is recorded. Moving a batch into its admitted slot cannot grow

@@ -807,3 +807,25 @@ gpuTimingStatus stays uncalibrated-switch.
   instead of piling submits onto a dead device toward FATAL.
 - Switch backpressure halved (8 batches / 16 MiB vs 16 / 32 MiB): peak
   in-flight driver load is the prime suspect, throughput is the price.
+
+## 2026-10-09 Run 53: entry serial-upload experiment (build 78a9bd3c)
+
+### Run 23:03 (build fac43402): third identical death, backpressure exonerated
+`immediate submit failed: -4` at world-entry HUD setup → fence -4 → FATAL.
+In-flight never hit even the halved caps (no UPLOAD_PRESSURE line), so peak
+in-flight volume is NOT the trigger. Ruled out to date: texture-slice OOB,
+fence thread race, memory-type index, allocator distress, in-flight volume.
+Remainder: submit concurrency/timing vs driver internals, or a content fault
+in an earlier streaming upload surfacing late.
+
+### Change deployed (~23:00, md5 `78a9bd3c...`): serialize entry uploads
+- `VkContext::setSerialUploads` (Switch): while set, every
+  `finishUploadBatch` waits for its own fence. Immediate submits already wait.
+  Net effect during entry: (almost) no two submits are ever in flight at once.
+- `WorldLoader::loadOnlineWorldTerrain` sets it for the whole entry scope
+  (all entries funnel here, local + online); LoadingGuard resets it on every
+  exit including exceptions. One ifdef each side; desktop untouched.
+- Entry loads will be slower (no submit overlap). If 2-3 entries go through
+  clean, concurrency is confirmed and selective serialization follows. If it
+  still dies at the same point, concurrency is exonerated and the fault is in
+  the content of an entry upload.

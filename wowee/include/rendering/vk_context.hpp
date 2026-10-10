@@ -138,6 +138,12 @@ public:
     void ensureBatchCmd();
     void endUploadBatch();       // Async: submits but does NOT wait for fence
     void endUploadBatchSync();   // Sync: submits and waits (for load screens)
+#ifdef WOWEE_SWITCH
+    // World-entry serial mode: while set, endUploadBatch behaves like
+    // endUploadBatchSync. Set by WorldLoader for the whole entry burst;
+    // entry-time submits then never overlap each other or frame work.
+    void setSerialUploads(bool serial) { serialUploads_ = serial; }
+#endif
     // Outermost exception boundary only: every nested upload caller has unwound.
     // Retains staging and submits the recorded copies through the normal fence path.
     void finishInterruptedUploadBatch();
@@ -524,6 +530,12 @@ private:
     // Batch upload state (nesting-safe via depth counter)
     int uploadBatchDepth_ = 0;
     bool inUploadBatch_ = false;
+#ifdef WOWEE_SWITCH
+    // World-entry serial mode. Written by the main thread (WorldLoader entry
+    // scope), read wherever batches finish. Plain bool: every upload path
+    // that matters runs on the main thread.
+    bool serialUploads_ = false;
+#endif
     VkCommandBuffer batchCmd_ = VK_NULL_HANDLE;
     std::vector<AllocatedBuffer> batchStagingBuffers_;
     /// Staging allocated with plain Vulkan calls rather than the allocator.

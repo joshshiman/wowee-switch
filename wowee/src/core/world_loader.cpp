@@ -780,10 +780,30 @@ void WorldLoader::loadOnlineWorldTerrain(uint32_t mapId, float x, float y, float
         return;
     }
     loadingWorld_ = true;
+#ifdef WOWEE_SWITCH
+    // Entry-burst serial mode: every upload batch waits for its own fence
+    // (see setSerialUploads), so entry submits never overlap each other or
+    // frame work. Three entry bursts died with submit -4 and no CPU-side
+    // distress; this removes submit concurrency as a variable. Reset by the
+    // guard below on every exit path, including exceptions.
+    if (renderer_ && renderer_->getVkContext())
+        renderer_->getVkContext()->setSerialUploads(true);
+#endif
     struct LoadingGuard {
         bool& flag;
-        ~LoadingGuard() { flag = false; }
+#ifdef WOWEE_SWITCH
+        rendering::VkContext* vk = nullptr;
+#endif
+        ~LoadingGuard() {
+            flag = false;
+#ifdef WOWEE_SWITCH
+            if (vk) vk->setSerialUploads(false);
+#endif
+        }
     } loadingGuard{loadingWorld_};
+#ifdef WOWEE_SWITCH
+    loadingGuard.vk = (renderer_ && renderer_->getVkContext()) ? renderer_->getVkContext() : nullptr;
+#endif
     pendingWorldEntry_.reset();
 
     std::optional<TransportTransferSnapshot> transportHandoff;
