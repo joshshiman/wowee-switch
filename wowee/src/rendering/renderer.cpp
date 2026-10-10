@@ -2547,6 +2547,24 @@ void Renderer::update(float deltaTime) {
     lastUpdateMs = std::chrono::duration<double, std::milli>(updateEnd - updateStart).count();
 }
 
+#ifdef WOWEE_SWITCH
+void Renderer::runDeferredMarkerInit() {
+    if (!vkCtx || vkCtx->isDeviceLost() || !cachedAssetManager) {
+        LOG_WARNING("marker/footprint init skipped at entry end (no device/assets)");
+        return;
+    }
+    vkCtx->pollUploadBatches();
+    if (vkCtx->isDeviceLost()) {
+        LOG_WARNING("marker/footprint init skipped: device already lost");
+        return;
+    }
+    if (questMarkerRenderer && !questMarkerRenderer->initialize(vkCtx, perFrameSetLayout, cachedAssetManager))
+        LOG_WARNING("Quest marker renderer init at entry end failed (non-fatal)");
+    if (footprintRenderer && !footprintRenderer->initialize(this, vkCtx, perFrameSetLayout, cachedAssetManager))
+        LOG_WARNING("Footprint renderer init at entry end failed (non-fatal)");
+}
+#endif
+
 void Renderer::runDeferredWorldInitStep(float deltaTime) {
     if (!deferredWorldInitEnabled_ || !deferredWorldInitPending_ || !cachedAssetManager) return;
     if (deferredWorldInitCooldown_ > 0.0f) {
@@ -2577,25 +2595,23 @@ void Renderer::runDeferredWorldInitStep(float deltaTime) {
             break;
         case 5: {
 #ifdef WOWEE_SWITCH
-            // Entry-burst device losses (runs 51-52) surface as -4 on the
-            // first submit after the fault, which has twice been a marker
-            // upload here. Drain anything still in flight first: if the
-            // device is already gone this logs one line and both inits below
-            // take their existing non-fatal path, instead of piling submits
-            // onto a dead device and ending the session in FATAL.
-            if (vkCtx) {
-                vkCtx->pollUploadBatches();
-                if (vkCtx->isDeviceLost())
-                    LOG_WARNING("marker/footprint init skipped: device already lost");
-            }
-            const bool deviceAlive = vkCtx && !vkCtx->isDeviceLost();
+            // Marker/footprint uploads coincide with the entry burst in every
+            // entry death to date (5x: immediate -4 on the marker upload).
+            // They are not needed until the world is visible, so they run at
+            // entry end (runDeferredMarkerInit, after the pre-render waitIdle)
+            // instead of here in the middle of streaming. If entry end never
+            // arrives, nothing is lost: both inits are non-fatal and the world
+            // plays without markers.
+            LOG_INFO("marker/footprint init deferred to entry end");
 #else
             const bool deviceAlive = true;
 #endif
+#ifndef WOWEE_SWITCH
             if (deviceAlive && questMarkerRenderer && !questMarkerRenderer->initialize(vkCtx, perFrameSetLayout, cachedAssetManager))
                 LOG_WARNING("Quest marker renderer re-init failed (non-fatal)");
             if (deviceAlive && footprintRenderer && !footprintRenderer->initialize(this, vkCtx, perFrameSetLayout, cachedAssetManager))
                 LOG_WARNING("Footprint renderer re-init failed (non-fatal)");
+#endif
             break;
         }
         default:

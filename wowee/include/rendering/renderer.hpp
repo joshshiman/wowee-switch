@@ -363,6 +363,11 @@ private:
 
 public:
     // Character preview registration (for off-screen composite pass)
+#ifdef WOWEE_SWITCH
+    // Entry-end marker/footprint init (see stage 5): runs after the
+    // pre-render waitIdle, outside the streaming burst. Non-fatal by design.
+    void runDeferredMarkerInit();
+#endif
     void registerPreview(CharacterPreview* preview);
     void unregisterPreview(CharacterPreview* preview);
 

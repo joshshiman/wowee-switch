@@ -856,3 +856,22 @@ Terrain/WMO/M2-material/character/quest-marker writes+binds all guarded
 ### serialization (immediate -4 at marker upload). Concurrency downgraded as
 ### prime suspect; poison-descriptor (now fixed) takes its place. Serial mode
 ### stays in (harmless, still informative if deaths stop).
+
+## 2026-10-09 Run 55: marker init deferred past the burst (build 3670ec31)
+
+### Run 23:17 (build ff618d21): fifth identical death, particle fix not it
+Immediate -4 on a marker upload again, ~35 s into entry. The unwritten-set
+fix changed nothing observable — demote poison-descriptor below burst-timing
+again, with the caveat the fix was still correct hygiene (the hole was real,
+just not this killer).
+
+### Change deployed (~23:25, md5 `3670ec31...`): split burst from content
+- Stage 5 no longer inits markers/footprints mid-entry on Switch (logs one
+  line). New `Renderer::runDeferredMarkerInit()` runs at entry end from
+  WorldLoader, right after the existing pre-render vkDeviceWaitIdle, when the
+  GPU is drained and streaming has settled.
+- Two clean outcomes, both decisive: entry survives → the burst composition
+  (uploads interleaved with streaming) is the killer and markers stay late
+  (they pop in as the world appears — invisible); dies identically at the
+  same point → markers fully exonerated and the fault is in streaming-frame
+  content, which becomes the only remaining theory.

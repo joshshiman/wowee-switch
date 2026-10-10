@@ -1410,6 +1410,13 @@ void WorldLoader::loadOnlineWorldTerrain(uint32_t mapId, float x, float y, float
     if (renderer_ && renderer_->getVkContext()) {
         vkDeviceWaitIdle(renderer_->getVkContext()->getDevice());
     }
+#ifdef WOWEE_SWITCH
+    // Marker/footprint uploads run here — after the drain, outside the
+    // streaming burst — instead of mid-entry (stage 5). Five entry deaths in
+    // a row surfaced their first -4 on a marker upload; this separates burst
+    // from content either way it goes.
+    if (renderer_) renderer_->runDeferredMarkerInit();
+#endif
 
     if (loadingScreenOk) {
         loadingScreen.shutdown();
