@@ -197,11 +197,19 @@ function Bar:OnEvent(event, ...)
 end
 
 function Bar:PLAYER_REGEN_ENABLED()
-	self:FadeOut(self:GetAlpha())
+	-- WoWee handheld: only fade when the hidebar option asks for it. The
+	-- retail fade-out here drives bar alpha toward 0 after every fight, and
+	-- at console frame rates the fade strands mid-value, which reads as a
+	-- permanent dim film over the buttons. Default (no hidebar) = always lit.
+	if ab.cfg and ab.cfg.hidebar then
+		self:FadeOut(self:GetAlpha())
+	end
 end
 
 function Bar:PLAYER_REGEN_DISABLED()
-	self:FadeIn(self:GetAlpha())
+	if ab.cfg and ab.cfg.hidebar then
+		self:FadeIn(self:GetAlpha())
+	end
 end
 
 function Bar:UPDATE_BONUS_ACTIONBAR()
@@ -273,7 +281,7 @@ function Bar:ADDON_LOADED(name)
 				layout.CP_T6 = layout.CP_T6 or layout.CP_R_GRIP2 -- translate Rgrip2 to t6
 				layout.CP_L_GRIP2 = nil layout.CP_R_GRIP2 = nil
 			end
-			if (ConsolePortBarSetup.woweeRev or 0) < 3 then
+			if (ConsolePortBarSetup.woweeRev or 0) < 4 then
 				ConsolePortBarSetup.showline = false
 				ConsolePortBarSetup.showart = false
 				ConsolePortBarSetup.flashart = false
@@ -283,7 +291,7 @@ function Bar:ADDON_LOADED(name)
 				ConsolePortBarSetup.artRGB = nil
 				ConsolePortBarSetup.expRGB = nil
 				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
-				ConsolePortBarSetup.woweeRev = 3
+				ConsolePortBarSetup.woweeRev = 4
 			end
 		-------------------------------
 		end

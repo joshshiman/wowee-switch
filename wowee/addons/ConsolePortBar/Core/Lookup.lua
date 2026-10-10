@@ -147,27 +147,28 @@ end
 
 function ab:GetDefaultButtonLayout(button)
 	local layout = {
-		-- RIGHT CLUSTER (Face Buttons) - Centered at +330, raised to clear bags
-		CP_R_LEFT    = {dir = 'left',  point = {'BOTTOM',  280, 97}, size = 40},
-		CP_R_RIGHT   = {dir = 'right', point = {'BOTTOM',  380, 97}, size = 40},
-		CP_R_UP      = {dir = 'up',    point = {'BOTTOM',  330, 126}, size = 40},
-		CP_R_DOWN    = {dir = 'down',  point = {'BOTTOM',  330, 70}, size = 40},
+		-- RIGHT CLUSTER (Face Buttons) - Centered at +330, raised to clear bags.
+		-- WoWee rev 4: row pitch 84 (was 56) - satellites overlapped rows.
+		CP_R_LEFT    = {dir = 'left',  point = {'BOTTOM',  280, 98}, size = 38},
+		CP_R_RIGHT   = {dir = 'right', point = {'BOTTOM',  380, 98}, size = 38},
+		CP_R_UP      = {dir = 'up',    point = {'BOTTOM',  330, 140}, size = 38},
+		CP_R_DOWN    = {dir = 'down',  point = {'BOTTOM',  330, 56}, size = 38},
 
 		-- RIGHT SHOULDERS - Center-Right, pushed out to widen the bag gap
 		-- NOTE: CP_T2 is the physical R bumper (Settings CP_T2 = CP_TR1)
-		CP_T4        = {dir = 'up',    point = {'BOTTOM',  180, 126}, size = 40},
-		CP_T2        = {dir = 'down',  point = {'BOTTOM',  180, 70}, size = 40},
+		CP_T4        = {dir = 'up',    point = {'BOTTOM',  180, 140}, size = 38},
+		CP_T2        = {dir = 'down',  point = {'BOTTOM',  180, 56}, size = 38},
 
 		-- LEFT CLUSTER (D-Pad) - Centered at -330, raised to clear bags
-		CP_L_LEFT    = {dir = 'left',  point = {'BOTTOM', -380, 97}, size = 40},
-		CP_L_RIGHT   = {dir = 'right', point = {'BOTTOM', -280, 97}, size = 40},
-		CP_L_UP      = {dir = 'up',    point = {'BOTTOM', -330, 126}, size = 40},
-		CP_L_DOWN    = {dir = 'down',  point = {'BOTTOM', -330, 70}, size = 40},
+		CP_L_LEFT    = {dir = 'left',  point = {'BOTTOM', -380, 98}, size = 38},
+		CP_L_RIGHT   = {dir = 'right', point = {'BOTTOM', -280, 98}, size = 38},
+		CP_L_UP      = {dir = 'up',    point = {'BOTTOM', -330, 140}, size = 38},
+		CP_L_DOWN    = {dir = 'down',  point = {'BOTTOM', -330, 56}, size = 38},
 
 		-- LEFT SHOULDERS - Center-Left, pushed out to widen the bag gap
 		-- NOTE: CP_T1 is the physical L bumper (Settings CP_T1 = CP_TL1)
-		CP_T3        = {dir = 'up',    point = {'BOTTOM', -180, 126}, size = 40},
-		CP_T1        = {dir = 'down',  point = {'BOTTOM', -180, 70}, size = 40},
+		CP_T3        = {dir = 'up',    point = {'BOTTOM', -180, 140}, size = 38},
+		CP_T1        = {dir = 'down',  point = {'BOTTOM', -180, 56}, size = 38},
 	}
 	if button ~= nil then
 		return layout[button]

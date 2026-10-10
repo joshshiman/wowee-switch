@@ -1218,6 +1218,39 @@ function ConsolePort:SetupUtilityBindings()
     	ConsolePortUtility[1] = { Name = "Utility Ring", Icon = [[Interface\AddOns\ConsolePort\Textures\Icons\Ring]] }
 	end
 
+	-- WoWee handheld doors: first-run ring contents (only when Data is
+	-- empty - never stomps operator customizations). Hearthstone plus panel
+	-- macros; the macros run through the ring's secure path like everything
+	-- else it casts. Slots 1..6 of the 8-segment ring.
+	do
+		local preset = ConsolePortUtility[1]
+		if preset and (not preset.Data or not next(preset.Data)) then
+			local function ensureMacro(name, icon, body)
+				local id = GetMacroIndexByName and GetMacroIndexByName(name)
+				if (not id or id == 0) and CreateMacro then
+					pcall(CreateMacro, name, icon, body, false)
+					id = GetMacroIndexByName and GetMacroIndexByName(name)
+				end
+				return (id and id ~= 0) and name or nil
+			end
+			local qm = [[Interface\Icons\INV_Misc_QuestionMark]]
+			local doors = {
+				{action = 'macro', value = ensureMacro('WOWEE_Spellbook', qm, '/run ToggleSpellBook(BOOKTYPE_SPELL)')},
+				{action = 'macro', value = ensureMacro('WOWEE_Talents', qm, '/run ToggleTalentFrame()')},
+				{action = 'macro', value = ensureMacro('WOWEE_Character', qm, '/run ToggleCharacter("PaperDollFrame")')},
+				{action = 'macro', value = ensureMacro('WOWEE_Map', qm, '/run ToggleFrame(WorldMapFrame)')},
+				{action = 'macro', value = ensureMacro('WOWEE_Quests', qm, '/run ToggleFrame(QuestLogFrame)')},
+				{action = 'item', value = 6948},
+			}
+			preset.Data = preset.Data or {}
+			for i, door in ipairs(doors) do
+				if door.value then
+					preset.Data[i] = {action = door.action, value = door.value}
+				end
+			end
+		end
+	end
+
     for profileID, preset in pairs(ConsolePortUtility) do
         if preset.Binding and preset.Binding.Button then
             local buttonName = preset.Binding.Button

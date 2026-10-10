@@ -816,6 +816,33 @@ void pumpInput() {
     int wheel = 0;
     if (s_consolePortActive && !s_textFocus && !s_applicationKeyboardOpen) {
         // ConsolePort direct controller mode
+        // TEMPORARY calibration round: physical button names beside F-keys,
+        // on press edges only. Proves which finger maps to which letter so
+        // button-identity disputes settle to one log line. Remove after.
+        {
+            struct PadTrace { uint32_t bit; const char* pad; const char* f; };
+            static const PadTrace kPadTrace[] = {
+                {ORBIS_PAD_BUTTON_SQUARE, "SQUARE(X-top)", "F1"},
+                {ORBIS_PAD_BUTTON_CIRCLE, "CIRCLE(B-bottom)", "F2"},
+                {ORBIS_PAD_BUTTON_TRIANGLE, "TRIANGLE(Y-left)", "F3"},
+                {ORBIS_PAD_BUTTON_CROSS, "CROSS(A-right)", "F4"},
+                {ORBIS_PAD_BUTTON_UP, "DUP", "F5"},
+                {ORBIS_PAD_BUTTON_DOWN, "DDOWN", "F6"},
+                {ORBIS_PAD_BUTTON_LEFT, "DLEFT", "F7"},
+                {ORBIS_PAD_BUTTON_RIGHT, "DRIGHT", "F8"},
+                {ORBIS_PAD_BUTTON_L1, "L1(L)", "F9"},
+                {ORBIS_PAD_BUTTON_R1, "R1(R)", "F10"},
+                {ORBIS_PAD_BUTTON_L2, "ZL", "SHIFT"},
+                {ORBIS_PAD_BUTTON_R2, "ZR", "CTRL"},
+                {ORBIS_PAD_BUTTON_TOUCH_PAD, "MINUS", "F11"},
+                {ORBIS_PAD_BUTTON_OPTIONS, "PLUS", "F12"},
+            };
+            for (const auto& t : kPadTrace) {
+                if (st.pressed & gameplayButtons & t.bit) {
+                    LOG_WARNING("[WOWEE_PAD] ", t.pad, " down -> ", t.f);
+                }
+            }
+        }
         // Face buttons -> F1..F4
         if (gameplayButtons & ORBIS_PAD_BUTTON_SQUARE) want[static_cast<size_t>(SDL_SCANCODE_F1)] = true;   // X
         if (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) want[static_cast<size_t>(SDL_SCANCODE_F2)] = true;   // B

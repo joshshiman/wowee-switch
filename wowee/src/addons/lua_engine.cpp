@@ -10095,31 +10095,103 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         return true;
     }
 
-    // 2c. Interact with current target (e.g. A button in ConsolePort
-    // handheld map). Right-click semantics on the target: loot the dead,
-    // talk to the friendly, attack the hostile, use the game object.
+    // 2c. Interact (A button, handheld map). Operator directive: A always
+    // does something. Order: cursor on a bar slot -> that slot; live target
+    // -> right-click semantics on it; no target -> acquire nearest enemy and
+    // attack it; nothing found -> logged, never silent.
     if (command == "INTERACTTARGET") {
         outcome = "interact";
         if (down) {
             if (auto* gh = getGameHandler(L_)) {
-                if (gh->hasTarget()) {
+                std::string how = "none";
+                // 1. Cursor over a bar action slot: activate that slot. This
+                // is "A on a button slot" - tap, no hold/drag needed.
+                if (lastMouseHit_ != 0) {
+                    if (const ui::Widget* w = widgets_.get(lastMouseHit_)) {
+                        if (w->name.rfind("CPB_", 0) == 0) {
+                            lua_getglobal(L_, w->name.c_str());
+                            if (lua_istable(L_, -1)) {
+                                lua_getfield(L_, -1, "GetAttribute");
+                                if (lua_isfunction(L_, -1)) {
+                                    lua_pushvalue(L_, -2);
+                                    lua_pushstring(L_, "type");
+                                    if (lua_pcall(L_, 2, 1, 0) == 0) {
+                                        const char* t = lua_tostring(L_, -1);
+                                        lua_pop(L_, 1);
+                                        if (t && std::string(t) == "action") {
+                                            lua_getfield(L_, -1, "GetAttribute");
+                                            if (lua_isfunction(L_, -1)) {
+                                                lua_pushvalue(L_, -2);
+                                                lua_pushstring(L_, "action");
+                                                if (lua_pcall(L_, 2, 1, 0) == 0 &&
+                                                    lua_isnumber(L_, -1)) {
+                                                    const int slot = static_cast<int>(lua_tonumber(L_, -1));
+                                                    lua_pop(L_, 1);
+                                                    if (slot >= 1 && slot <= 120) {
+                                                        lua_getglobal(L_, "UseAction");
+                                                        if (lua_isfunction(L_, -1)) {
+                                                            lua_pushinteger(L_, slot);
+                                                            lua_pcall(L_, 1, 0, 0);
+                                                        } else {
+                                                            lua_pop(L_, 1);
+                                                        }
+                                                        how = std::string("slot ") + std::to_string(slot);
+                                                    }
+                                                } else {
+                                                    lua_pop(L_, 1);
+                                                }
+                                            } else {
+                                                lua_pop(L_, 1);
+                                            }
+                                        }
+                                    } else {
+                                        lua_pop(L_, 1);
+                                    }
+                                } else {
+                                    lua_pop(L_, 1);
+                                }
+                                lua_pop(L_, 1); // frame table
+                            }
+                        }
+                    }
+                }
+                // 2. Live target: right-click semantics.
+                if (how == "none" && gh->hasTarget()) {
                     auto target = gh->getTarget();
                     if (target) {
                         if (target->getType() == game::ObjectType::GAMEOBJECT) {
                             gh->interactWithGameObject(target->getGuid());
+                            how = "object";
                         } else if (target->getType() == game::ObjectType::UNIT ||
                                    target->getType() == game::ObjectType::PLAYER) {
                             auto unit = std::static_pointer_cast<game::Unit>(target);
                             if (unit->getHealth() == 0 && unit->getMaxHealth() > 0) {
                                 gh->lootTarget(target->getGuid());
+                                how = "loot";
                             } else if (!unit->isHostile() && unit->isInteractable()) {
                                 gh->interactWithNpc(target->getGuid());
+                                how = "talk";
                             } else if (unit->isHostile() || !unit->isInteractable()) {
                                 gh->startAutoAttack(target->getGuid());
+                                how = "attack";
                             }
                         }
                     }
                 }
+                // 3. No target: acquire nearest enemy, then attack it. This is
+                // what makes A always answer.
+                if (how == "none") {
+                    gh->targetEnemy(false);
+                    if (gh->hasTarget()) {
+                        auto target = gh->getTarget();
+                        if (target) {
+                            gh->startAutoAttack(target->getGuid());
+                            how = "acquire+attack";
+                        }
+                    }
+                }
+                if (how == "none") how = "nothing-nearby";
+                LOG_WARNING("[WOWEE_ACT] interact -> ", how);
             }
         }
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
