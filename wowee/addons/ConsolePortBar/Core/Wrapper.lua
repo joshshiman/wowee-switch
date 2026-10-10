@@ -207,6 +207,7 @@ function WrapperMixin:SetPoint(...)
 end
 
 function WrapperMixin:SetSize(new)
+    new = new or self.size or (ab and ab.cfg and ab.cfg.size) or 64
     local preset = ab.cfg
     local layout = preset and preset.layout
     local isTriple = preset and preset.isTriple

@@ -361,14 +361,17 @@ end
 
 function ConsolePortMenuArtMixin:OnAspectRatioChanged()
 	local x, y = self:GetSize()
-	local scale = (UIParent:GetHeight() / LS_HEIGHT)
+	y = y or (self.GetHeight and self:GetHeight()) or 720
+	local uipH = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 720
+	local scale = uipH / (LS_HEIGHT or 1080)
+	if not scale or scale == 0 then scale = 1 end
 	self.halfY =  (y / scale / 2)
-	self.pxBase = (LS_HEIGHT / 2)
-	self.pxPan = LS_HEIGHT - (self.halfY)
+	self.pxBase = ((LS_HEIGHT or 1080) / 2)
+	self.pxPan = (LS_HEIGHT or 1080) - (self.halfY)
 	self.panDelta = -0.5
 	self.artIndex = 1
 	self.artTicker = 0
-	self.Art:SetAlpha(0)
+	if self.Art then self.Art:SetAlpha(0) end
 end
 
 

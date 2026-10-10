@@ -27,8 +27,25 @@ db.PLUGINCHECKS.IsMerchantNode = {}
 -- Popup functions 
 ---------------------------------------------------------------
 local function LoadDefaultBindings()
-	ConsolePortOldConfig:OpenCategory('Binds')
-	ConsolePortOldConfigContainerBinds:Default()
+	local defaultSet = ConsolePort:GetDefaultBindingSet()
+	db.Bindings = defaultSet
+	ConsolePortBindingSet = ConsolePortBindingSet or {}
+	ConsolePortBindingSet[CPAPI.GetSpecialization()] = db.Bindings
+	if ConsolePort.LoadBindingSet then
+		ConsolePort:LoadBindingSet(db.Bindings, true)
+	end
+	if ConsolePort.OnNewBindings then
+		ConsolePort:OnNewBindings(db.Bindings)
+	end
+	if ConsolePort.SetupUtilityBindings then
+		ConsolePort:SetupUtilityBindings()
+	end
+	if ConsolePort.SetupUtilityRing then
+		ConsolePort:SetupUtilityRing()
+	end
+	if ConsolePortOldConfig then
+		ConsolePortOldConfig:Hide()
+	end
 	ConsolePort:CheckLoadedSettings()
 end
 

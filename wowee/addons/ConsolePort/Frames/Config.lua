@@ -34,7 +34,10 @@ local INDENT     = 14
 -- ============================================================
 -- MAIN FRAME
 -- ============================================================
-Config.Close:Hide()
+if Config.Close then
+	Config.Close:Show()
+	Config.Close:SetScript("OnClick", function() Config:Hide() end)
+end
 Config:SetFrameStrata("HIGH")
 Config:SetSize(1200, 760)
 Config:SetPoint("CENTER", 0, 0)

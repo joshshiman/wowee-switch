@@ -452,11 +452,13 @@ db.PANELS[#db.PANELS + 1] = {name = 'Controls', header = SETTINGS, mixin = Windo
 
 	local function GetCheckButton(parent, name, point, label, setting, func)
 		local button = CreateFrame('CheckButton', nil, parent, 'ChatConfigCheckButtonTemplate')
-		local text = select(6, button:GetRegions())
+		local text = select(6, button:GetRegions()) or (button.GetName and _G[button:GetName()..'Text']) or button:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
 		button.Text = text
 
-		text:SetPoint('LEFT', 30, 0)
-		text:SetText(label)
+		if text then
+			text:SetPoint('LEFT', 30, 0)
+			text:SetText(label)
+		end
 
 		GetHelpButton(SmartInteract, TUTORIAL.CONFIG.TARGETAIHELP):SetSize(52, 52)
 
