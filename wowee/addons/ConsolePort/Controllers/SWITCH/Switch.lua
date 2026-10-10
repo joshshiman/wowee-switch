@@ -73,13 +73,13 @@ db.Controllers.SWITCH = {
 	Bindings = {
 		-- XYAB
 		['CP_R_UP'] = 	{
-			['']		 	= 'ACTIONBUTTON2',
+			['']		 	= 'JUMP',
 			['SHIFT-'] 		= 'ACTIONBUTTON7',
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON2',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON7',
 		},
 		['CP_R_DOWN'] = {
-			['']		 	= 'JUMP',
+			['']		 	= 'OPENALLBAGS',
 			['SHIFT-'] 		= 'ACTIONBUTTON9',
 			['CTRL-']  		= 'EXTRAACTIONBUTTON1',
 			['CTRL-SHIFT-'] = 'CLICK ConsolePortUtilityToggle:LeftButton',
@@ -91,7 +91,7 @@ db.Controllers.SWITCH = {
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON6',
 		},
 		['CP_R_RIGHT'] = {
-			['']		 	= 'ACTIONBUTTON3',
+			['']		 	= 'INTERACTTARGET',
 			['SHIFT-'] 		= 'ACTIONBUTTON8',
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON3',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON8',

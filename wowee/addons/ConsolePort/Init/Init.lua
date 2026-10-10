@@ -108,6 +108,31 @@ function ConsolePort:LoadSettings()
 
 	if not ConsolePortBindingSet or not next(ConsolePortBindingSet) then
 		LoadDefaultBindings()
+	else
+		-- WoWee handheld remap (rev 1): A = interact, X = jump, B = bags.
+		-- Saved per-character binding sets shadow the profile defaults, so
+		-- patch the three main slots in place and re-apply once.
+		local spec = CPAPI.GetSpecialization and CPAPI.GetSpecialization()
+		local set = spec and ConsolePortBindingSet[spec]
+		if set and (ConsolePortBindingSet.woweeBindRev or 0) < 1 then
+			local remap = {CP_R_RIGHT = 'INTERACTTARGET', CP_R_UP = 'JUMP', CP_R_DOWN = 'OPENALLBAGS'}
+			for button, action in pairs(remap) do
+				if type(set[button]) == 'table' then
+					set[button][''] = action
+				end
+			end
+			ConsolePortBindingSet.woweeBindRev = 1
+			db.Bindings = set
+			if ConsolePort.LoadBindingSet then
+				ConsolePort:LoadBindingSet(set, true)
+			end
+			if ConsolePort.SetupUtilityBindings then
+				ConsolePort:SetupUtilityBindings()
+			end
+			if ConsolePort.OnNewBindings then
+				ConsolePort:OnNewBindings(set)
+			end
+		end
 	end
 
 	-----------------------------------------------------------

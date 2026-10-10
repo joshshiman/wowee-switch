@@ -1050,7 +1050,8 @@ function Core:UpdateMouseDriver()
 
 
 		else
-			Trail.Default = ICONS.CP_T_R3
+			-- WoWee handheld: no idle R3 glyph at the cursor.
+			Trail.Default = nil
 
 			Mouse.interactWith = nil
 

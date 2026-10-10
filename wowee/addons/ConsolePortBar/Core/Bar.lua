@@ -256,7 +256,7 @@ function Bar:ADDON_LOADED(name)
 				layout.CP_T6 = layout.CP_T6 or layout.CP_R_GRIP2 -- translate Rgrip2 to t6
 				layout.CP_L_GRIP2 = nil layout.CP_R_GRIP2 = nil
 			end
-			if (ConsolePortBarSetup.woweeRev or 0) < 2 then
+			if (ConsolePortBarSetup.woweeRev or 0) < 3 then
 				ConsolePortBarSetup.showline = false
 				ConsolePortBarSetup.showart = false
 				ConsolePortBarSetup.flashart = false
@@ -266,7 +266,7 @@ function Bar:ADDON_LOADED(name)
 				ConsolePortBarSetup.artRGB = nil
 				ConsolePortBarSetup.expRGB = nil
 				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
-				ConsolePortBarSetup.woweeRev = 2
+				ConsolePortBarSetup.woweeRev = 3
 			end
 		-------------------------------
 		end

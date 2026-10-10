@@ -85,6 +85,11 @@ Selector:WrapScript(Flyout, 'OnShow', [[
 	end
 	Selector:RunAttribute('ShowSpells')
 
+	if Visible == 0 then
+		Flyout:Hide()
+		return
+	end
+
 	local parentName = Flyout:GetParent():GetName()
 	if parentName and parentName:match('CPB') then
 		Flyout:SetScale(0.01)
@@ -134,6 +139,17 @@ end
 
 function Selector:OnShow()
 	db.Hint:DisplayMessage(format(db.TOOLTIP.FLYOUT, BINDING_NAME_CP_L_UP, BINDING_NAME_CP_L_DOWN), 4, -200)
+	local visible = 0
+	for _, spell in pairs({Flyout:GetChildren()}) do
+		if spell:IsVisible() then
+			visible = visible + 1
+		end
+	end
+	if visible == 0 then
+		-- Nothing to pick: an empty flyout is just a dead frame.
+		Flyout:Hide()
+		return
+	end
 	for i, spell in pairs({Flyout:GetChildren()}) do
 		local button = self.Buttons[i]
 		if spell:IsVisible() then
