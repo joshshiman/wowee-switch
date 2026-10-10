@@ -1007,7 +1007,23 @@ WMORenderer::ModelLoadResult WMORenderer::loadModelIncremental(
             }
             // Allocate and write descriptor set
             if (!mb.materialSet) mb.materialSet = allocateMaterialSet();
-            if (!mb.materialSet) throw std::bad_alloc();
+            if (!mb.materialSet) {
+                // Pool exhausted, not host OOM: leave the batch unset and let
+                // the render passes skip it (main: "if (!batch.materialSet)
+                // continue", shadow and cull likewise). Throwing here used to
+                // reject the whole world entry with "not enough memory to load
+                // this area" over one unbound wall. A missing wall beats a
+                // bounced player.
+                static bool poolExhaustedWarned = false;
+                if (!poolExhaustedWarned) {
+                    poolExhaustedWarned = true;
+                    core::Logger::getInstance().warning(
+                        "WMORenderer: material descriptor pool exhausted; "
+                        "further WMO batches on this map render unset (skipped)");
+                }
+                mb.materialReady = true;
+                continue;
+            }
             // Valid, not merely non-null. descriptorInfo() returns the
             // texture's handles as they are, so one whose upload or view
             // creation failed writes VK_NULL_HANDLE into a live descriptor and

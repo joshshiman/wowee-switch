@@ -863,7 +863,12 @@ private:
     // Descriptor pool for material sets
     VkDescriptorPool materialDescPool_ = VK_NULL_HANDLE;
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MAX_MATERIAL_SETS = 2048;
+    // Elwynn tile [32,48] (Northshire Abbey + surroundings) exceeds 2048
+    // concurrent material batches on hardware (run 2026-10-09 21:23), so the
+    // pool is sized past that with headroom. Pool exhaustion no longer throws
+    // either (see the allocateMaterialSet call site): the batch is left unset
+    // and the render passes skip it.
+    static constexpr uint32_t MAX_MATERIAL_SETS = 8192;
 #else
     static constexpr uint32_t MAX_MATERIAL_SETS = 32768;
 #endif

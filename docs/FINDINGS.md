@@ -623,3 +623,45 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
    - For textures <= 256 KiB (including all 16 KiB alpha textures), stage directly through a single CPU-mapped buffer (`VMA_MEMORY_USAGE_CPU_ONLY`) into `VkImage`.
 4. **Default Graphics Quality Set to Low on Switch**:
    - Default preset: Low (`viewDistance = 400.0f`, `shadowDistance = 100.0f`, `shadowQuality = 1` [Terrain only], `groundClutter = 15`, `normalMapping = false`, `parallax = false`).
+
+## 2026-10-09 Run 46: Title-Override World Entry Rejected (CPU query measured heap slack + WMO pool)
+
+### Symptoms (user report + logs 2026-10-09_2135, run 21:23, title-override mode):
+- "There was not enough memory to load this area" on Enter World (map 0),
+  graceful return to character select, **no crash report** — the client survived.
+- Font visibly changed vs prior runs; minor intermittent black flashing on the
+  right screen edge (only 2-3 swapchain rebuilds in the run — the white-flash
+  storm is fixed; right-edge flash is a separate open item, repro needed).
+- `wowps.log`: `World load stopped: CPU allocation failed on map 0`, preceded by
+  `WMORenderer: failed to allocate material descriptor set`.
+- `Interface fonts loaded: 0 of 5`, `No frizqt__.ttf ... keeping the built-in
+  face` — hence the font change. FRIZQT was *declined by the headroom gate*,
+  not missing: `Optional asset declined for CPU headroom: flexible free 3 MiB
+  below 8 MiB (latest Fonts\FRIZQT__.TTF)`, plus declined .anim/.skin files.
+- `[LOCAL_SESSION] before spell import freeMiB=3 measured=1`,
+  `Terrain streaming held back: free=3 MiB measured=1` — in title-override mode
+  with gigabytes actually free.
+
+### Root cause 1 (the big one): the free-memory query measured heap slack
+`queryAvailableCpuMemory()` (`cpu_memory.hpp`) computed
+`TotalMemorySize - UsedMemorySize`. On Horizon, Total is the *currently mapped*
+heap, which newlib grows on demand via sbrk — so the difference is heap slack
+(a few MiB by design), never available memory. Every gate built on it (8 MiB
+stream-stop, font/anim/skin declines, terrain holdback) latched shut in the
+mode with the *most* RAM. Do not re-derive: `free = title cap - used`, with
+caps 448 MiB (applet) / 3328 MiB (override) selected by the existing
+`isAppletMode()`. Fixed in `cpu_memory.hpp` (forward-declared `isAppletMode`
+to avoid including `switch_platform.hpp`).
+
+### Root cause 2: WMO descriptor pool exhaustion aborted world entry
+Elwynn tile [32,48] (Northshire Abbey + surroundings) needs more than the 2048
+Switch `MAX_MATERIAL_SETS`; `allocateMaterialSet()` returned null and the call
+site threw `std::bad_alloc`, which `world_loader` mislabeled "CPU allocation
+failed" and bounced the player to login. Fixes: pool raised to 8192, and
+exhaustion now warn-once + leaves the batch unset instead of throwing — the
+main/shadow/cull passes already skip null sets, so a missing wall beats a
+rejected entry. M2 already degraded this way; only WMO threw.
+
+### Deployed 2026-10-09 ~21:40 (md5 `710cae61...`): memory-query fix + WMO pool/skip.
+### Open: right-edge black flash (needs screen + docked/handheld + frequency);
+### exact WMO set count Elwynn needs (log will show whether the warn-once fires).
