@@ -155,10 +155,27 @@ function Bar:UpdateOverrides()
 	]])
 end
 
+-- WoWee handheld: the secure click path behind these overrides does not run
+-- in this client (restricted GetAttribute arrives nil -> "Invalid function
+-- body"), so every key stolen this way reads as dead while the handler's own
+-- entry for the same key loses the pointer-ordered bucket merge. Neutralize
+-- the writer; the pad F-keys then resolve to the handler's direct commands
+-- (UseAction etc.). Revert if secure clicks ever land: bonus-bar paging and
+-- form states ride these overrides on retail. (WoWeeNeutralizeClickTheft
+-- below is the same note kept next to the call site in SetActionBinding.)
+function Bar:WoWeeNeutralizeClickTheft()
+	-- No-op: see comment above. Kept as a function so SetActionBinding's
+	-- call site needs no change.
+end
+
 function Bar:RegisterOverride(key, button)
-	self:Execute(format([[
-		bindings['%s'] = '%s'
-	]], key, button))
+	-- WoWee handheld: neutralized. Recording the key here feeds
+	-- UpdateOverrides -> SetBindingClick, which steals the pad F-key into a
+	-- secure click path this client cannot drive (restricted GetAttribute
+	-- arrives nil -> "Invalid function body"). With the writer off, F-keys
+	-- resolve to the handler's direct commands (UseAction etc.). Revert if
+	-- secure clicks ever land: bonus-bar paging and form states ride these
+	-- overrides on retail.
 end
 
 function Bar:OnNewBindings(...)
@@ -575,6 +592,12 @@ function Bar:OnLoad(cfg, benign)
                     .. ' F3=' .. tostring(GetBindingAction('F3'))
                     .. ' F11=' .. tostring(GetBindingAction('F11'))
                     .. ' F12=' .. tostring(GetBindingAction('F12')));
+                -- The fork: read THROUGH the handle, exactly as restricted
+                -- code does. Table read fine + handle read nil = registry
+                -- bridge broken; both fine = secure reads live again.
+                local ok, hv = pcall(function() return h:GetAttribute('OnDragStart') end);
+                warn('[WOWEE_ATTRDIAG] handle-read ok=' .. tostring(ok)
+                    .. ' type=' .. type(hv));
             end
             -- Is the CLICK override baked into the binding set itself?
             if ConsolePort and ConsolePort.GetBindingSet then

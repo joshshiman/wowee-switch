@@ -6760,6 +6760,20 @@ void LuaEngine::registerCoreAPI() {
         // The order is the client's: most specific first, the bare name last.
         "function mt:GetAttribute(a, b, c)\n"
         "    local at = rawget(self, '__attributes')\n"
+        // A secure handle is not the frame but Blizzard's surrogate for it:
+        // RestrictedFrames builds {[0] = frame[0], [1] = frame} with the
+        // frame's metatable, so every restricted self:GetAttribute lands here
+        // with self = the surrogate. Its own __attributes is empty by
+        // construction, and without the step below every restricted read
+        // answers nil - which is exactly what "Invalid function body" was:
+        // RunFor bodies fetched via self:GetAttribute arrived nil, killing
+        // every wrapped click and drag (bar buttons, ring, drops) while the
+        // insecure reads of the same attributes worked all along. Real frames
+        // never use index [1], so the fallback only ever fires on surrogates.
+        "    if not at then\n"
+        "        local inner = rawget(self, 1)\n"
+        "        if type(inner) == 'table' then at = rawget(inner, '__attributes') end\n"
+        "    end\n"
         "    if not at then return nil end\n"
         "    if b == nil then return at[a] end\n"
         "    local p, s = a or '', c or ''\n"
