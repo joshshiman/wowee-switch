@@ -967,3 +967,23 @@ is ever doubted again, log raw bits first, assume nothing.
   pass; M2/WMO fine through it, so unlikely terrain-specific).
 - Photo ground truth: WMO/M2/characters/sky/UI/portraits/action icons all
   render; ONLY terrain missing; stars below horizon (see-through, not black).
+
+## Run 59: THE FLOOR — stale isValid() dropped every mega chunk (FIXED)
+
+### Census (TERRAIN_TILEHIST): 6 tiles full (256) + [33,48] partial; the
+### player's tile [32,48] + [31,48] + [32,47] contribute ZERO chunks.
+Mechanics: Run 45's mega-buffer path nulls per-chunk handles by design and
+marks placement with megaBaseVertex >= 0 — but `isValid()` still required
+non-null buffers. Every mega chunk was silently dropped at load
+(incremental path: bare `continue`, no line) and skipped at draw. The first
+~3.5 finalized tiles went mega (spawn tile first, while room remained) and
+vanished; later tiles fell back to per-chunk buffers and survived — which is
+why ground existed far away but never at spawn. Physics never noticed (CPU
+ADT data, separate path). megaUsed=130935 counts the leaked reservations.
+Also explains "Failed to upload chunk"=0 (only the full path warns).
+
+### Fix deployed (md5 `d6bbf637...`): isValid() accepts mega placement;
+### incremental drop path logs throttled warnings. Fresh launches re-finalize
+### from scratch (in-memory state), so no eviction/repair path was needed.
+### Lesson: a validity predicate must be updated with every new placement
+### path, and silent `continue` on a drop path is how tiles vanish for weeks.

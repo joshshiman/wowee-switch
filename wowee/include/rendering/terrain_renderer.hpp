@@ -84,7 +84,16 @@ struct TerrainChunkGPU {
     uint32_t megaFirstIndex = 0;
     uint32_t vertexCount = 0;
 
-    [[nodiscard]] bool isValid() const { return vertexBuffer != VK_NULL_HANDLE && indexBuffer != VK_NULL_HANDLE; }
+    [[nodiscard]] bool isValid() const {
+        // Either per-chunk buffers (fallback path) or a mega-buffer placement
+        // (megaBaseVertex >= 0). The mega path nulls the per-chunk handles by
+        // design; testing only the handles silently dropped every mega chunk
+        // at load AND at draw, which is how whole tiles (the spawn tile first,
+        // while mega still had room) finalized "successfully" with zero render
+        // chunks and the player walked on sky. See run 58.
+        return (vertexBuffer != VK_NULL_HANDLE && indexBuffer != VK_NULL_HANDLE) ||
+               megaBaseVertex >= 0;
+    }
 };
 
 /**

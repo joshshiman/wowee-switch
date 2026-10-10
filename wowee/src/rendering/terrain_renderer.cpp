@@ -439,7 +439,17 @@ bool TerrainRenderer::loadTerrainIncremental(const pipeline::TerrainMesh& mesh,
         if (!chunk.isValid()) continue;
 
         TerrainChunkGPU gpuChunk = uploadChunk(chunk);
-        if (!gpuChunk.isValid()) continue;
+        if (!gpuChunk.isValid()) {
+            // Never silent: the mega-path form of this drop (isValid predating
+            // mega placements) once erased the spawn tile with no line at all.
+            // Throttled: a bad tile has 256 of these.
+            static uint32_t dropCount = 0;
+            if (++dropCount <= 2 || dropCount % 128 == 0)
+                LOG_WARNING("Terrain[", tileX, ",", tileY, "] chunk[", cx, ",",
+                            cy, "] upload produced no drawable geometry (drop #",
+                            dropCount, ")");
+            continue;
+        }
 
         calculateBoundingSphere(gpuChunk, chunk);
 
