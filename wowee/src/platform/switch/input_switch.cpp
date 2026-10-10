@@ -602,8 +602,10 @@ void applyLeftStick(std::array<bool, SDL_NUM_SCANCODES>& want) {
         s_walkForward = s_walkBack = s_strafeLeft = s_strafeRight = false;
         return;
     }
-    s_walkForward = heldWithHysteresis(-st.ly, kWalkDeadzone, s_walkForward);
-    s_walkBack    = heldWithHysteresis( st.ly, kWalkDeadzone, s_walkBack);
+    // libnx reports stick-up as +Y. Forward is therefore +ly: the previous
+    // sign had push-up walking backwards on hardware (reported 2026-10-09).
+    s_walkForward = heldWithHysteresis( st.ly, kWalkDeadzone, s_walkForward);
+    s_walkBack    = heldWithHysteresis(-st.ly, kWalkDeadzone, s_walkBack);
     s_strafeLeft  = heldWithHysteresis(-st.lx, kStrafeDeadzone, s_strafeLeft);
     s_strafeRight = heldWithHysteresis( st.lx, kStrafeDeadzone, s_strafeRight);
     want[kStickForward] = want[kStickForward] || s_walkForward;

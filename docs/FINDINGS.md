@@ -737,3 +737,27 @@ rejection. Verified in logs 2026-10-09_2143 (wowps.log 1.1 MB in-world).
 - Renderer.cpp only; desktop paths untouched (ifdef-split at both sites).
 - Next run's WORLD_PERF shows what the remaining ~400 ms is (likely raw scene
   fill at 720p → render-scale or view-distance step next).
+
+## 2026-10-09 Run 50: 2.3 → 6.9 fps; sink-level perf floor; stick fix
+
+### WORLD_PERF (run 22:0x, build 41c8ee0d): 145-387 ms frames, settling ~145 ms
+- CPU passes still sum to ~10-25 ms; GPU remainder down from ~400 to ~130 ms
+  after shadows-off + volumetric-off. bloomRendered=1 though: game_screen
+  re-applies saved panel values on world entry through the same sinks,
+  undoing the startup force. Volumetric stayed off, shadow quality held 0.
+
+### Change deployed (~22:05, md5 `192edf17...`)
+- Perf floor moved into the setting sinks (setShadowQuality→0,
+  setVolumetricQuality→0, rays/fog/bloom→false on Switch): every route
+  (startup, saved settings, Lua, panel) passes through them. Panel toggles
+  won't stick on hardware until the guards are lifted — noted in code.
+- Thumbstick Y un-inverted: libnx reports stick-up as +Y; forward is +ly
+  (was -ly, walking backwards on push-up). Strafe axes unchanged.
+
+### Still open, needs eyes (no log signal)
+- Ground "doesn't load": zero white-fallbacks, zero BLP/texture failures in
+  warnings — textures bind. Candidates left: distant-tile base shading,
+  holes in streaming, or lighting flatness. Photo or color description needed.
+- Portraits (player + target): no PORTRAIT_MEMORY warnings, composite pass
+  runs in-world via render graph. What's displayed vs expected unknown —
+  photo needed.

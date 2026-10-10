@@ -836,21 +836,53 @@ bool Renderer::initialize(core::Window* win) {
     // Volumetric sunlight reuses the world's depth and shadow map. It is an
     // optional enhancement with its own bounded quality setting, independent
     // of the original Light.dbc sky and ordinary surface lighting.
-    renderSettingSinks().setShadowQuality = [this](int level) { setShadowQuality(level); };
+    renderSettingSinks().setShadowQuality = [this](int level) {
+#ifdef WOWEE_SWITCH
+        // Startup is not the only route: the game screen re-applies saved
+        // panel values on world entry, which silently undid the startup force
+        // (measured bloom back on in run 49). The sinks are the choke point
+        // every route passes through, so the Switch floor is enforced here.
+        // Delete these guards to let the panel work again on hardware.
+        (void)level;
+        setShadowQuality(0);
+#else
+        setShadowQuality(level);
+#endif
+    };
     renderSettingSinks().setVolumetricQuality = [this](int level) {
+#ifdef WOWEE_SWITCH
+        (void)level;
+        if (postProcessPipeline_) postProcessPipeline_->setVolumetricQuality(0);
+#else
         if (postProcessPipeline_) postProcessPipeline_->setVolumetricQuality(level);
+#endif
     };
     renderSettingSinks().setVolumetricFogIntensity = [this](float intensity) {
         if (postProcessPipeline_) postProcessPipeline_->setVolumetricFogIntensity(intensity);
     };
     renderSettingSinks().setVolumetricRaysEnabled = [this](bool value) {
+#ifdef WOWEE_SWITCH
+        (void)value;
+        if (postProcessPipeline_) postProcessPipeline_->setVolumetricRaysEnabled(false);
+#else
         if (postProcessPipeline_) postProcessPipeline_->setVolumetricRaysEnabled(value);
+#endif
     };
     renderSettingSinks().setVolumetricFogEnabled = [this](bool value) {
+#ifdef WOWEE_SWITCH
+        (void)value;
+        if (postProcessPipeline_) postProcessPipeline_->setVolumetricFogEnabled(false);
+#else
         if (postProcessPipeline_) postProcessPipeline_->setVolumetricFogEnabled(value);
+#endif
     };
     renderSettingSinks().setBloomEnabled = [this](bool value) {
+#ifdef WOWEE_SWITCH
+        (void)value;
+        if (postProcessPipeline_) postProcessPipeline_->setBloomEnabled(false);
+#else
         if (postProcessPipeline_) postProcessPipeline_->setBloomEnabled(value);
+#endif
     };
     renderSettingSinks().setBloomIntensity = [this](float value) {
         if (postProcessPipeline_) postProcessPipeline_->setBloomIntensity(value);
