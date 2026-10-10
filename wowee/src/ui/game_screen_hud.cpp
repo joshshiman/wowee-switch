@@ -1762,6 +1762,7 @@ void GameScreen::setGamma(float gamma) {
 void GameScreen::takeScreenshot() {
     auto* renderer = services_.renderer;
     if (!renderer) return;
+    LOG_WARNING("[SCREENSHOT] chord fired; capturing");
 
     // Build path: ~/.wowps/screenshots/WoWPS_YYYYMMDD_HHMMSS.png
     const char* home = std::getenv("HOME");
@@ -1788,6 +1789,8 @@ void GameScreen::takeScreenshot() {
         sysMsg.language = game::ChatLanguage::UNIVERSAL;
         sysMsg.message = "Screenshot saved: " + path;
         services_.gameHandler->addLocalChatMessage(sysMsg);
+    } else {
+        LOG_WARNING("[SCREENSHOT] capture failed; nothing saved");
     }
 }
 
