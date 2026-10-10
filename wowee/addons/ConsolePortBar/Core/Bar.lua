@@ -603,6 +603,22 @@ function Bar:OnLoad(cfg, benign)
                     .. ' type=' .. type(hv)
                     .. ' fallbackHits=' .. tostring(w.__woweeFallbackHits)
                     .. ' fallbackInnerAt=' .. tostring(w.__woweeFallbackInnerAt));
+                -- Local surrogate repro: same {[1]=frame} shape Blizzard
+                -- builds, same metatable, read the same key. If this says
+                -- string while handle-read says nil, the live handle points
+                -- somewhere else (stale registry); if this also says nil,
+                -- the mechanics themselves fail here.
+                do
+                    local surr = {[1] = w}
+                    local okS = pcall(setmetatable, surr, getmetatable(w))
+                    local rType = 'nometa'
+                    if okS then
+                        local okR, rv = pcall(function() return surr:GetAttribute('OnDragStart') end)
+                        rType = (okR and type(rv)) or 'err'
+                    end
+                    warn('[WOWEE_ATTRDIAG] repro surrogate-read=' .. rType
+                        .. ' hisW0=' .. tostring(h == w[0]));
+                end
             end
             -- Is the CLICK override baked into the binding set itself?
             if ConsolePort and ConsolePort.GetBindingSet then
