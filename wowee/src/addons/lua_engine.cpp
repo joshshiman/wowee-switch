@@ -10155,8 +10155,56 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                         }
                     }
                 }
-                // 2. Live target: right-click semantics.
-                if (how == "none" && gh->hasTarget()) {
+                // 2-3. Local realm: mirror the local pad lambda (X behavior).
+                // The remote gh methods below are packets/handlers for a
+                // server; locally the realm sim + UI own talk/loot/attack.
+                if (how == "none") {
+                    if (auto* realm = gh->localServiceRealm()) {
+                        uint64_t guid = gh->hasTarget() ? gh->getTargetGuid() : 0;
+                        const game::LocalRealmNpc* npc = nullptr;
+                        if (guid) {
+                            for (const auto& n : realm->npcs()) {
+                                if (n.guid == guid) { npc = &n; break; }
+                            }
+                        }
+                        if (!npc) {
+                            // No (valid) target: nearest talkable-or-lootable
+                            // within talk range, exactly like the pad lambda.
+                            const auto* self = realm->localPlayer();
+                            if (self && !self->dead) {
+                                double best = 64.0;
+                                for (const auto& n : realm->npcs()) {
+                                    if (n.mapId != self->mapId || n.instanceId != self->instanceId) continue;
+                                    if (!((!n.hostile && !n.dead) || n.lootable)) continue;
+                                    const double dx = self->x - n.x;
+                                    const double dy = self->y - n.y;
+                                    const double dz = self->z - n.z;
+                                    const double d2 = dx * dx + dy * dy + dz * dz;
+                                    if (d2 <= best) { best = d2; npc = &n; }
+                                }
+                            }
+                        }
+                        if (npc) {
+                            if (npc->dead) {
+                                realm->loot(npc->guid);
+                                how = "loot";
+                            } else if (!npc->hostile) {
+                                how = gh->requestLocalDialogue(npc->guid) ? "talk" : "talk-failed";
+                            } else {
+                                realm->attack(npc->guid);
+                                how = "attack";
+                            }
+                        } else {
+                            // Parity with X-local: attack current (maybe 0) so
+                            // the realm's own reject ("Choose a living enemy")
+                            // surfaces instead of silence.
+                            realm->attack(guid);
+                            how = guid ? "attack" : "attack-no-target";
+                        }
+                    }
+                }
+                // 2. Live target: right-click semantics (remote realm).
+                if (how == "none" && gh->hasTarget() && !gh->localServiceRealm()) {
                     auto target = gh->getTarget();
                     if (target) {
                         if (target->getType() == game::ObjectType::GAMEOBJECT) {
@@ -10178,12 +10226,9 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                         }
                     }
                 }
-                // 3. No target: nearest enemy -> attack; else nearest friendly
-                // in interact range -> talk. Operator directive: A always
-                // answers. (Enemy first: the reported X-class behavior near
-                // wolves is attack; guards are talked to once targeted, or
-                // acquired here when close.)
-                if (how == "none") {
+                // 3. No target acquire (remote realm only; local is covered
+                // above - these handlers have no local branch).
+                if (how == "none" && !gh->localServiceRealm()) {
                     gh->targetEnemy(false);
                     if (gh->hasTarget()) {
                         auto target = gh->getTarget();
@@ -10193,7 +10238,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                         }
                     }
                 }
-                if (how == "none") {
+                if (how == "none" && !gh->localServiceRealm()) {
                     gh->targetFriend(false);
                     if (gh->hasTarget()) {
                         auto target = gh->getTarget();

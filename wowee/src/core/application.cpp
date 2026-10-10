@@ -852,10 +852,16 @@ bool Application::initialize() {
                 // script, which is how a script error came to report itself.
                 if (gh) gh->addScriptError(err);
             });
-            // The game-menu button opens this client's settings panel.
+            // Pad-A talk on the local realm opens the same dialogue the local
+            // pad lambda opens (see Application::openLocalNpcDialogue).
             addonManager_->getLuaEngine()->setOpenSettingsCallback([this] {
                 if (auto* uim = uiManager.get()) uim->getGameScreen().openSettings();
             });
+            if (auto* gh = gameHandler.get()) {
+                gh->setLocalDialogueCallback([this](uint64_t guid) {
+                    return openLocalNpcDialogue(guid);
+                });
+            }
             // No second announcement of a chat message.
             //
             // This registered a callback that fired CHAT_MSG_* itself, off its

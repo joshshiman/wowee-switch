@@ -1332,3 +1332,19 @@ Comprehensive note per user request - the whole override picture in one place.
   (2) every gh-level handler used from dispatch MUST check localServiceRealm
   first (castSpell pattern), else it is dead offline; (3) traces stay on
   until the operator releases them.
+
+## A-local routing + dialogue callback (2026-10-10, approved build)
+- Operator overrule implemented literally: A := local X-class behavior.
+  INTERACTTARGET on local realm now mirrors the pad lambda: cursor slot,
+  target (dead->loot/hostile->attack/friendly->talk-via-callback), else
+  nearby-8yd friendly-or-lootable, else attack(current-or-0) so the realm's
+  own reject surfaces (parity with X, never silent code-side).
+- Remote gh methods (interactWithNpc/startAutoAttack/targetEnemy/Friend,
+  lootTarget) have NO local branch - dead offline. Talk needs UI state only
+  Application owns: new GameHandler::requestLocalDialogue + Application
+  callback wiring (openSettingsCallback pattern) into
+  Application::openLocalNpcDialogue (lambda tail mirror: interact, range,
+  FrameXML open, greeting, dialogue state; hostile->false so caller attacks).
+- A outcomes logged (slot/object/loot/talk/attack/acquire±/too-far/unusable/
+  none/no-target); Plus logs via=settings vs via=frame branch.
+- X/Y/local layers untouched (composition preserved). Traces stay on.

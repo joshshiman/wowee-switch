@@ -221,6 +221,18 @@ public:
     /// makes the Lua token "pet" resolve to it.
     void syncLocalRealmPet(const LocalRealmPet& pet);
     void greetLocalRealmNpc(const LocalRealmNpc& npc);
+    /// Pad-A talk on the local realm needs the dialogue UI, which only the
+    /// application owns (FrameXML open + dialogue state). Same knock-pattern
+    /// as the engine's settings opener: the handler validates nothing here.
+    using LocalDialogueCallback = std::function<bool(uint64_t)>;
+    void setLocalDialogueCallback(LocalDialogueCallback cb) {
+        localDialogueCallback_ = std::move(cb);
+    }
+    /// Open local NPC dialogue for guid (validates + opens UI); true opened.
+    bool requestLocalDialogue(uint64_t npcGuid) {
+        if (localDialogueCallback_) return localDialogueCallback_(npcGuid);
+        return false;
+    }
     /// Local realm stand state (chairs): no packet, same animation callback
     /// as a confirmed SMSG_STANDSTATE_UPDATE.
     void applyLocalStandState(uint8_t standState);
@@ -5025,6 +5037,7 @@ private:
     StealthStateCallback stealthStateCallback_;
     PlayerHealthCallback playerHealthCallback_;
     NpcGreetingCallback npcGreetingCallback_;
+    LocalDialogueCallback localDialogueCallback_;
     NpcFarewellCallback npcFarewellCallback_;
     NpcVendorCallback npcVendorCallback_;
     ChargeCallback chargeCallback_;
