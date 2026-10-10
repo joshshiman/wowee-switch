@@ -693,3 +693,24 @@ rejection. Verified in logs 2026-10-09_2143 (wowps.log 1.1 MB in-world).
 - Screenshots taken via Switch capture are inside the emuMMC raw partition
   (`/emuMMC/RAW1`), invisible to ftpd (`/Nintendo/Album` on SD is the sysMMC
   side and empty). Phone photo is the practical transfer path.
+
+## 2026-10-09 Run 48: in-world perf + ground-texture diagnosis (build 1dae4906)
+
+### User report (run 47 playtest): ground texture didn't load, everything slow.
+- Zero declined assets and zero texture/material failures in the run's warnings,
+  so the ground is not a headroom-gate or allocation problem — binding path
+  looks complete (base + layers + alpha with fallbacks). Needs eyes: a photo
+  settles white-vs-flat-vs-blurry instantly.
+- Slowness shape: `endFrame` worst ~383 ms repeatedly (24-52 frames over
+  50 ms per 10 s window), `renderer->update` worst 100-348 ms (streaming
+  finalize: TERRAIN/WMO steps 5-20 ms each). No GPU-side data in Release logs.
+
+### Change deployed (~22:00, md5 `1dae4906...`): perf telemetry always loud
+- `frameProfileEnabled_` forced true on Switch (env var unsettable without a
+  shell) → 10 s frame-budget + per-stage means + last-frame GPU pass
+  breakdown at WARNING.
+- `[WORLD_PERF]` (already carries per-pass CPU means: prepare/shadow/
+  terrain/wmo/m2/chars/post + gpuTimingStatus), `[LOCAL_PERF]`, `[WORLD_SCENE]`
+  promoted INFO→WARNING. All inside the existing Switch-only in-world block;
+  WORLD_PERF fires every 5 s in-world. Next run answers CPU-vs-GPU and names
+  the pass.

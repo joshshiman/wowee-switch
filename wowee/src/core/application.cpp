@@ -1345,6 +1345,12 @@ void Application::run() {
     // CPU 0 and defeated all command-recording parallelism.
 
     frameProfileEnabled_ = core::envFlagEnabled("WOWEE_FRAME_PROFILE", false);
+#ifdef WOWEE_SWITCH
+    // No shell on the console, so the env var is unsettable there — and the
+    // 10 s stage/GPU breakdowns are the only per-pass data the hardware loop
+    // gets. Always loud on Switch; still env-gated everywhere else.
+    frameProfileEnabled_ = true;
+#endif
     if (frameProfileEnabled_) {
         LOG_WARNING("Frame timing profile enabled (WOWEE_FRAME_PROFILE=1) - "
                     "the per-stage breakdown will be reported at warning");
@@ -2035,12 +2041,12 @@ void Application::run() {
                         if ((peer.guid & 0xffff000000000000ULL) == game::kLocalBotGuidPrefix) ++bots;
                     game::LocalCatalogIoStats io;
                     if (const auto& catalog = localRealm_->content().catalog) io = catalog->ioStats();
-                    LOG_INFO("[LOCAL_PERF] bots=", bots, " intro=", characterIntroOwnsView(),
+                    LOG_WARNING("[LOCAL_PERF] bots=", bots, " intro=", characterIntroOwnsView(),
                              " buffering=", introBuffering_, " npcs=", localRealm_->npcs().size(),
                              " catalogDiskReads=", io.diskReads, " catalogCacheHits=", io.cacheHits,
                              " catalogCacheBytes=", io.cacheBytes);
                 }
-                LOG_INFO("[WORLD_PERF] loopFps=", ps4WorldTiming.fps(),
+                LOG_WARNING("[WORLD_PERF] loopFps=", ps4WorldTiming.fps(),
                     " frameMeanMs=", ps4WorldTiming.elapsed * 1000 / ps4WorldTiming.frames,
                     " frameMaxMs=", ps4WorldTiming.maxFrameMs,
                     " frameP50Ms=", ps4WorldTiming.percentile(0.50),
@@ -2137,7 +2143,7 @@ void Application::run() {
                     const auto& light = lightManager->getLightingParams();
                     const auto forward = renderer->getCamera() ? renderer->getCamera()->getForward() : glm::vec3(0.0f);
                     const auto output = renderer->getVkContext()->getSwapchainExtent();
-                    LOG_INFO("[WORLD_SCENE] zone=", renderer->getCurrentZoneId(),
+                    LOG_WARNING("[WORLD_SCENE] zone=", renderer->getCurrentZoneId(),
                         " map=", gameHandler ? gameHandler->getCurrentMapId() : 0,
                         " hour=", lightManager->getVisualTimeOfDayHours(),
                         " weather=", renderer->getResolvedWeatherType(),
