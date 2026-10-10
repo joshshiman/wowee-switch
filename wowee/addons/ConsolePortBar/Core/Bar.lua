@@ -559,9 +559,10 @@ function Bar:OnLoad(cfg, benign)
     -- Read the same attributes insecurely here plus a handle round-trip, so
     -- the next log says which side drops them. Remove once settled.
     do
+        local warn = __WoweeWarn or print
         local w = self.Buttons[1] and self.Buttons[1]['']
         if w then
-            print('[WOWEE_ATTRDIAG] btn=' .. tostring(w:GetName())
+            warn('[WOWEE_ATTRDIAG] btn=' .. tostring(w:GetName())
                 .. ' OnDragStart=' .. type(w:GetAttribute('OnDragStart'))
                 .. ' OnReceiveDrag=' .. type(w:GetAttribute('OnReceiveDrag'))
                 .. ' PickupButton=' .. type(w:GetAttribute('PickupButton'))
@@ -570,7 +571,7 @@ function Bar:OnLoad(cfg, benign)
             if GetFrameHandle and GetFrameHandleFrame then
                 local h = GetFrameHandle(w);
                 local back = h and GetFrameHandleFrame(h);
-                print('[WOWEE_ATTRDIAG] handle-roundtrip=' .. tostring(back == w)
+                warn('[WOWEE_ATTRDIAG] handle-roundtrip=' .. tostring(back == w)
                     .. ' F3=' .. tostring(GetBindingAction('F3'))
                     .. ' F11=' .. tostring(GetBindingAction('F11'))
                     .. ' F12=' .. tostring(GetBindingAction('F12')));
@@ -586,16 +587,16 @@ function Bar:OnLoad(cfg, benign)
                             for _, m in ipairs({'', 'SHIFT-', 'CTRL-', 'CTRL-SHIFT-'}) do
                                 parts[#parts + 1] = m .. '=' .. tostring(row[m]);
                             end
-                            print('[WOWEE_ATTRDIAG] set.' .. b .. ' ' .. table.concat(parts, ' '));
+                            warn('[WOWEE_ATTRDIAG] set.' .. b .. ' ' .. table.concat(parts, ' '));
                         else
-                            print('[WOWEE_ATTRDIAG] set.' .. b .. ' MISSING');
+                            warn('[WOWEE_ATTRDIAG] set.' .. b .. ' MISSING');
                         end
                     end
                 end
             end
         end
         if GameMenuFrame then
-            print('[WOWEE_ATTRDIAG] gamemenu size=' .. tostring(GameMenuFrame:GetWidth())
+            warn('[WOWEE_ATTRDIAG] gamemenu size=' .. tostring(GameMenuFrame:GetWidth())
                 .. 'x' .. tostring(GameMenuFrame:GetHeight())
                 .. ' anchors=' .. tostring(GameMenuFrame:GetNumPoints())
                 .. ' shown=' .. tostring(GameMenuFrame:IsShown()));
@@ -815,6 +816,7 @@ function Bar:PLAYER_ENTERING_WORLD()
 	local handler = _G.ConsolePortButtonHandler
 	local set = ConsolePort and ConsolePort.GetBindingSet and ConsolePort:GetBindingSet()
 	if not handler or type(set) ~= 'table' then return end
+	local n = 0
 	for name, key in pairs(set) do
 		if type(key) == 'table' and name:match('^CP_') then
 			local base = key['']
@@ -822,12 +824,13 @@ function Bar:PLAYER_ENTERING_WORLD()
 				local override = key[modifier] or base
 				if override then
 					local k1, k2 = GetBindingKey(name)
-					if k1 then SetOverrideBinding(handler, false, modifier .. k1, override) end
-					if k2 then SetOverrideBinding(handler, false, modifier .. k2, override) end
+					if k1 then SetOverrideBinding(handler, false, modifier .. k1, override) n = n + 1 end
+					if k2 then SetOverrideBinding(handler, false, modifier .. k2, override) n = n + 1 end
 				end
 			end
 		end
 	end
+	if __WoweeWarn then __WoweeWarn('[WOWEE_OVR] reasserted ' .. n .. ' pad overrides at world entry') end
 end
 
 Bar:SetScript('OnEvent', Bar.OnEvent)

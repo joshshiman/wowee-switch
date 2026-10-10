@@ -2100,6 +2100,24 @@ static int lua_SetOverrideBinding(lua_State* L) {
     const char* key = lua_tostring(L, 3);
     const char* action = lua_isnoneornil(L, 4) ? nullptr : lua_tostring(L, 4);
     if (!key) return 0;
+    // TEMPORARY debug round: who writes override buckets, with owner pointer
+    // and Lua callers, to find the source of CLICK CPB_* entries that eat the
+    // pad F-keys mid-session. Remove once settled (see FINDINGS handheld).
+    {
+        std::string callers;
+        lua_Debug ar;
+        for (int lvl = 1; lvl <= 3; ++lvl) {
+            if (!lua_getstack(L, lvl, &ar)) break;
+            if (!lua_getinfo(L, "nS", &ar)) break;
+            callers += " | ";
+            callers += ar.name ? ar.name : "?";
+            callers += "@";
+            callers += ar.short_src ? ar.short_src : "?";
+        }
+        LOG_WARNING("[WOWEE_OVR] set owner=", owner, " key=", key,
+                    " action=", (action && *action) ? action : "(clear)",
+                    " from:", callers);
+    }
     std::string normKey = normalizeBindingKey(key);
     if (action && *action) {
         s_overrideBindingsByOwner[owner][normKey] = action;
@@ -2116,6 +2134,20 @@ static int lua_SetOverrideBindingClick(lua_State* L) {
     const char* btn = lua_tostring(L, 4);
     const char* mouseBtn = luaL_optstring(L, 5, "LeftButton");
     if (!key || !btn) return 0;
+    // TEMPORARY debug round: see lua_SetOverrideBinding note.
+    {
+        std::string callers;
+        lua_Debug ar;
+        for (int lvl = 1; lvl <= 3; ++lvl) {
+            if (!lua_getstack(L, lvl, &ar)) break;
+            if (!lua_getinfo(L, "nS", &ar)) break;
+            callers += " | ";
+            callers += ar.name ? ar.name : "?";
+            callers += ar.short_src ? ar.short_src : "?";
+        }
+        LOG_WARNING("[WOWEE_OVR] click owner=", owner, " key=", key,
+                    " btn=", btn, " from:", callers);
+    }
     std::string normKey = normalizeBindingKey(key);
     std::string action = std::string("CLICK ") + btn + ":" + (mouseBtn ? mouseBtn : "LeftButton");
     s_overrideBindingsByOwner[owner][normKey] = action;

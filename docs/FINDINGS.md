@@ -1139,3 +1139,51 @@ How the stack actually works (verified against code + console logs, not docs):
   CENTER scan in reportWidgetDiagnostics exists for exactly this; [WOWEE_KEYTRACE]
   settles "what does this button do" without a debugger. Both are debug-round
   instruments - remove or gate before calling the branch done.
+
+## ConsolePort override theft + floater (2026-10-10, runs 15:52/16:16, branch feature/consoleport-native-ui)
+
+Comprehensive note per user request - the whole override picture in one place.
+
+### The theft (KEYTRACE ground truth, not theory)
+- Pad F-keys resolve through: calibration SetBinding (F-key -> CP_* name) then
+  SetOverrideBinding per modifier (CP_* -> command) on ConsolePortButtonHandler,
+  read back by GetBindingAction (overrides first). [WOWEE_KEYTRACE] logs
+  key -> command -> outcome per F-key press.
+- 15:52 run: F1->JUMP, F2->OPENALLBAGS/ring, F3->CLICK CPB_R_LEFT (dead),
+  F4->INTERACTTARGET. 16:16 run: F1/F2/F3/F4 ALL -> CLICK CPB_* (dead).
+  Same buttons, working early, dead later: the CLICK bucket spreads
+  mid-session. A (interact) provably worked at 15:52 (6x F4->interact) - later
+  "X interacts / A doesn't" reports are the theft moving, not the map.
+- The CLICK entries are written by lua_SetOverrideBindingClick (only writer of
+  CLICK actions). No Lua caller found yet (bar's method-form SetBindingClick is
+  an engine no-op; config Save, ring, mouse paths ruled out). [WOWEE_OVR]
+  writer trace (owner pointer + Lua callers) added to catch it live.
+- Merge order is pointer-ordered (std::map<uintptr_t> in
+  rebuildActiveOverrides): same-owner rewrites are deterministic, cross-owner
+  collisions are pointer luck. The PEW re-assert (Bar:PLAYER_ENTERING_WORLD,
+  same owner as handler writes) lost to the CLICK bucket - evidence the CLICK
+  owner pointer sorts higher. Do NOT rely on re-registration order across
+  owners; find the writer instead.
+- Base kBindings NEVER fire in-world while ConsolePort mode holds: the pump is
+  if/else on s_consolePortActive (set once at load, cleared only at teardown -
+  verified in code + "ConsolePort mode enabled" once per boot). All "built-in
+  control" feelings are ConsolePort-layer behavior (dead keys, theft), never
+  base leakage. Do not re-investigate base.
+
+### The floater (solved, root-caused)
+- CENTER scan caught: `(unnamed) tex=Interface\AddOns\ConsolePort\Textures\Line
+  rect=(532,223 300x50)` = ConsolePortMouseHandle's Line child (300x50,
+  CENTER -300). Frame is alpha=0 (invisible on retail) with empty Text and
+  empty 32px Button/Portrait (= "empty dialogue modal, can't be hidden" +
+  "empty circle", re-shown on every target change).
+- Engine gap: the renderer uses each widget's OWN alpha (packColor(w->alpha));
+  parent alpha never multiplies down. Visibility DOES cascade (hidden parent =
+  hidden children in dumps), alpha does not. Fix applied: Hide() the handle
+  every login (smart-mouse driver is off anyway - no interactWith in the
+  Switch profile). Proper fix queued: parent-alpha inheritance in the renderer
+  (also affects UIFrameFade children + the Flyout alpha-0 trick relies on it).
+- print() goes to CHAT (+ info log, invisible on release builds pinned to
+  WARNING). Lua diagnostics MUST use __WoweeWarn. An entire diag round was
+  lost to chat spam before this was noticed.
+- MPQ forensics recipe stands (locale-enUS.MPQ holds base FrameXML; workspace
+  dir for binaries since /tmp/opencode is noexec).

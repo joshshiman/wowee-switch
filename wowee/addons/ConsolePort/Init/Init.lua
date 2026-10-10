@@ -174,6 +174,17 @@ function ConsolePort:LoadSettings()
 		GameMenuFrame:SetPoint('CENTER', UIParent, 'CENTER', 0, 0)
 	end
 
+	-- ConsolePortMouseHandle is the smart-mouse interact prompt (300x50 Line
+	-- + text + button art, CENTER -300). Its frame is alpha=0, which hides it
+	-- on retail - but this client does not propagate parent alpha to children
+	-- (renderer uses each widget's own alpha), and the smart-mouse driver is
+	-- off anyway (no interactWith binding in the Switch profile). Result: a
+	-- permanent empty dark band with an empty circle floating over the
+	-- character. Hide the frame outright until the driver is wanted.
+	if ConsolePortMouseHandle then
+		ConsolePortMouseHandle:Hide()
+	end
+
 	-----------------------------------------------------------
 	-- Load controller splash if no preference exists
 	-----------------------------------------------------------
