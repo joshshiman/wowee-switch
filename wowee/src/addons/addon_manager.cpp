@@ -454,14 +454,10 @@ bool AddonManager::completeOriginalInterfaceAttempt() {
         failOriginalInterface("missing critical retail UI root");
         return false;
     }
-    if (luaEngine_.luaErrorCount() != originalErrorBaseline_) {
-        failOriginalInterface("Lua error during original UI bootstrap/login");
-        return false;
-    }
+    // Non-fatal addon script errors do not abort the FrameXML UI attempt.
 #ifdef WOWEE_SWITCH
     if (!writeFrameXmlRecovery(originalRecoveryPath_, "active", "original UI session active")) {
-        failOriginalInterface("cannot persist active session marker");
-        return false;
+        LOG_WARNING("[FRAMEXML_RECOVERY] cannot persist active session marker; continuing anyway");
     }
 #endif
     ui::frameXmlSetActive(true);
@@ -1911,8 +1907,6 @@ bool AddonManager::interfaceCommandBoolean(const std::string& expression) {
 void AddonManager::fireEvent(const std::string& event, const std::vector<std::string>& args) {
     if (!addonsLoaded_) return;
     luaEngine_.fireEvent(event, args);
-    if (originalInterfaceLoaded_ && luaEngine_.luaErrorCount() != originalErrorBaseline_)
-        failOriginalInterface("Lua event handler failed");
 }
 
 void AddonManager::update(float deltaTime) {
@@ -1924,17 +1918,12 @@ void AddonManager::update(float deltaTime) {
         return;
     }
     try {
-        if (originalInterfaceLoaded_ && (missingOriginalInterfaceRoot() ||
-            luaEngine_.luaErrorCount() != originalErrorBaseline_)) {
+        if (originalInterfaceLoaded_ && missingOriginalInterfaceRoot()) {
             failOriginalInterface("original UI runtime state failed");
             discardPartialInterface();
             return;
         }
         luaEngine_.dispatchOnUpdate(deltaTime);
-        if (originalInterfaceLoaded_ && luaEngine_.luaErrorCount() != originalErrorBaseline_) {
-            failOriginalInterface("original UI OnUpdate failed");
-            discardPartialInterface();
-        }
     } catch (const std::bad_alloc&) {
         failOriginalInterface("original UI runtime allocation failed");
         discardPartialInterface();

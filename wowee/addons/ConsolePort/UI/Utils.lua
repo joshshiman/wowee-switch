@@ -7,8 +7,13 @@ local CPAPI = db.CPAPI
 -- Return the essential objects that modules are likely to use
 ---------------------------------------------------------------
 
+function UI:GetControlHandle()
+	return ConsolePortUIHandle
+end
+
 function UI:GetEssentials()
-	return self, self:GetControlHandle(), db
+	local handle = self.GetControlHandle and self:GetControlHandle() or ConsolePortUIHandle
+	return self, handle, db
 end
 
 ---------------------------------------------------------------

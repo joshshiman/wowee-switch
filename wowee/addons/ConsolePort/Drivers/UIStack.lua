@@ -68,7 +68,7 @@ for flag, nodes in pairs({
 		QuestFrameCompleteButton,
 		QuestFrameCompleteQuestButton,
 		QuestTitleButton1,
-		(QuestMapFrame and QuestMapFrame.DetailsFrame.BackButton),
+		(QuestMapFrame and type(QuestMapFrame.DetailsFrame) == "table" and QuestMapFrame.DetailsFrame.BackButton),
 	},
 	ignoreNode = {
 		LootFrameCloseButton,

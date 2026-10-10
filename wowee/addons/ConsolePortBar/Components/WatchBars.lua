@@ -10,13 +10,13 @@ WBC.BGLeft = WBC:CreateTexture(nil, 'BACKGROUND')
 WBC.BGLeft:SetPoint('TOPLEFT')
 WBC.BGLeft:SetPoint('BOTTOMRIGHT', WBC, 'BOTTOM', 0, 0)
 WBC.BGLeft:SetTexture(0, 0, 0, 1)
-WBC.BGLeft:SetGradientAlpha('HORIZONTAL', 0, 0, 0, 0, 0, 0, 0, 1)
+if WBC.BGLeft.SetGradientAlpha then WBC.BGLeft:SetGradientAlpha('HORIZONTAL', 0, 0, 0, 0, 0, 0, 0, 1) end
 
 WBC.BGRight = WBC:CreateTexture(nil, 'BACKGROUND')
 WBC.BGRight:SetPoint('TOPRIGHT')
 WBC.BGRight:SetPoint('BOTTOMLEFT', WBC, 'BOTTOM', 0, 0)
 WBC.BGRight:SetTexture(0, 0, 0, 1)
-WBC.BGRight:SetGradientAlpha('HORIZONTAL', 0, 0, 0, 1, 0, 0, 0, 0)
+if WBC.BGRight.SetGradientAlpha then WBC.BGRight:SetGradientAlpha('HORIZONTAL', 0, 0, 0, 1, 0, 0, 0, 0) end
 
 
 WBC.endCapWidth = 4

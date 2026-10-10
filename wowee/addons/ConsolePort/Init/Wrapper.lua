@@ -1025,9 +1025,6 @@ CPAPI.CustomFrames.Ascension = {
 
 -- Check if the client running is a customized client
 function CPAPI.IsCustomClient()
-    if AscensionTimer and GetAscensionDonationPoints then
-        return "Ascension"
-    end
     return nil
 end
 

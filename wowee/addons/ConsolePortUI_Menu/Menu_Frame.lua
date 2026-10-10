@@ -843,6 +843,7 @@ local lootWireFrame = {
 }
 
 do	
+	ConsolePortUIConfig = ConsolePortUIConfig or {}
 	ConsolePortUIConfig.Menu = ConsolePortUIConfig.Menu or {}
 
 	local cfg = ConsolePortUIConfig.Menu

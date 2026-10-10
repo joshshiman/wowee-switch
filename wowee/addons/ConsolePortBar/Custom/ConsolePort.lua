@@ -3,8 +3,12 @@ local bar = select(2, ...).bar
 ---------------------------------------------------------------
 -- Raid cursor fix to add the hidden action bars to the interface scan process
 
-ConsolePortRaidCursor:SetFrameRef("hiddenBars", bar.UIHider)
-ConsolePortRaidCursor:Execute([[
+if ConsolePortRaidCursor and bar and bar.UIHider then
+	if ConsolePortRaidCursor.SetFrameRef then
+		ConsolePortRaidCursor:SetFrameRef("hiddenBars", bar.UIHider)
+	end
+	if ConsolePortRaidCursor.Execute then
+		ConsolePortRaidCursor:Execute([[
 	UpdateFrameStack = [=[
 		local frames = newtable(self:GetParent():GetChildren())
 		frames[#frames + 1] = self:GetFrameRef("hiddenBars")
@@ -20,6 +24,8 @@ ConsolePortRaidCursor:Execute([[
 		end
 	]=]
 ]])
+	end
+end
 
 
 ---------------------------------------------------------------

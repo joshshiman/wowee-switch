@@ -157,7 +157,9 @@ function ConsolePort:LoadSettings()
 	----------------------------------------------------------
 	-- Load UI handle fade frames
 	----------------------------------------------------------
-	ConsolePortUIHandle:LoadFadeFrames()
+	if ConsolePortUIHandle and ConsolePortUIHandle.LoadFadeFrames then
+		ConsolePortUIHandle:LoadFadeFrames()
+	end
 
 	----------------------------------------------------------
 	-- Create slash handler

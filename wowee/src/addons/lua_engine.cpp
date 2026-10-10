@@ -4104,6 +4104,8 @@ void populateRegionMethods(lua_State* L, bool isTexture, bool isFontString) {
         set("SetTexCoord", lua_Texture_SetTexCoord);
         set("SetBlendMode", lua_Texture_SetBlendMode);
         set("GetBlendMode", lua_Texture_GetBlendMode);
+        set("SetGradientAlpha", [](lua_State*) -> int { return 0; });
+        set("SetGradient", [](lua_State*) -> int { return 0; });
     }
     if (isFontString) {
         set("GetFont", lua_FontString_GetFont);
@@ -5331,6 +5333,8 @@ static int lua_CreateFrame(lua_State* L) {
 
     // Create the frame table
     lua_newtable(L);
+    lua_newuserdata(L, 1);
+    lua_rawseti(L, -2, 0);
 
     // Record the parent table, not only the widget id. GetParent() is
     // everywhere in FrameXML - a nested button's OnLoad opens with
@@ -6733,6 +6737,32 @@ void LuaEngine::registerCoreAPI() {
         "    if v == nil then v = at[b] end\n"
         "    return v\n"
         "end\n"
+        "mt[0] = newproxy()\n"
+        "function mt:IsProtected() return true, true end\n"
+        "function mt:HasScript(script) return true end\n"
+        "function mt:SetFrameRef(label, ref)\n"
+        "    self.__framerefs = self.__framerefs or {}\n"
+        "    self.__framerefs[label] = ref\n"
+        "    if SecureHandlerSetFrameRef then pcall(SecureHandlerSetFrameRef, self, label, ref) end\n"
+        "end\n"
+        "function mt:GetFrameRef(label)\n"
+        "    if self.__framerefs and self.__framerefs[label] then return self.__framerefs[label] end\n"
+        "    local h = self:GetAttribute and self:GetAttribute('frameref-' .. label)\n"
+        "    if h then\n"
+        "        if GetFrameHandleFrame then local f = GetFrameHandleFrame(h); if f then return f end end\n"
+        "        return h\n"
+        "    end\n"
+        "    return nil\n"
+        "end\n"
+        "function mt:Execute(body)\n"
+        "    if SecureHandlerExecute then return SecureHandlerExecute(self, body) end\n"
+        "end\n"
+        "function mt:WrapScript(frame, script, preBody, postBody)\n"
+        "    if SecureHandlerWrapScript then return SecureHandlerWrapScript(frame, script, self, preBody, postBody) end\n"
+        "end\n"
+        "function mt:UnwrapScript(frame, script)\n"
+        "    if SecureHandlerUnwrapScript then return SecureHandlerUnwrapScript(frame, script) end\n"
+        "end\n"
         // A scroll frame's content frame.
         // Nothing to scroll until the tree has been laid out, and zero is the
         // honest answer then. ScrollFrame_OnScrollRangeChanged compares the
@@ -6907,6 +6937,7 @@ void LuaEngine::registerCoreAPI() {
         "RemoveMessagesByAccessID=1,ReplaceIconTexture=1,Reset=1,Reuse=1,Run=1,\n"
         "RunAttribute=1,RunFor=1,Save=1,ScrollDown=1,ScrollToBottom=1,ScrollUp=1,\n"
         "SelectWindow=1,SetAction=1,SetAllPoints=1,SetAlpha=1,SetAlphaGradient=1,\n"
+        "SetGradient=1,SetGradientAlpha=1,\n"
         "SetAnchorType=1,SetAttribute=1,SetBackdrop=1,\n"
         "SetBackdropBorderColor=1,SetBackdropColor=1,SetBagItem=1,SetBinding=1,\n"
         "SetBindingClick=1,SetBindingItem=1,SetBindingMacro=1,SetBindingSpell=1,\n"
