@@ -1257,3 +1257,18 @@ Comprehensive note per user request - the whole override picture in one place.
   acquires targets except cursor clicks; Y-attack needs a target. The
   operator's Y-targets experience has no binding-side source (TAB is
   enemy-only and unbound here) - suspect TargetAI/cursor, prove before use.
+
+## A-friendly gap + Plus routing (2026-10-10, user-tested d5c1760)
+- A-no-target only acquired enemies: near a guard with no enemies around it
+  logged nothing and did nothing. Operator correction: A must also talk.
+  Now: enemy first (attack), else nearest friendly in 5yd interact range
+  (talk), else logged reason (too-far/unusable/nothing-nearby). Range uses
+  the same 5yd INTERACTION_DISTANCE figure as lua_social_api.
+- Plus opened a suppressed frame (WOWEE_MENU owns=1 shown=1, invisible):
+  takeover owns GameMenu and force-hides FrameXML's every frame. Routed Plus
+  to __WoweeOpenClientSettings explicitly (falls back to ToggleGameMenu) -
+  consistent with the engine's GameMenu-ownership decision and the micro-menu
+  button behavior.
+- Calibration proof landed: [WOWEE_PAD] physical names on press edges
+  (temporary). A-presses showed acquire+attack then attack in [WOWEE_ACT];
+  theft dead (zero OVR click writes, all F-keys resolve handler-direct).

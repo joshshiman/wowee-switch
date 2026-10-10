@@ -10178,8 +10178,11 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                         }
                     }
                 }
-                // 3. No target: acquire nearest enemy, then attack it. This is
-                // what makes A always answer.
+                // 3. No target: nearest enemy -> attack; else nearest friendly
+                // in interact range -> talk. Operator directive: A always
+                // answers. (Enemy first: the reported X-class behavior near
+                // wolves is attack; guards are talked to once targeted, or
+                // acquired here when close.)
                 if (how == "none") {
                     gh->targetEnemy(false);
                     if (gh->hasTarget()) {
@@ -10187,6 +10190,37 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                         if (target) {
                             gh->startAutoAttack(target->getGuid());
                             how = "acquire+attack";
+                        }
+                    }
+                }
+                if (how == "none") {
+                    gh->targetFriend(false);
+                    if (gh->hasTarget()) {
+                        auto target = gh->getTarget();
+                        if (target && (target->getType() == game::ObjectType::UNIT ||
+                                       target->getType() == game::ObjectType::PLAYER)) {
+                            auto unit = std::static_pointer_cast<game::Unit>(target);
+                            if (!unit->isHostile() && unit->isInteractable()) {
+                                // Five yards is the server's INTERACTION_DISTANCE;
+                                // beyond it the hello fails silently, so say so.
+                                bool inRange = true;
+                                auto npc = gh->getEntityManager().getEntity(target->getGuid());
+                                auto player = gh->getEntityManager().getEntity(gh->getPlayerGuid());
+                                if (npc && player) {
+                                    const float dx = player->getX() - npc->getX();
+                                    const float dy = player->getY() - npc->getY();
+                                    const float dz = player->getZ() - npc->getZ();
+                                    inRange = (dx * dx + dy * dy + dz * dz) <= 25.0f;
+                                }
+                                if (inRange) {
+                                    gh->interactWithNpc(target->getGuid());
+                                    how = "acquire+talk";
+                                } else {
+                                    how = "friendly-too-far";
+                                }
+                            } else {
+                                how = "acquire-unusable";
+                            }
                         }
                     }
                 }
@@ -10219,7 +10253,12 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     if (command == "TOGGLEGAMEMENU" || command == "CP_X_RIGHT") {
         outcome = "panel:gamemenu";
         if (down) {
-            executeString("ToggleGameMenu()");
+            // Route to the client settings explicitly. ToggleGameMenu is
+            // replaced with the settings opener only when FrameXML does NOT
+            // own the panel; when it does, the original shows a frame the
+            // takeover suppresses (sound + nothing visible, thrice confirmed).
+            // The engine owns GameMenu -> settings IS the menu.
+            executeString("if __WoweeOpenClientSettings then __WoweeOpenClientSettings() else ToggleGameMenu() end");
             // Which menu answered: the engine replaces ToggleGameMenu with the
             // client settings opener unless FrameXML owns the panel - and the
             // takeover suppresses FrameXML's frame when it owns it. Log both
