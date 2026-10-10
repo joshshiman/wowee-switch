@@ -44,6 +44,7 @@ fi
 
 # The bundled addons are read from the same tree when present.
 if [ -d "$BIN/addons" ]; then
+    rm -rf "$APP_DIR/addons"
     cp -r "$BIN/addons" "$APP_DIR/addons"
 fi
 

@@ -1,0 +1,45 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+	<Script file="AnimatedStatusBar.lua"/>
+
+	<StatusBar name="CP_AnimatedStatusBarTemplate" mixin="CPAnimatedStatusBarMixin" virtual="true">
+		<Layers>
+			<Layer level="BORDER">
+				<Texture parentKey="BarGain" alpha="0" parentArray="ColorableTextures" file="Interface\AddOns\ConsolePort\Textures\WatchBars" alphaMode="BLEND" atlas="XPBarAnim-OrangeGain">
+					<Size x="50" y="8"/>
+					<Anchors>
+						<Anchor point="TOPLEFT"/>
+						<Anchor point="BOTTOMLEFT"/>
+					</Anchors> 
+					<TexCoords left="0.3125" right="0.8125" top="0.328125" bottom="0.453125"/>
+				</Texture>
+			</Layer>
+			<Layer level="ARTWORK">
+				<Texture parentKey="BarTrailGlow" parentArray="ColorableTextures" file="Interface\AddOns\ConsolePort\Textures\WatchBars" alphaMode="ADD" alpha="0" atlas="XPBarAnim-OrangeTrail">
+					<Size x="50" y="8" />
+					<Anchors>
+						<Anchor point="TOPRIGHT" relativePoint="TOPLEFT"/>
+						<Anchor point="BOTTOMRIGHT" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+					<TexCoords left="0.3125" right="0.8125" top="0.015625" bottom="0.140625"/>
+				</Texture>
+			</Layer>
+			<Layer level="OVERLAY">
+				<Texture parentKey="BarGlow" parentArray="ColorableTextures" alphaMode="ADD" file="Interface\AddOns\ConsolePort\Textures\WatchBars" alpha="0" atlas="XPBarAnim-OrangeGlow">
+					<Size x="50" y="8"/>
+					<Anchors>
+						<Anchor point="LEFT" x="0" y="8"/>
+					</Anchors>
+					<TexCoords left="0.3125" right="0.8125" top="0.171875" bottom="0.296875"/>
+				</Texture>
+				<Texture parentKey="SparkBurstMove" parentArray="AnimatedTextures" alpha="0" alphaMode="ADD" file="Interface\AddOns\ConsolePort\Textures\WatchBars" atlas="XPBarAnim-OrangeSpark" useAtlasSize="true">
+					<Size x="32" y="32"/>
+					<Anchors>
+						<Anchor point="CENTER" relativePoint="LEFT"/>
+					</Anchors>
+					<TexCoords left="0.0078125" right="0.257812" top="0.453125" bottom="0.953125"/>
+				</Texture>
+			</Layer>
+		</Layers>
+	</StatusBar>
+</Ui>

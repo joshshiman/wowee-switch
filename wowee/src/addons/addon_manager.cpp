@@ -585,6 +585,9 @@ void AddonManager::loadAllAddons() {
         else failed++;
     }
     addonsLoaded_ = true;
+#ifdef WOWEE_SWITCH
+    platform::switchport::setConsolePortActive(isAddOnLoadedByName("ConsolePort"));
+#endif
     LOG_INFO("AddonManager: loaded ", loaded, " addons",
              (failed > 0 ? (", " + std::to_string(failed) + " failed") : ""),
              (skipped > 0 ? (", " + std::to_string(skipped) + " disabled") : ""));
@@ -1970,6 +1973,9 @@ bool AddonManager::reload() {
 }
 
 void AddonManager::shutdown() {
+#ifdef WOWEE_SWITCH
+    platform::switchport::setConsolePortActive(false);
+#endif
     ui::frameXmlSetActive(false);
     saveAllSavedVariables();
     addons_.clear();

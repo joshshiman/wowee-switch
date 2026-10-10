@@ -195,6 +195,11 @@ enum class MenuOwner : unsigned { LocalRealm = 1, Settings = 2, FrameXml = 4 };
 void setInputMenuNavigation(MenuOwner owner, bool open);
 bool inputMenuNavigation();
 
+/// ConsolePort integration: when enabled, bypass the legacy 4-tier shoulder
+/// layers and send direct ConsolePort scancodes (F1..F12, Shift, Ctrl).
+void setConsolePortActive(bool active);
+bool consolePortActive();
+
 /// True once for each press of the keyboard button (Triangle with text
 /// focus). The ImGui backend answers by opening the keyboard for the field.
 bool takeKeyboardRequest();
