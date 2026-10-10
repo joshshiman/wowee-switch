@@ -162,6 +162,18 @@ void SkySystem::renderAtmosphere(VkCommandBuffer cmd, VkDescriptorSet perFrameSe
 
     // --- Clouds (DBC-driven colors + sun lighting) ---
     if (clouds_ && authoredAtmosphere) {
+#ifdef WOWEE_SWITCH
+        // The cloud layer is domain-warped FBM (~9 fbm calls/px over a sky
+        // hemisphere) — the prime suspect for "looking at the sky tanks fps"
+        // (run 61). Skipped wholesale on Switch pending measurement: if fps
+        // jumps, the proper fix is a density gate + cheap shader, not this.
+        // Delete to restore.
+        static bool loggedCloudSkip = false;
+        if (!loggedCloudSkip) {
+            loggedCloudSkip = true;
+            LOG_WARNING("switch performance: cloud layer skipped");
+        }
+#else
         // Sync cloud density with weather/DBC-driven cloud coverage.
         // Active weather (rain/snow/storm) increases cloud density for visual consistency.
         float effectiveDensity = params.cloudDensity;
@@ -171,6 +183,7 @@ void SkySystem::renderAtmosphere(VkCommandBuffer cmd, VkDescriptorSet perFrameSe
         }
         clouds_->setDensity(effectiveDensity);
         clouds_->render(cmd, perFrameSet, params);
+#endif
     }
 
     // --- Lens flare (attenuated by atmosphere) ---

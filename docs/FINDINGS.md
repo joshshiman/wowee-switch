@@ -1022,3 +1022,19 @@ Also explains "Failed to upload chunk"=0 (only the full path warns).
 ### arrow rotation (code comments admit half-turn uncertainty, needs a
 ### walk-north calibration), swinging lamp posts (verify vs retail: lamps
 ### static, flame flickers — possibly wind applied to wrong doodad class).
+
+## Run 62: sky-suspect (clouds) + interior probe (build ae05f51a)
+
+### User report: sky views tank fps, inn interiors tank fps, lamps sway
+- Look-down smooth / horizon slow / sky slowest = view-dependent; fullscreen
+  post already off. Sky-region cost candidates: FBM clouds (hemisphere,
+  ~9 fbm calls/px), celestial discs, starfield points, skybox gradient.
+- Interiors avoided (no data yet): suspect portal-culling (whole complex
+  drawn inside?) or interior light/group blowup. Needs a 10 s indoor run.
+- Lamps swaying with moving glow: keep (vertex anim + uniform update are
+  cheap); verify-vs-retail parked. Minimap arrow: parked pending a facing
+  calibration answer.
+
+### Change deployed (md5 `ae05f51a...`): clouds skipped on Switch (diagnostic)
+- If sky views jump in fps, proper fix = density gate + cheap shader.
+- If unchanged, clouds exonerated; next sky suspects celestial/starfield.
