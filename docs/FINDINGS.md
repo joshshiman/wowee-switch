@@ -714,3 +714,26 @@ rejection. Verified in logs 2026-10-09_2143 (wowps.log 1.1 MB in-world).
   promoted INFO→WARNING. All inside the existing Switch-only in-world block;
   WORLD_PERF fires every 5 s in-world. Next run answers CPU-vs-GPU and names
   the pass.
+
+## 2026-10-09 Run 49: GPU-bound confirmed (~400 ms frames), shadows+post cut
+
+### WORLD_PERF (run 21:57, build 1dae4906, title override, Elwynn in-world)
+- loopFps 2.0-2.6, frameMean 380-490 ms. Per-pass CPU means sum to ~10-25 ms
+  (shadow 4-12, reflection 1-6, camera ~1, terrain/wmo <0.5, m2 2.5-5,
+  chars 0, post 0) against renderMean 364-456 ms → the ~400 ms is GPU
+  execution + present back-pressure, not CPU recording. updateMean 13-70 ms
+  (streaming finalize). `gpuTimingStatus=uncalibrated-switch`, so no per-pass
+  GPU split exists on this driver — the CPU remainder is the whole signal.
+- Active GPU load: volumetricRendered=1, raysEnabled=1, bloomRendered=1,
+  shadowQuality=2 at 720p, msaa=1, vsync=1. Water reflections already off on
+  Switch (default "0").
+
+### Change deployed (~22:00, md5 `41c8ee0d...`): Switch startup performance mode
+- Shadow quality forced 0 (clear-only pass; atlas stays valid, cleared depth
+  reads as lit — the designed off-ramp, not the `setShadowsEnabled` stub which
+  hardwires true). Map side 512. Live dropdown still works mid-session.
+- Volumetric quality 0 + rays/fog off, bloom off — all live panel toggles, so
+  startup just begins fast regardless of saved CVars; re-enableable in-session.
+- Renderer.cpp only; desktop paths untouched (ifdef-split at both sites).
+- Next run's WORLD_PERF shows what the remaining ~400 ms is (likely raw scene
+  fill at 720p → render-scale or view-distance step next).

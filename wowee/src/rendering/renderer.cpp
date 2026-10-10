@@ -809,8 +809,21 @@ bool Renderer::initialize(core::Window* win) {
             std::atoi(addons::storedCVarValue("extShadowQuality",
                                               kShadowQualityDefaultCVar).c_str()),
             0, kShadowQualityMaxLevel);
+#ifdef WOWEE_SWITCH
+        // Measured 2026-10-09 on Tegra X1: ~400 ms GPU frames at 720p with
+        // quality 2 (every caster drawn). Level 0 is the designed off-ramp:
+        // the pass still runs and clears the atlas (which its readers sample),
+        // but nothing is drawn into it, and cleared depth reads as lit. Forced
+        // regardless of the saved CVar — the dropdown still works mid-session
+        // via setShadowQuality for anyone who wants them back.
+        constexpr int kSwitchShadowQuality = 0;
+        setShadowMapSize(kShadowSideForLevel[kSwitchShadowQuality]);
+        setShadowQuality(kSwitchShadowQuality);
+        LOG_WARNING("switch performance: shadow quality forced to 0 (clear-only pass)");
+#else
         setShadowMapSize(kShadowSideForLevel[level]);
         setShadowQuality(level);
+#endif
     }
 
     // The scope is the value the player logged in with. Moving the control
@@ -983,13 +996,29 @@ bool Renderer::initialize(core::Window* win) {
     checkpoint("post process");
     postProcessPipeline_ = std::make_unique<PostProcessPipeline>();
     postProcessPipeline_->initialize(vkCtx);
+#ifdef WOWEE_SWITCH
+    // Measured 2026-10-09 on Tegra X1: ~400 ms GPU frames at 720p with
+    // volumetric shafts + bloom compositing every frame. Both are live
+    // settings-panel toggles (setVolumetricQuality/setBloomEnabled sinks), so
+    // forcing them here costs nothing structurally — startup just begins from
+    // the fast state regardless of saved CVars, and the player can re-enable
+    // either mid-session.
+    postProcessPipeline_->setVolumetricQuality(0);
+    postProcessPipeline_->setVolumetricRaysEnabled(false);
+    postProcessPipeline_->setVolumetricFogEnabled(false);
+    postProcessPipeline_->setBloomEnabled(false);
+    LOG_WARNING("switch performance: volumetric/bloom forced off at startup");
+#else
     postProcessPipeline_->setVolumetricQuality(std::atoi(
         addons::storedCVarValue("extVolumetricQuality", rendering::kVolumetricQualityDefaultCVar).c_str()));
+#endif
+#ifndef WOWEE_SWITCH
     postProcessPipeline_->setVolumetricFogIntensity(std::atof(
         addons::storedCVarValue("extVolumetricFogIntensity", "0.35").c_str()));
     postProcessPipeline_->setVolumetricRaysEnabled(std::atoi(addons::storedCVarValue("extVolumetricRaysEnabled", "1").c_str()) != 0);
     postProcessPipeline_->setVolumetricFogEnabled(std::atoi(addons::storedCVarValue("extVolumetricFogEnabled", "1").c_str()) != 0);
     postProcessPipeline_->setBloomEnabled(std::atoi(addons::storedCVarValue("extBloomEnabled", "1").c_str()) != 0);
+#endif
     postProcessPipeline_->setBloomIntensity(std::atof(addons::storedCVarValue("extBloomIntensity", "0.25").c_str()));
     postProcessPipeline_->setVolumetricIntensity(std::atof(
         addons::storedCVarValue("extVolumetricIntensity", "1.35").c_str()));
