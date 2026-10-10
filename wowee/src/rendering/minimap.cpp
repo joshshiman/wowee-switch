@@ -309,37 +309,45 @@ void Minimap::parseTRS() {
     if (trsParsed || !assetManager) return;
     trsParsed = true;
 
-    auto data = assetManager->readFile("Textures\\Minimap\\md5translate.trs");
-    if (data.empty()) {
-        LOG_WARNING("Failed to load md5translate.trs");
-        return;
+    try {
+        auto data = assetManager->readFile("Textures\\Minimap\\md5translate.trs");
+        if (data.empty()) {
+            LOG_WARNING("Failed to load md5translate.trs");
+            return;
+        }
+
+        std::string_view sv(reinterpret_cast<const char*>(data.data()), data.size());
+        size_t pos = 0;
+        int count = 0;
+
+        while (pos < sv.size()) {
+            size_t nextLine = sv.find('\n', pos);
+            if (nextLine == std::string_view::npos) nextLine = sv.size();
+            std::string_view line = sv.substr(pos, nextLine - pos);
+            pos = nextLine + 1;
+
+            if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+            if (line.empty() || (line.size() >= 4 && line.substr(0, 4) == "dir:")) continue;
+
+            auto tabPos = line.find('\t');
+            if (tabPos == std::string_view::npos) continue;
+
+            std::string_view key = line.substr(0, tabPos);
+            std::string_view hashFile = line.substr(tabPos + 1);
+
+            if (key.size() > 4 && key.substr(key.size() - 4) == ".blp")
+                key = key.substr(0, key.size() - 4);
+            if (hashFile.size() > 4 && hashFile.substr(hashFile.size() - 4) == ".blp")
+                hashFile = hashFile.substr(0, hashFile.size() - 4);
+
+            trsLookup.emplace(std::string(key), std::string(hashFile));
+            count++;
+        }
+
+        LOG_INFO("Parsed md5translate.trs: ", count, " entries");
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING("Minimap: low memory parsing md5translate.trs; continuing without full minimap cache");
     }
-
-    std::string content(reinterpret_cast<const char*>(data.data()), data.size());
-    std::istringstream stream(content);
-    std::string line;
-    int count = 0;
-
-    while (std::getline(stream, line)) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (line.empty() || line.substr(0, 4) == "dir:") continue;
-
-        auto tabPos = line.find('\t');
-        if (tabPos == std::string::npos) continue;
-
-        std::string key = line.substr(0, tabPos);
-        std::string hashFile = line.substr(tabPos + 1);
-
-        if (key.size() > 4 && key.substr(key.size() - 4) == ".blp")
-            key = key.substr(0, key.size() - 4);
-        if (hashFile.size() > 4 && hashFile.substr(hashFile.size() - 4) == ".blp")
-            hashFile = hashFile.substr(0, hashFile.size() - 4);
-
-        trsLookup[key] = hashFile;
-        count++;
-    }
-
-    LOG_INFO("Parsed md5translate.trs: ", count, " entries");
 }
 
 // --------------------------------------------------------

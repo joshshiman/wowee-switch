@@ -292,8 +292,8 @@ private:
     uint32_t megaVBUsed_ = 0;  // vertices used
     uint32_t megaIBUsed_ = 0;  // indices used
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 512 * 1024; // ~512k verts * 44B ≈ 22.5MB (fits in 32MB block)
-    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 2 * 1024 * 1024; // 2M indices * 4B = 8MB (fits in 32MB block)
+    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 128 * 1024; // ~128k verts * 44B ≈ 5.6MB (fits under 9.6MB Tegra X1 NVK cap)
+    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 1024 * 1024; // 1M indices * 4B = 4MB (fits under 9.6MB Tegra X1 NVK cap)
     static constexpr uint32_t MAX_INDIRECT_DRAWS = 4096;
 #else
     static constexpr uint32_t MEGA_VB_MAX_VERTS   = 1536 * 1024; // ~1.5M verts × 44B ≈ 64MB

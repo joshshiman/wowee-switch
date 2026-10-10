@@ -36,8 +36,8 @@ namespace wowee::platform::switchport {
 // CPU malloc uses flexible memory, whereas Vulkan's direct-memory allocations
 // have their own much larger pool. This is a CPU budgeting ceiling for the
 // supplied title configuration, not a measurement of installed system RAM.
-inline constexpr std::size_t kCpuMemoryBudgetLimit = 448ull * 1024 * 1024;
-inline constexpr std::size_t kCpuCacheBudgetLimit = 32ull * 1024 * 1024;
+inline constexpr std::size_t kCpuMemoryBudgetLimit = 2048ull * 1024 * 1024;
+inline constexpr std::size_t kCpuCacheBudgetLimit = 128ull * 1024 * 1024;
 inline constexpr std::size_t kCpuPressureHeadroom = 32ull * 1024 * 1024;
 inline constexpr std::size_t kCpuSeverePressureHeadroom = 16ull * 1024 * 1024;
 

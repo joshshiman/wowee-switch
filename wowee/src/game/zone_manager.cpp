@@ -563,11 +563,18 @@ std::vector<std::string> ZoneManager::getAllMusicPaths() const {
 
 void ZoneManager::enrichFromDBC(pipeline::AssetManager* assets) {
     if (!assets) return;
-
-    auto areaDbc = assets->loadDBC("AreaTable.dbc");
-    auto zoneMusicDbc = assets->loadDBC("ZoneMusic.dbc");
-    auto soundDbc = assets->loadDBC("SoundEntries.dbc");
-    enrichFromTables(areaDbc.get(),zoneMusicDbc.get(),soundDbc.get());
+    try {
+        auto areaDbc = assets->loadDBC("AreaTable.dbc");
+        auto zoneMusicDbc = assets->loadDBC("ZoneMusic.dbc");
+        auto soundDbc = assets->loadDBC("SoundEntries.dbc");
+        enrichFromTables(areaDbc.get(), zoneMusicDbc.get(), soundDbc.get());
+#ifdef WOWEE_SWITCH
+        assets->evictDBC("SoundEntries.dbc");
+        assets->evictDBC("ZoneMusic.dbc");
+#endif
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING("ZoneManager::enrichFromDBC: low memory, skipped music enrichment");
+    }
 }
 void ZoneManager::enrichFromTables(const pipeline::DBCFile* areaDbc,const pipeline::DBCFile* zoneMusicDbc,const pipeline::DBCFile* soundDbc) {
     // Reload without preserving stale day/night rows from an earlier expansion.

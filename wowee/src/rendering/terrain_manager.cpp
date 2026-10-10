@@ -2635,12 +2635,13 @@ void TerrainManager::ensureGroundEffectTablesLoaded() {
     if (groundEffectsLoaded_ || !assetManager) return;
     groundEffectsLoaded_ = true;
 
-    auto groundEffectTex = assetManager->loadDBC("GroundEffectTexture.dbc");
-    auto groundEffectDoodad = assetManager->loadDBC("GroundEffectDoodad.dbc");
-    if (!groundEffectTex || !groundEffectDoodad) {
-        LOG_WARNING("Ground clutter DBCs missing; skipping procedural ground effects");
-        return;
-    }
+    try {
+        auto groundEffectTex = assetManager->loadDBC("GroundEffectTexture.dbc");
+        auto groundEffectDoodad = assetManager->loadDBC("GroundEffectDoodad.dbc");
+        if (!groundEffectTex || !groundEffectDoodad) {
+            LOG_WARNING("Ground clutter DBCs missing; skipping procedural ground effects");
+            return;
+        }
 
     // GroundEffectTexture: id + 4 doodad IDs + 4 weights + density + sound
     for (uint32_t i = 0; i < groundEffectTex->getRecordCount(); ++i) {
@@ -2677,8 +2678,15 @@ void TerrainManager::ensureGroundEffectTablesLoaded() {
         }
     }
 
-    LOG_INFO("Ground clutter tables loaded: ", groundEffectById_.size(),
-             " effects, ", groundDoodadModelById_.size(), " doodad models");
+#ifdef WOWEE_SWITCH
+        assetManager->evictDBC("GroundEffectTexture.dbc");
+        assetManager->evictDBC("GroundEffectDoodad.dbc");
+#endif
+        LOG_INFO("Ground clutter tables loaded: ", groundEffectById_.size(),
+                 " effects, ", groundDoodadModelById_.size(), " doodad models");
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING("Ground clutter tables failed to load (low memory); skipping");
+    }
 }
 
 void TerrainManager::generateGroundClutterPlacements(std::shared_ptr<PendingTile>& pending,

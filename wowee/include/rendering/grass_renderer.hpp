@@ -128,7 +128,11 @@ public:
     /// console reports. A field thinned to fit this is whole and evenly sparse,
     /// because the generator's own cap thins every candidate by the same
     /// factor rather than cutting one side of the window off.
+    #ifdef WOWEE_SWITCH
+    static constexpr uint32_t kMaxSourceBytes = 4u * 1024u * 1024u;
+#else
     static constexpr uint32_t kMaxSourceBytes = 16u * 1024u * 1024u;
+#endif
 
     /// Default draw distance, and the radius inside which density never
     /// thins. The grass distance setting replaces the former at runtime via

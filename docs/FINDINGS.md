@@ -523,3 +523,48 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
 3. **Clean Build & Verification**:
    - Verified TLS access check (`PASS`), archived ELF to `logs/console/2026-10-09_2019/deployed.elf`.
    - Deployed `wowee.nro` and `wowee.elf` to Switch FTP at `192.168.2.44:5000`.
+
+## 2026-10-09 Run 44: Fix System Memory Heap Fragmentation (svcGetInfo) & Buffer Ceilings
+
+### Symptoms in Run 43:
+- The game ran with 100% stability at 60 FPS, zero crashes, clear audio.
+- Character select and creation rendered cleanly.
+- World loading reached 100% without crash, but was rejected with:
+  `"There was not enough memory to load this area. Return to character selection and try again."`
+- Log: `[ERROR] World load stopped: CPU allocation failed on map 0`
+- Log: `[WARN ] [LOCAL_SESSION] before spell import freeMiB=0 measured=0 cached=0`
+- Log: `[WARN ] TerrainRenderer: mega VB allocation failed, per-chunk fallback`
+- Log: `[ERROR] GrassRenderer: no source buffer for 262144 blades (16777216 bytes)`
+
+### Root Cause Analysis:
+1. **Destructive Heap Probing (`probeLargestHeapBlock`)**:
+   - `queryAvailableCpuMemory()` in `cpu_memory.hpp` executed a descending allocation ladder (`malloc(512MB)` -> `malloc(4MB)`) every 250ms on asset/file cache paths.
+   - devkitA64 / libnx uses newlib where `malloc` invokes `sbrk()` / `svcSetHeapSize()`, and `free()` **never** unmaps memory back to the Switch OS.
+   - Probing 512MB–4MB repeatedly forced the newlib heap to grow to the title memory ceiling while tiny allocations fragmented the free bins, destroying all contiguous blocks >4MB.
+   - This caused `queryAvailableCpuMemory()` to report `0 MB free`, throttled `AssetManager` caches, declined asset loads, and eventually triggered `std::bad_alloc`.
+2. **PS4 Budget Constants Left Active on Switch**:
+   - `kCpuMemoryBudgetLimit` was hardcoded to 448 MiB (PS4 flexible budget), even though Switch provides 3,328 MiB (3.25 GB) in application mode.
+   - `kCpuCacheBudgetLimit` was capped at 32 MiB.
+3. **GPU Allocation Over-Sizing (Tegra X1 NVK 9.6 MiB Ceiling)**:
+   - `TerrainRenderer::MEGA_VB_MAX_VERTS` was 512k vertices * 44B = **22.5 MiB**. Mesa NVK fails single allocations > 9.6 MiB, triggering per-chunk allocation fallback.
+   - `GrassRenderer::kMaxSourceBytes` was 16 MiB, also failing the 9.6 MiB ceiling.
+4. **Minimap TRS String Duplication**:
+   - `Minimap::parseTRS` loaded `md5translate.trs` (10 MB) into `std::string content` and `std::istringstream`, holding 3x copies in RAM simultaneously.
+
+### Solutions Applied:
+1. **Native Switch Kernel Memory Query (`svcGetInfo`)**:
+   - Replaced `probeLargestHeapBlock` with native libnx system calls:
+     `svcGetInfo(&total, InfoType_TotalMemorySize, CUR_PROCESS_HANDLE, 0);`
+     `svcGetInfo(&used, InfoType_UsedMemorySize, CUR_PROCESS_HANDLE, 0);`
+     `freeBytes = total - used;`
+   - Completely non-allocating, zero page touches, instantaneous, zero heap fragmentation.
+2. **Corrected Switch Memory Ceilings**:
+   - Updated `kCpuMemoryBudgetLimit` to 2048 MiB (2 GB) and `kCpuCacheBudgetLimit` to 128 MiB.
+3. **GPU Buffer Sizing for 9.6 MiB Driver Cap**:
+   - Sized `TerrainRenderer::MEGA_VB_MAX_VERTS = 128 * 1024` (5.6 MiB) and `MEGA_IB_MAX_INDICES = 1024 * 1024` (4 MiB) on Switch, fitting comfortably under the 9.6 MiB ceiling and eliminating per-chunk allocation fallback.
+   - Sized `GrassRenderer::kMaxSourceBytes = 4 MiB` on Switch.
+4. **Memory-Safe TRS and DBC Eviction**:
+   - In `Minimap::parseTRS`: parsed in-place using `std::string_view` with zero duplicate buffers, wrapped in `try/catch`.
+   - In `ZoneManager::enrichFromDBC`: evicted `SoundEntries.dbc` and `ZoneMusic.dbc` immediately after extracting music paths, wrapped in `try/catch`.
+   - In `TerrainManager::ensureGroundEffectTablesLoaded`: evicted clutter DBCs immediately after extracting tables, wrapped in `try/catch`.
+   - Reduced `kDefaultGroundClutter` on Switch from 70 to 25.
