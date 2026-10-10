@@ -2575,12 +2575,29 @@ void Renderer::runDeferredWorldInitStep(float deltaTime) {
         case 4:
             if (audioCoordinator_->getMovementSoundManager()) audioCoordinator_->getMovementSoundManager()->initialize(cachedAssetManager);
             break;
-        case 5:
-            if (questMarkerRenderer && !questMarkerRenderer->initialize(vkCtx, perFrameSetLayout, cachedAssetManager))
+        case 5: {
+#ifdef WOWEE_SWITCH
+            // Entry-burst device losses (runs 51-52) surface as -4 on the
+            // first submit after the fault, which has twice been a marker
+            // upload here. Drain anything still in flight first: if the
+            // device is already gone this logs one line and both inits below
+            // take their existing non-fatal path, instead of piling submits
+            // onto a dead device and ending the session in FATAL.
+            if (vkCtx) {
+                vkCtx->pollUploadBatches();
+                if (vkCtx->isDeviceLost())
+                    LOG_WARNING("marker/footprint init skipped: device already lost");
+            }
+            const bool deviceAlive = vkCtx && !vkCtx->isDeviceLost();
+#else
+            const bool deviceAlive = true;
+#endif
+            if (deviceAlive && questMarkerRenderer && !questMarkerRenderer->initialize(vkCtx, perFrameSetLayout, cachedAssetManager))
                 LOG_WARNING("Quest marker renderer re-init failed (non-fatal)");
-            if (footprintRenderer && !footprintRenderer->initialize(this, vkCtx, perFrameSetLayout, cachedAssetManager))
+            if (deviceAlive && footprintRenderer && !footprintRenderer->initialize(this, vkCtx, perFrameSetLayout, cachedAssetManager))
                 LOG_WARNING("Footprint renderer re-init failed (non-fatal)");
             break;
+        }
         default:
             deferredWorldInitPending_ = false;
             return;

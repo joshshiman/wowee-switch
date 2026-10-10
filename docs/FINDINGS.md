@@ -782,3 +782,28 @@ bug. If diagonals ever appear while the game *keeps running*, that is new.
 `RETR /switch/wowee/wowee.nro` + md5 matched local (`192edf17...`) — the new
 build (sink perf floor + stick fix) is intact on the card and has never run.
 Always confirm build-vs-log before analyzing a crash: this one cost nothing.
+
+## 2026-10-09 Run 52: entry-burst device loss, twice at quest-marker upload
+
+### Shape (runs 22:12 stale build + 22:48 new build, identical)
+`immediate submit failed: -4` then batch `submit result=-4`, fence -4, FATAL
+`GPU upload submission failed` escaping update — all within one second at
+world entry, quest/footprint pipelines just created. No VMA/CPU distress
+(142 MiB free), single-threaded submits, in-flight bounded (16/32 MB caps).
+Ruled out statically: texture-slice OOB (layout validator rejects short
+levels; BLP loader pre-truncates), immFence thread race (no multi-thread
+warning), marker uploads themselves (bystanders that fail after). Remainder:
+driver-internal fault under entry burst surfacing at the next submit, or an
+earlier faulted streaming batch. Not distinguishable from CPU-side logs;
+gpuTimingStatus stays uncalibrated-switch.
+
+### Also confirmed this run (new build): menus 30 fps (300 frames/29.96);
+### startup forces held (shadow 0, volumetric/bloom off). No WORLD_PERF: died
+### during entry loading, before 5 s in-world.
+
+### Change deployed (~22:50, md5 `fac43402...`): burst containment
+- Stage-5 marker/footprint init drains in-flight batches first on Switch; if
+  the device is already lost both inits take their existing non-fatal path
+  instead of piling submits onto a dead device toward FATAL.
+- Switch backpressure halved (8 batches / 16 MiB vs 16 / 32 MiB): peak
+  in-flight driver load is the prime suspect, throughput is the price.

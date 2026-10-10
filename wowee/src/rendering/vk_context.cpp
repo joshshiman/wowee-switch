@@ -4127,7 +4127,19 @@ void VkContext::beginUploadBatch() {
         // uploads are produced faster than completed frames retire them.
         // Byte threshold is an admission watermark: a single current batch
         // may exceed it. This never truncates an asset or its mip chain.
-        if (inFlightBatches_.size() >= 16 || pendingBytes >= 32ull * 1024 * 1024) {
+        //
+        // Tighter on Switch (8 / 16 MiB vs 16 / 32 MiB): entry-burst device
+        // losses with no CPU-side distress point at driver-internal pressure
+        // from peak in-flight work, so peak in-flight work is halved. Costs
+        // throughput at loads; buys headroom where the sessions died.
+#ifdef WOWEE_SWITCH
+        constexpr size_t kMaxInFlightBatches = 8;
+        constexpr VkDeviceSize kMaxInFlightBytes = 16ull * 1024 * 1024;
+#else
+        constexpr size_t kMaxInFlightBatches = 16;
+        constexpr VkDeviceSize kMaxInFlightBytes = 32ull * 1024 * 1024;
+#endif
+        if (inFlightBatches_.size() >= kMaxInFlightBatches || pendingBytes >= kMaxInFlightBytes) {
             LOG_INFO("[UPLOAD_PRESSURE] pending=", inFlightBatches_.size(),
                      " stagingKiB=", pendingBytes / 1024, " waiting for completion");
             if (!waitAllUploads()) throw std::runtime_error("Upload backpressure wait failed");
