@@ -10147,6 +10147,27 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     // after ClearOverrideBindings): Minus opens the utility ring.
     if (command == "CP_X_LEFT") command = "CLICK ConsolePortUtilityToggle:LeftButton";
 
+    // Panel doors for the Plus tiers. Same trap as 2d: none of these are in
+    // kLiveBindings, so without cases they fall to noscript and read as dead.
+    if (command == "TOGGLEWORLDMAP") {
+        outcome = "panel:map";
+        if (down) executeString("ToggleFrame(WorldMapFrame)");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLECHARACTER0") {
+        outcome = "panel:character";
+        if (down) executeString("ToggleCharacter(\"PaperDollFrame\")");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLEQUESTLOG") {
+        outcome = "panel:quests";
+        if (down) executeString("ToggleFrame(QuestLogFrame)");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+
     // 3. Action bar slots (e.g. ACTIONBUTTON1..12)
     if (command.rfind("ACTIONBUTTON", 0) == 0) {
         try {

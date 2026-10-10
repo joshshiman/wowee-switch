@@ -133,6 +133,45 @@ function ConsolePort:LoadSettings()
 				ConsolePort:OnNewBindings(set)
 			end
 		end
+		-- WoWee handheld remap (rev 2): Plus tiers become the panel doors
+		-- (map / character / quests); autorun leaves the pad entirely (L3
+		-- keeps it physically). Saved sets still hold the old tiers.
+		if set and (ConsolePortBindingSet.woweeBindRev or 0) < 2 then
+			if type(set.CP_X_RIGHT) == 'table' then
+				set.CP_X_RIGHT['SHIFT-'] = 'TOGGLEWORLDMAP'
+				set.CP_X_RIGHT['CTRL-'] = 'TOGGLECHARACTER0'
+				set.CP_X_RIGHT['CTRL-SHIFT-'] = 'TOGGLEQUESTLOG'
+			end
+			ConsolePortBindingSet.woweeBindRev = 2
+			db.Bindings = set
+			if ConsolePort.LoadBindingSet then
+				ConsolePort:LoadBindingSet(set, true)
+			end
+			if ConsolePort.OnNewBindings then
+				ConsolePort:OnNewBindings(set)
+			end
+		end
+	end
+
+	-- The utility ring is built by SetupUtilityRing, which nothing on the
+	-- migration path above ever called (LoadDefaultBindings calls it, but
+	-- that only runs for fresh binding sets). Without it the toggle button
+	-- exists but owns no ring, so Minus clicks into the void, silently. The
+	-- call is idempotent (guarded on Utility "initialized"), so run it every
+	-- login rather than stamping another rev.
+	if ConsolePort.SetupUtilityRing then
+		ConsolePort:SetupUtilityRing()
+	end
+
+	-- GameMenuFrame arrives anchorless and zero-size in this client (its XML
+	-- asks for 195x240 centered, the emitter drops both), so Plus opened a
+	-- menu that played its sound and drew nothing. Pin it every login.
+	if GameMenuFrame then
+		if GameMenuFrame:GetWidth() == 0 or GameMenuFrame:GetHeight() == 0 then
+			GameMenuFrame:SetSize(195, 240)
+		end
+		GameMenuFrame:ClearAllPoints()
+		GameMenuFrame:SetPoint('CENTER', UIParent, 'CENTER', 0, 0)
 	end
 
 	-----------------------------------------------------------

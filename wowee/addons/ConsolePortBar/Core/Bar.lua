@@ -553,6 +553,54 @@ function Bar:OnLoad(cfg, benign)
     self:SetupShoulderButtons()
     self:SetAlpha(1)
     self:Show()
+
+    -- WoWee diag (temporary): the secure click/drag snippets die with
+    -- "Invalid function body", i.e. restricted self:GetAttribute arrives nil.
+    -- Read the same attributes insecurely here plus a handle round-trip, so
+    -- the next log says which side drops them. Remove once settled.
+    do
+        local w = self.Buttons[1] and self.Buttons[1]['']
+        if w then
+            print('[WOWEE_ATTRDIAG] btn=' .. tostring(w:GetName())
+                .. ' OnDragStart=' .. type(w:GetAttribute('OnDragStart'))
+                .. ' OnReceiveDrag=' .. type(w:GetAttribute('OnReceiveDrag'))
+                .. ' PickupButton=' .. type(w:GetAttribute('PickupButton'))
+                .. ' UpdateState=' .. type(w:GetAttribute('UpdateState'))
+                .. ' state=' .. tostring(w:GetAttribute('state')));
+            if GetFrameHandle and GetFrameHandleFrame then
+                local h = GetFrameHandle(w);
+                local back = h and GetFrameHandleFrame(h);
+                print('[WOWEE_ATTRDIAG] handle-roundtrip=' .. tostring(back == w)
+                    .. ' F3=' .. tostring(GetBindingAction('F3'))
+                    .. ' F11=' .. tostring(GetBindingAction('F11'))
+                    .. ' F12=' .. tostring(GetBindingAction('F12')));
+            end
+            -- Is the CLICK override baked into the binding set itself?
+            if ConsolePort and ConsolePort.GetBindingSet then
+                local set = ConsolePort:GetBindingSet();
+                if type(set) == 'table' then
+                    for _, b in ipairs({'CP_R_LEFT', 'CP_R_DOWN', 'CP_X_LEFT', 'CP_X_RIGHT'}) do
+                        local row = set[b];
+                        if type(row) == 'table' then
+                            local parts = {};
+                            for _, m in ipairs({'', 'SHIFT-', 'CTRL-', 'CTRL-SHIFT-'}) do
+                                parts[#parts + 1] = m .. '=' .. tostring(row[m]);
+                            end
+                            print('[WOWEE_ATTRDIAG] set.' .. b .. ' ' .. table.concat(parts, ' '));
+                        else
+                            print('[WOWEE_ATTRDIAG] set.' .. b .. ' MISSING');
+                        end
+                    end
+                end
+            end
+        end
+        if GameMenuFrame then
+            print('[WOWEE_ATTRDIAG] gamemenu size=' .. tostring(GameMenuFrame:GetWidth())
+                .. 'x' .. tostring(GameMenuFrame:GetHeight())
+                .. ' anchors=' .. tostring(GameMenuFrame:GetNumPoints())
+                .. ' shown=' .. tostring(GameMenuFrame:IsShown()));
+        end
+    end
 end
 
 function Bar:UpdateDividerFocus(newstate)
@@ -756,11 +804,38 @@ Bar.CallMethodFromFrame = CPAPI.CallMethodFromFrame
 
 ---
 
+function Bar:PLAYER_ENTERING_WORLD()
+	-- WoWee handheld: re-assert the pad F-key overrides late. F3 was found
+	-- answering "CLICK CPB_R_LEFT:ControllerInput" - a secure click path this
+	-- client cannot drive - while the handler's own ACTIONBUTTON entry lost,
+	-- leaving Y dead. Same owner/table as the handler's own writes, so these
+	-- overwrite that bucket deterministically; this event runs after every
+	-- binding pass (login, talent swap, ring setup).
+	if InCombatLockdown() then return end
+	local handler = _G.ConsolePortButtonHandler
+	local set = ConsolePort and ConsolePort.GetBindingSet and ConsolePort:GetBindingSet()
+	if not handler or type(set) ~= 'table' then return end
+	for name, key in pairs(set) do
+		if type(key) == 'table' and name:match('^CP_') then
+			local base = key['']
+			for modifier in ConsolePort:GetModifiers() do
+				local override = key[modifier] or base
+				if override then
+					local k1, k2 = GetBindingKey(name)
+					if k1 then SetOverrideBinding(handler, false, modifier .. k1, override) end
+					if k2 then SetOverrideBinding(handler, false, modifier .. k2, override) end
+				end
+			end
+		end
+	end
+end
+
 Bar:SetScript('OnEvent', Bar.OnEvent)
 Bar:SetScript('OnMouseWheel', Bar.OnMouseWheel)
 for _, event in ipairs({
 	'SPELLS_CHANGED',
 	'PLAYER_LOGIN',
+	'PLAYER_ENTERING_WORLD',
 	'ADDON_LOADED',
 	'PLAYER_TALENT_UPDATE',
 	'MODIFIER_STATE_CHANGED',

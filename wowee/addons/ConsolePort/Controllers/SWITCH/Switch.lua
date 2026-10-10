@@ -143,9 +143,9 @@ db.Controllers.SWITCH = {
 		},
 		['CP_X_RIGHT'] = {
 			['']		 	= 'TOGGLEGAMEMENU',
-			['SHIFT-'] 		= 'TOGGLEAUTORUN',
-			['CTRL-'] 		= 'CLICK ConsolePortRaidCursorToggle:LeftButton',
-			['CTRL-SHIFT-'] = 'OPENCHAT',
+			['SHIFT-'] 		= 'TOGGLEWORLDMAP',
+			['CTRL-'] 		= 'TOGGLECHARACTER0',
+			['CTRL-SHIFT-'] = 'TOGGLEQUESTLOG',
 		},	 
 		-- Grip buttons (in this case it's being used for the extra two buttons in the middle) 
 		['CP_T5'] = {
