@@ -6367,6 +6367,11 @@ void LuaEngine::registerCoreAPI() {
         "function animMeta:SetSmoothing(s) self.smoothing = s end\n"
         "function animMeta:SetScale(x, y) self.scaleX, self.scaleY = x, y end\n"
         "function animMeta:SetDegrees(d) self.degrees = d end\n"
+        "function animMeta:GetDegrees() return self.degrees or 0 end\n"
+        "function animMeta:SetRadians(r) self.radians = r end\n"
+        "function animMeta:GetRadians() return self.radians or 0 end\n"
+        "function animMeta:SetOrigin(point, x, y) self.originPoint, self.originX, self.originY = point, x, y end\n"
+        "function animMeta:GetOrigin() return self.originPoint or 'CENTER', self.originX or 0, self.originY or 0 end\n"
         "function animMeta:GetProgress() return self.progress or 0 end\n"
         // The same progress with the animation's own easing applied, which is
         // what anything driving a value off an animation actually wants.
@@ -6497,6 +6502,15 @@ void LuaEngine::registerCoreAPI() {
         "end\n"
         "function groupMeta:Pause() self.paused = true end\n"
         "function groupMeta:Resume() self.paused = nil end\n"
+        "local function animNoop() end\n"
+        "setmetatable(animMeta, { __index = function(t, k)\n"
+        "    if type(k) == 'string' and k:match('^[A-Z]') then return animNoop end\n"
+        "    return nil\n"
+        "end })\n"
+        "setmetatable(groupMeta, { __index = function(t, k)\n"
+        "    if type(k) == 'string' and k:match('^[A-Z]') then return animNoop end\n"
+        "    return nil\n"
+        "end })\n"
 
         // Stop every group on this frame at once. A frame method rather than a
         // group one, and the only animation call FrameXML makes without

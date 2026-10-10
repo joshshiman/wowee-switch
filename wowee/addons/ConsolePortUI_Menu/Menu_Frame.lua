@@ -878,12 +878,11 @@ do
 				end
 
 			end
-			if button.RefTo then
+			if button.RefTo and button.RefTo.GetName and button.RefTo:GetName() then
 				local macrotext = button:GetAttribute('macrotext')
 				local prefix = (macrotext and macrotext .. '\n') or ''  
 				button:SetAttribute('macrotext', prefix .. '/click ' .. button.RefTo:GetName())
 				button:SetAttribute('type', 'macro')  
-
 			end
 			button:Hide()
 			header:SetFrameRef(tostring(button:GetID()), button)

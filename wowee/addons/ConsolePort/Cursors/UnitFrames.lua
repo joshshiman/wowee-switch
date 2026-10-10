@@ -81,7 +81,8 @@ do
 		]=]
 		GetNodes = [=[
 			local node = CurrentNode
-			local isProtected = node:IsProtected()
+			if not node then return end
+			local isProtected = node.IsProtected and node:IsProtected()
 			local unit = isProtected and node:GetAttribute('unit')
 			local action = isProtected and node:GetAttribute('action')
 			local children = isProtected and newtable(self.GetChildren(node))
@@ -304,7 +305,9 @@ do
 
 		-- Cache default bars right away
 		CurrentNode = self:GetFrameRef('actionBar')
-		control:Run(GetNodes)
+		if CurrentNode then
+			control:Run(GetNodes)
+		end
 		--CurrentNode = self:GetFrameRef('overrideBar')
 		--control:Run(GetNodes)
 	]])

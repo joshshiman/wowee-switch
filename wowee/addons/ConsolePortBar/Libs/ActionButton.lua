@@ -1212,18 +1212,18 @@ function UpdateUsable(self)
 	-- TODO: make the colors configurable
 	-- TODO: allow disabling of the whole recoloring
 	if self.outOfRange then
-		self.icon:SetVertexColor(unpack(self.config.colors.range))
+		if self.icon then self.icon:SetVertexColor(unpack(self.config.colors.range)) end
 	else
 		local isUsable, notEnoughMana = self:IsUsable()
 		if isUsable then
-			self.icon:SetVertexColor(1, 1, 1)
-			self.NormalTexture:SetVertexColor(1.0, 1.0, 1.0)
+			if self.icon then self.icon:SetVertexColor(1, 1, 1) end
+			if self.NormalTexture then self.NormalTexture:SetVertexColor(1.0, 1.0, 1.0) end
 		elseif notEnoughMana then
-			self.icon:SetVertexColor(unpack(self.config.colors.mana))
-			self.NormalTexture:SetVertexColor(0.5, 0.5, 1.0)
+			if self.icon then self.icon:SetVertexColor(unpack(self.config.colors.mana)) end
+			if self.NormalTexture then self.NormalTexture:SetVertexColor(0.5, 0.5, 1.0) end
 		else
-			self.icon:SetVertexColor(0.4, 0.4, 0.4)
-			self.NormalTexture:SetVertexColor(1.0, 1.0, 1.0)
+			if self.icon then self.icon:SetVertexColor(0.4, 0.4, 0.4) end
+			if self.NormalTexture then self.NormalTexture:SetVertexColor(1.0, 1.0, 1.0) end
 		end
 	end
 end
