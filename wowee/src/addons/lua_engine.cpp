@@ -10025,9 +10025,55 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         }
     }
 
-    // 2. Explicit JUMP binding (e.g. B button in ConsolePort)
+    // 2. Explicit JUMP binding (e.g. X button in ConsolePort handheld map)
     if (command == "JUMP") {
         core::Input::getInstance().setVirtualKey(SDL_SCANCODE_SPACE, down);
+        return true;
+    }
+
+    // 2b. Bag toggle (e.g. B button in ConsolePort handheld map).
+    // OpenAllBags is 3.3.5's own toggle-all name.
+    if (command == "OPENALLBAGS") {
+        if (down) {
+            lua_getglobal(L_, "OpenAllBags");
+            if (lua_isfunction(L_, -1)) {
+                if (lua_pcall(L_, 0, 0, 0) != 0) {
+                    LOG_WARNING("OPENALLBAGS failed: ", lua_tostring(L_, -1));
+                    lua_pop(L_, 1);
+                }
+            } else {
+                lua_pop(L_, 1);
+            }
+        }
+        return true;
+    }
+
+    // 2c. Interact with current target (e.g. A button in ConsolePort
+    // handheld map). Right-click semantics on the target: loot the dead,
+    // talk to the friendly, attack the hostile, use the game object.
+    if (command == "INTERACTTARGET") {
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                if (gh->hasTarget()) {
+                    auto target = gh->getTarget();
+                    if (target) {
+                        if (target->getType() == game::ObjectType::GAMEOBJECT) {
+                            gh->interactWithGameObject(target->getGuid());
+                        } else if (target->getType() == game::ObjectType::UNIT ||
+                                   target->getType() == game::ObjectType::PLAYER) {
+                            auto unit = std::static_pointer_cast<game::Unit>(target);
+                            if (unit->getHealth() == 0 && unit->getMaxHealth() > 0) {
+                                gh->lootTarget(target->getGuid());
+                            } else if (!unit->isHostile() && unit->isInteractable()) {
+                                gh->interactWithNpc(target->getGuid());
+                            } else if (unit->isHostile() || !unit->isInteractable()) {
+                                gh->startAutoAttack(target->getGuid());
+                            }
+                        }
+                    }
+                }
+            }
+        }
         return true;
     }
 
