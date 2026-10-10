@@ -105,6 +105,10 @@ function ConsolePort:LoadSettings()
 	db.Settings = ConsolePortSettings
 	db('calibration', db('calibration') or (ConsolePortSettings and ConsolePortSettings.calibration) or {})
 
+	if not ConsolePortBindingSet or not next(ConsolePortBindingSet) then
+		LoadDefaultBindings()
+	end
+
 	-----------------------------------------------------------
 	-- Load controller splash if no preference exists
 	-----------------------------------------------------------
@@ -245,9 +249,7 @@ function ConsolePort:CheckLoadedSettings()
 	local settings = ConsolePortSettings
 	if settings then
 		if settings.newController then
-			local popupData = StaticPopupDialogs['CONSOLEPORT_IMPORTBINDINGS']
-			popupData.text = db.TUTORIAL.SLASH.NEWCONTROLLER
-			self:ShowPopup('CONSOLEPORT_IMPORTBINDINGS')
+			LoadDefaultBindings()
 			settings.newController = nil
 		elseif NEWCALIBRATION and ( not settings.id or (WoWmapper and WoWmapper.Settings and (settings.id ~= WoWmapper.Settings.id)) ) then
 			NEWCALIBRATION = nil
@@ -271,9 +273,7 @@ function ConsolePort:CheckLoadedSettings()
 			}
 			self:ShowPopup('CONSOLEPORT_CALIBRATIONUPDATE')
 		elseif BINDINGSLOADED and ( not db.Bindings or not next(db.Bindings) ) then
-			local popupData = StaticPopupDialogs['CONSOLEPORT_IMPORTBINDINGS']
-			popupData.text = db.TUTORIAL.SLASH.NOBINDINGS
-			self:ShowPopup('CONSOLEPORT_IMPORTBINDINGS')
+			LoadDefaultBindings()
 		end
 	end
 end

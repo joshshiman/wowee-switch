@@ -452,7 +452,7 @@ db.PANELS[#db.PANELS + 1] = {name = 'Controls', header = SETTINGS, mixin = Windo
 
 	local function GetCheckButton(parent, name, point, label, setting, func)
 		local button = CreateFrame('CheckButton', nil, parent, 'ChatConfigCheckButtonTemplate')
-		local text = select(6, button:GetRegions()) or (button.GetName and _G[button:GetName()..'Text']) or button:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
+		local text = select(6, button:GetRegions()) or (button.GetName and button:GetName() and _G[button:GetName()..'Text']) or button:CreateFontString(nil, 'OVERLAY', 'GameFontHighlight')
 		button.Text = text
 
 		if text then

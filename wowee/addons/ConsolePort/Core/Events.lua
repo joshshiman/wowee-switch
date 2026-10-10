@@ -188,9 +188,14 @@ function Events:ACTIVE_TALENT_GROUP_CHANGED()
 		self:UpdateFrames()
 		-- Check whether bindings are empty
 		if not next(bindingSet) then
-			local popupData = StaticPopupDialogs["CONSOLEPORT_IMPORTBINDINGS"]
-			popupData.text = db.TUTORIAL.SLASH.NOBINDINGS
-			self:ShowPopup("CONSOLEPORT_IMPORTBINDINGS")
+			local defaultSet = self:GetDefaultBindingSet()
+			db.Bindings = defaultSet
+			ConsolePortBindingSet = ConsolePortBindingSet or {}
+			ConsolePortBindingSet[CPAPI.GetSpecialization()] = db.Bindings
+			self:LoadBindingSet(db.Bindings, true)
+			self:SetupUtilityBindings()
+			self:SetupUtilityRing()
+			self:OnNewBindings(db.Bindings)
 		end
 	else
 		self.newBindingsQueued = true
