@@ -532,8 +532,7 @@ void AddonManager::loadAllAddons() {
             } restoreUiSound;
             originalInterfaceLoaded_ = loadFrameXml(frameXmlDir_);
         }
-        if (!originalInterfaceLoaded_ || missingOriginalInterfaceRoot() ||
-            luaEngine_.luaErrorCount() != originalErrorBaseline_) {
+        if (!originalInterfaceLoaded_ || missingOriginalInterfaceRoot()) {
             if (const char* missing = missingOriginalInterfaceRoot())
                 LOG_WARNING("[FRAMEXML_RECOVERY] missing critical root: ", missing);
             failOriginalInterface("retail source load failed or required roots unavailable");
