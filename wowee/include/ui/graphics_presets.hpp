@@ -69,7 +69,7 @@ constexpr GraphicsPresetValues kGraphicsPresets[] = {
     // Preserve the selected 720p/1080p scene path and usable shafts at every
     // preset. The desktop MSAA levels force a native-size console path and
     // can multiply pixel work by eight. Saved manual choices remain valid.
-    /* Low    */ {400.0f, true, 100.0f, 0, false, false, 0.6f, false, 0, 25},
+    /* Low    */ {400.0f, true, 100.0f, 0, false, false, 0.6f, false, 0, 15},
     /* Medium */ {500.0f, true, 160.0f, 0, true,  true,  0.6f, false, 0, 60},
     /* High   */ {rendering::switchbudget::kMaxViewDistance, true, 240.0f, 0, true, true, 0.8f, true, 0, 100},
     /* Ultra  */ {rendering::switchbudget::kMaxViewDistance, true, 300.0f, 0, true, true, 1.2f, true, 1, 150},

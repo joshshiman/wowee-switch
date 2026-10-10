@@ -34,7 +34,11 @@ constexpr SettingDesc kSchema[] = {
     {"graphicspreset", "Quality preset", SettingKind::Enum, 0, 4, 1, "Graphics", "Quality",
      "Sets every graphics option at once. Changing any of them afterwards\n"
      "moves this to Custom.",
+#ifdef WOWEE_SWITCH
+     "Custom|Low|Medium|High|Ultra", 1},
+#else
      "Custom|Low|Medium|High|Ultra", 0},
+#endif
     // There was no shadows row here for a long time, because turning them off
     // crashed the client: the pass returned early and left its map in whatever
     // layout it was last in while it stayed bound for sampling, and the device
@@ -53,7 +57,11 @@ constexpr SettingDesc kSchema[] = {
      "What casts a shadow onto the ground. Off is the cheapest setting in the\n"
      "panel; Everything is what the world is meant to look like. The two\n"
      "sharper levels need a restart, the rest take effect at once.",
+#ifdef WOWEE_SWITCH
+     "Off|Terrain only|Everything|Everything, sharp|Everything, sharpest", 1},
+#else
      "Off|Terrain only|Everything|Everything, sharp|Everything, sharpest", 2},
+#endif
     {"shadowdistance", "Shadow distance", SettingKind::Float, 40, 500, 10, "Graphics", "Shadows",
      // No longer conditional on a shadows toggle: there is not one, and the
      // stored value it used to read may still say 0 from before it went, which

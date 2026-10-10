@@ -16,11 +16,11 @@
 namespace wowee::ui {
 
 #ifdef WOWEE_SWITCH
-inline constexpr float kDefaultViewDistance = rendering::switchbudget::kDefaultViewDistance;
+inline constexpr float kDefaultViewDistance = 400.0f;
 // The console's 720p world target requires single sampling. MSAA selects the
 // native-resolution water continuation path, defeating the world pixel budget.
 inline constexpr int kDefaultAntiAliasing = 0;
-inline constexpr int kDefaultGroundClutter = 25;
+inline constexpr int kDefaultGroundClutter = 15;
 #else
 inline constexpr float kDefaultViewDistance = 1900.0f;
 inline constexpr int kDefaultAntiAliasing = 1;

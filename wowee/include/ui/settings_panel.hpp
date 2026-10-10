@@ -56,8 +56,13 @@ public:
     int pendingResolutionHeight = 1080;
     bool displaySettingsLoaded_ = false;
     bool pendingShadows = true;
+#if defined(WOWEE_SWITCH)
+    float pendingShadowDistance = 100.0f;
+    float pendingViewDistance = 400.0f;
+#else
     float pendingShadowDistance = 300.0f;
     float pendingViewDistance = kDefaultViewDistance;
+#endif
     /// How far the distance fog takes the sky's colour. See
     /// LightingManager::setFogSkyBlend.
     float pendingFogSkyBlend = 0.7f;
@@ -186,16 +191,23 @@ public:
     int pendingGrassDistance = 150;  // 30-2000 yards; density thins past 45
     int pendingAntiAliasing = kDefaultAntiAliasing;  // 0=Off, 1=2x, 2=4x, 3=8x
     bool pendingFXAA = false;     // FXAA post-process (combinable with MSAA)
+#if defined(WOWEE_SWITCH)
+    bool pendingNormalMapping = false;
+    float pendingNormalMapStrength = 0.6f;
+    float pendingLensFlare = 0.5f;
+    int pendingFrameCap = 0;
+    bool pendingPOM = false;
+    bool pendingSharpStars = true;
+    int pendingShadowQuality = 1;       // 0 off, 1 terrain, 2+ everything
+#else
     bool pendingNormalMapping = true;   // on by default
     float pendingNormalMapStrength = 0.8f;  // 0.0-2.0
     float pendingLensFlare = 1.0f;          // 0.0-2.0, sun flare strength
     int pendingFrameCap = 0;                // index into the frame-limit choices
     bool pendingPOM = true;             // on by default
     bool pendingSharpStars = true;
-    // The three graphics settings this client added itself. Defaults are read
-    // from the renderer's own constants at construction rather than repeated
-    // here, so the panel and the pass can never disagree about what shipped.
     int pendingShadowQuality = 2;       // 0 off, 1 terrain, 2+ everything
+#endif
     float pendingVolumetricIntensity = rendering::kDefaultVolumetricIntensity;
     float pendingVolumetricFogIntensity = rendering::kDefaultVolumetricFogIntensity;
     bool pendingVolumetricRaysEnabled = true;
@@ -227,8 +239,13 @@ public:
         HIGH = 3,
         ULTRA = 4
     };
+#if defined(WOWEE_SWITCH)
+    GraphicsPreset currentGraphicsPreset = GraphicsPreset::LOW;
+    GraphicsPreset pendingGraphicsPreset = GraphicsPreset::LOW;
+#else
     GraphicsPreset currentGraphicsPreset = GraphicsPreset::CUSTOM;
     GraphicsPreset pendingGraphicsPreset = GraphicsPreset::CUSTOM;
+#endif
 
     // ---- Applied-once flags (used by GameScreen::render() one-time-apply blocks) ----
     bool fsrSettingsApplied_ = false;

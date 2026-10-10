@@ -40,12 +40,12 @@ void reportAllocationState(const char* what, VkDeviceSize size) {
 // contiguous block. This can: block count, bytes used and free per block, and
 // the largest free region VMA itself can see.
 void reportVmaLayout(VmaAllocator allocator) {
-    char* stats = nullptr;
-    vmaBuildStatsString(allocator, &stats, 1);
-    if (stats) {
-        LOG_ERROR("probe: vma layout: ", stats);
-        vmaFreeStatsString(allocator, stats);
-    }
+    VmaTotalStatistics stats{};
+    vmaCalculateStatistics(allocator, &stats);
+    LOG_ERROR("probe: VMA stats: blocks=", stats.total.statistics.blockCount,
+              " allocs=", stats.total.statistics.allocationCount,
+              " usedBytes=", stats.total.statistics.allocationBytes,
+              " blockBytes=", stats.total.statistics.blockBytes);
 }
 
 // Set by VkContext at creation so an allocation failure can reclaim first.
@@ -74,37 +74,8 @@ void reportAllocationProbe(VmaAllocator allocator, VkBufferUsageFlags usage,
         LOG_ERROR("probe: maxMemoryAllocationCount=", props.limits.maxMemoryAllocationCount,
                   " device=", props.deviceName);
     }
-    // Probe by halving from the failing size, so one run locates the cap
-    // instead of guessing at it: 64 KiB succeeded and 1 MiB failed on the
-    // console, and the boundary matters because it decides whether the
-    // upload has to be chunked and at what size.
-    VkDeviceSize lo = 65536;      // known good from the earlier probe
-    VkDeviceSize hi = size;       // known bad - this call just failed
-    while (hi - lo > 4096) {
-        const VkDeviceSize mid = lo + (hi - lo) / 2;
-        VkBufferCreateInfo buf{};
-        buf.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        buf.size = mid;
-        buf.usage = usage;
-        buf.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        VmaAllocationCreateInfo ac{};
-        ac.usage = memoryUsage;
-        if (memoryUsage == VMA_MEMORY_USAGE_CPU_TO_GPU ||
-            memoryUsage == VMA_MEMORY_USAGE_CPU_ONLY) {
-            ac.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-        }
-        VkBuffer b = VK_NULL_HANDLE;
-        VmaAllocation a = VK_NULL_HANDLE;
-        const VkResult rc = vmaCreateBuffer(allocator, &buf, &ac, &b, &a, nullptr);
-        LOG_ERROR("probe: ", mid, " B -> VkResult=", static_cast<int>(rc));
-        if (rc == VK_SUCCESS) {
-            lo = mid;
-            vmaDestroyBuffer(allocator, b, a);
-        } else {
-            hi = mid;
-        }
-    }
-    LOG_ERROR("probe: allocation cap is between ", lo, " and ", hi, " bytes");    const VkPhysicalDeviceMemoryProperties* mem = nullptr;
+    // Bisection probe disabled to avoid perturbing heap during OOM
+    const VkPhysicalDeviceMemoryProperties* mem = nullptr;
     vmaGetMemoryProperties(allocator, &mem);  // returns void
     if (mem) {
         for (uint32_t i = 0; i < mem->memoryHeapCount; ++i) {

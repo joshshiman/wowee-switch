@@ -690,28 +690,15 @@ TerrainChunkGPU TerrainRenderer::uploadChunk(const pipeline::ChunkMesh& chunk) {
     gpuChunk.indexCount = static_cast<uint32_t>(chunk.indices.size());
     gpuChunk.vertexCount = static_cast<uint32_t>(chunk.vertices.size());
 
-    VkDeviceSize vbSize = chunk.vertices.size() * sizeof(pipeline::TerrainVertex);
-    AllocatedBuffer vb = uploadBuffer(*vkCtx, chunk.vertices.data(), vbSize,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    gpuChunk.vertexBuffer = vb.buffer;
-    gpuChunk.vertexAlloc = vb.allocation;
-
-    VkDeviceSize ibSize = chunk.indices.size() * sizeof(pipeline::TerrainIndex);
-    AllocatedBuffer ib = uploadBuffer(*vkCtx, chunk.indices.data(), ibSize,
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    gpuChunk.indexBuffer = ib.buffer;
-    gpuChunk.indexAlloc = ib.allocation;
-
-    // Also copy into mega buffers for indirect drawing
     uint32_t vertCount = static_cast<uint32_t>(chunk.vertices.size());
     uint32_t idxCount = static_cast<uint32_t>(chunk.indices.size());
+
     if (megaVBMapped_ && megaIBMapped_ &&
         megaVBUsed_ + vertCount <= MEGA_VB_MAX_VERTS &&
         megaIBUsed_ + idxCount <= MEGA_IB_MAX_INDICES) {
-        // Copy vertices
+        // Copy into mega buffers directly - avoid creating 512 individual per-chunk buffers
         auto* vbDst = static_cast<pipeline::TerrainVertex*>(megaVBMapped_) + megaVBUsed_;
         std::memcpy(vbDst, chunk.vertices.data(), vertCount * sizeof(pipeline::TerrainVertex));
-        // Copy indices
         auto* ibDst = static_cast<uint32_t*>(megaIBMapped_) + megaIBUsed_;
         std::memcpy(ibDst, chunk.indices.data(), idxCount * sizeof(uint32_t));
 
@@ -719,6 +706,24 @@ TerrainChunkGPU TerrainRenderer::uploadChunk(const pipeline::ChunkMesh& chunk) {
         gpuChunk.megaFirstIndex = megaIBUsed_;
         megaVBUsed_ += vertCount;
         megaIBUsed_ += idxCount;
+
+        gpuChunk.vertexBuffer = VK_NULL_HANDLE;
+        gpuChunk.vertexAlloc = VK_NULL_HANDLE;
+        gpuChunk.indexBuffer = VK_NULL_HANDLE;
+        gpuChunk.indexAlloc = VK_NULL_HANDLE;
+    } else {
+        // Fallback: per-chunk buffers only when mega buffers are unavailable or full
+        VkDeviceSize vbSize = chunk.vertices.size() * sizeof(pipeline::TerrainVertex);
+        AllocatedBuffer vb = uploadBuffer(*vkCtx, chunk.vertices.data(), vbSize,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        gpuChunk.vertexBuffer = vb.buffer;
+        gpuChunk.vertexAlloc = vb.allocation;
+
+        VkDeviceSize ibSize = chunk.indices.size() * sizeof(pipeline::TerrainIndex);
+        AllocatedBuffer ib = uploadBuffer(*vkCtx, chunk.indices.data(), ibSize,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        gpuChunk.indexBuffer = ib.buffer;
+        gpuChunk.indexAlloc = ib.allocation;
     }
 
     return gpuChunk;
@@ -1369,6 +1374,8 @@ void TerrainRenderer::clear() {
     }
     chunks.clear();
     renderedChunks = 0;
+    megaVBUsed_ = 0;
+    megaIBUsed_ = 0;
 
     // A whole-world reset must not retain the previous map's terrain textures
     // or failed-load keys. Keep images alive until submitted frames finish,

@@ -230,15 +230,29 @@ bool VkTexture::upload(VkContext& ctx, const uint8_t* pixels, uint32_t width, ui
 
     AllocatedBuffer staging{};
     if (!useHostCopy) {
-        // Chunked for the same reason as uploadMips below: the console refuses
-        // a host-visible allocation above about 0.85 MiB, and a full-size
-        // texture is over it.
-        try {
-            staging = uploadBytesChunked(ctx, pixels, imageSize,
-                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
-        } catch (const std::exception& error) {
-            LOG_ERROR("Texture upload: staging failed: ", error.what());
-            return false;
+        if (imageSize <= 256 * 1024) {
+            try {
+                staging = createBuffer(ctx.getAllocator(), imageSize,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, where);
+                if (!staging.buffer) throw std::bad_alloc();
+                void* mapped = nullptr;
+                if (!mapStaging(ctx, staging, &mapped)) throw std::bad_alloc();
+                std::memcpy(mapped, pixels, imageSize);
+                vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, imageSize);
+                vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
+            } catch (const std::exception& error) {
+                if (staging.buffer) destroyBuffer(ctx.getAllocator(), staging);
+                LOG_ERROR("Texture upload: direct staging failed: ", error.what());
+                return false;
+            }
+        } else {
+            try {
+                staging = uploadBytesChunked(ctx, pixels, imageSize,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
+            } catch (const std::exception& error) {
+                LOG_ERROR("Texture upload: staging failed: ", error.what());
+                return false;
+            }
         }
     }
 
@@ -387,8 +401,19 @@ bool VkTexture::uploadMips(VkContext& ctx, const uint8_t* const* mipData,
         }
         for (uint32_t i = 0; i < mipCount; i++)
             std::memcpy(mipScratch.data() + levels[i].offset, mipData[i], levels[i].bytes);
-        staging = uploadBytesChunked(ctx, mipScratch.data(), totalSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
+        if (totalSize <= 256 * 1024) {
+            staging = createBuffer(ctx.getAllocator(), totalSize,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+            if (!staging.buffer) throw std::bad_alloc();
+            void* mapped = nullptr;
+            if (!mapStaging(ctx, staging, &mapped)) throw std::bad_alloc();
+            std::memcpy(mapped, mipScratch.data(), totalSize);
+            vmaFlushAllocation(ctx.getAllocator(), staging.allocation, 0, totalSize);
+            vmaUnmapMemory(ctx.getAllocator(), staging.allocation);
+        } else {
+            staging = uploadBytesChunked(ctx, mipScratch.data(), totalSize,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 256 * 1024);
+        }
     } catch (const std::exception& error) {
         LOG_ERROR("Texture mip upload: staging failed: ", error.what(),
                   " (totalSize=", totalSize, ", scratch=", mipScratch.size(), ")");

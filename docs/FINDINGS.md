@@ -568,3 +568,58 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
    - In `ZoneManager::enrichFromDBC`: evicted `SoundEntries.dbc` and `ZoneMusic.dbc` immediately after extracting music paths, wrapped in `try/catch`.
    - In `TerrainManager::ensureGroundEffectTablesLoaded`: evicted clutter DBCs immediately after extracting tables, wrapped in `try/catch`.
    - Reduced `kDefaultGroundClutter` on Switch from 70 to 25.
+
+## 2026-10-09 Run 45: Symbolicated Crash Fix in VMA String Dumper, Elimination of Chunk Buffer Fragmentation & Low Preset Default
+
+### Symptoms in Run 44:
+- Client crashed with Data Abort (0x4A8 / 2168-0002) during world load at tile [32,47] chunk alpha texture creation.
+- Symbolicated call stack from Atmosphere crash report (`01791593258_010000000000100d.log`):
+  ```
+  PC:  0x118aca8 -> memcpy
+  LR:  0xb9b2cc  -> VmaVector<char>::resize
+  RA0: 0xb9b650  -> VmaJsonWriter::BeginString
+  RA1: 0xb9b8c0  -> VmaAllocation_T::PrintParameters
+  RA2: 0xb9f034  -> VmaBlockMetadata::PrintDetailedMap_Allocation
+  RA3: 0xba0bbc  -> vmaBuildStatsString
+  RA4: 0xbb8560  -> wowee::rendering::reportVmaLayout(VmaAllocator) (vk_utils.cpp:44)
+  RA5: 0xbb8fec  -> wowee::rendering::createBuffer (vk_utils.cpp:186)
+  RA6: 0xbb9470  -> wowee::rendering::uploadBytesChunked
+  RA7: 0xbc1f28  -> wowee::rendering::VkTexture::upload
+  RA8: 0xc09af4  -> wowee::rendering::TerrainRenderer::createPackedAlphaTexture
+  RA9: 0xc13070  -> wowee::rendering::TerrainRenderer::bindChunkTextures
+  RA10: 0xc13718 -> wowee::rendering::TerrainRenderer::loadTerrainIncremental
+  RA11: 0xc3f104 -> wowee::rendering::TerrainManager::advanceFinalization
+  RA12: 0xc4008c -> wowee::rendering::TerrainManager::processOneReadyTile
+  RA13: 0x580ccc -> wowee::core::WorldLoader::loadMapGeometry
+  RA14: 0x5824b4 -> wowee::core::WorldLoader::loadOnlineWorldTerrain
+  ```
+- Error log prior to crash:
+  `Failed to create VMA buffer (size=16384) result=-2 usage=1 memoryUsage=2 from vk_utils.cpp:246`
+  `liveBuffers=406 liveBufferBytes=8398672 liveImages=160 liveImageBytes=9891840`
+  `probe: allocation cap is between 225279 and 227497 bytes`
+
+### Root Cause Analysis:
+1. **Direct Crash in Error Reporting Logger (`reportVmaLayout`)**:
+   - `reportVmaLayout` in `vk_utils.cpp` called `vmaBuildStatsString(allocator, &stats, 1)` with `detailedMap=true`.
+   - When VMA memory was tight, allocating JSON strings across 400+ buffers caused internal `VmaVector<char>::resize` allocation failure, dereferencing a null pointer in `memcpy` (`X[0] = 0x0`).
+2. **512 Redundant Per-Chunk Buffer Allocations in `uploadChunk`**:
+   - `TerrainRenderer::uploadChunk` unconditionally allocated vertex (6,384 B) and index (3,072 B) buffers for all 256 chunks per tile (512 individual buffers per tile), even though all chunks were also copied into `megaVB_` and `megaIB_`.
+   - In `render()`, chunks in mega buffers draw directly via `megaVB_` and `megaIB_` and never touch per-chunk buffers.
+   - 512 tiny buffers per tile severely fragmented VMA memory blocks, causing `liveBuffers` to exceed 400 and reducing the largest contiguous free hole to under 225 KiB.
+3. **Double Staging in `VkTexture::upload`**:
+   - For 16 KiB alpha textures, `uploadBytesChunked` created both a CPU staging buffer AND a GPU buffer, transferring CPU -> GPU buffer -> VkImage.
+4. **Default Graphics Settings**:
+   - Defaulted to Medium/Custom with higher view distances, normal mapping, and doodad shadows enabled.
+
+### Solutions Applied:
+1. **Safe Zero-Allocation VMA Stats**:
+   - Replaced `vmaBuildStatsString` in `reportVmaLayout` with `vmaCalculateStatistics(allocator, &stats)`. It logs block counts, allocations, and bytes without dynamic allocations.
+   - Disabled the repetitive bisection loop in `reportAllocationProbe` to prevent perturbing the heap during OOM.
+2. **Direct Mega Buffer Usage in `uploadChunk`**:
+   - In `TerrainRenderer::uploadChunk`, if `megaVB_` and `megaIB_` have space, write directly into the mega buffers and set `chunk.vertexBuffer` and `chunk.indexBuffer` to `VK_NULL_HANDLE`.
+   - Reserve individual buffer allocations strictly for fallback when mega buffers are unavailable or full.
+   - In `TerrainRenderer::clear()`, reset `megaVBUsed_ = 0` and `megaIBUsed_ = 0`.
+3. **Direct Host-Visible Staging in `VkTexture::upload`**:
+   - For textures <= 256 KiB (including all 16 KiB alpha textures), stage directly through a single CPU-mapped buffer (`VMA_MEMORY_USAGE_CPU_ONLY`) into `VkImage`.
+4. **Default Graphics Quality Set to Low on Switch**:
+   - Default preset: Low (`viewDistance = 400.0f`, `shadowDistance = 100.0f`, `shadowQuality = 1` [Terrain only], `groundClutter = 15`, `normalMapping = false`, `parallax = false`).
