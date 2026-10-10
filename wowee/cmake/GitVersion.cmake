@@ -47,6 +47,24 @@ if(EXISTS "${SRC_DIR}/BUILD_VERSION")
     endif()
 endif()
 
+# Always suffix the short commit: the on-screen version ("02.12+abcdefg") is
+# the only build fingerprint readable on hardware, and without the suffix a
+# week of different builds all read identically. copy_if_different below keeps
+# this from rebuilding the world when nothing changed.
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${SRC_DIR}
+        OUTPUT_VARIABLE _git_sha
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _sha_result
+    )
+    if(_sha_result EQUAL 0 AND _git_sha)
+        set(WOWEE_GIT_VERSION "${WOWEE_GIT_VERSION}+${_git_sha}")
+    endif()
+endif()
+
 # Date only, no clock time: a timestamp would differ on every build and force a
 # recompile of everything including this header.
 string(TIMESTAMP WOWEE_BUILD_DATE "%Y-%m-%d" UTC)
