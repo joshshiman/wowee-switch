@@ -2639,6 +2639,18 @@ PostProcessPipeline* Renderer::getPostProcessPipeline() const {
 
 void Renderer::setFSREnabled(bool enabled) {
     if (!postProcessPipeline_) return;
+#ifdef WOWEE_SWITCH
+    // In-world frames are ~240 ms of GPU fill at 720p with everything else
+    // already off (run 56). FSR1 spatial upscale at 0.59 renders the scene at
+    // ~755x425 (35% of the pixels) + EASU/RCAS resolve; UI composites after at
+    // full res. Forced on regardless of saved mode, same as the shadow/post
+    // floor — delete to restore the panel. FSR2 stays off (compute features).
+    if (!enabled) {
+        LOG_WARNING("switch performance: FSR1 forced on (0.59 render scale)");
+        enabled = true;
+        postProcessPipeline_->setFSRQuality(0.59f);
+    }
+#endif
     auto req = postProcessPipeline_->setFSREnabled(enabled);
     if (req.requested) {
         pendingMsaaSamples_ = req.samples;

@@ -875,3 +875,22 @@ just not this killer).
   (they pop in as the world appears — invisible); dies identically at the
   same point → markers fully exonerated and the fault is in streaming-frame
   content, which becomes the only remaining theory.
+
+## 2026-10-09 Run 56: entry survives with markers deferred; FSR1 forced
+
+### Run 23:24 (build 3670ec31): NO CRASH — burst theory confirmed
+Marker/footprint pipelines created at entry end with zero upload failures;
+entry survived. 5/5 prior deaths had those uploads mid-burst. Markers stay
+late (user saw none — quest already accepted, nothing to show). 27 WORLD_PERF
+samples in-world: 4.2 fps avg, renderMean 238 ms vs ~7 ms CPU passes — still
+GPU fill-bound with shadows/volumetric/bloom all at 0. NPCs=112 in Elwynn.
+User-noted lag toward Stormwind (denser WMO) fits fill-bound.
+
+### Change deployed (~23:30, md5 `a0bc10bb...`): FSR1 spatial upscale forced
+- `Renderer::setFSREnabled(false)` becomes enable + 0.59 render scale on
+  Switch (~755x425 scene, 35% pixels; EASU/RCAS resolve; UI composites after
+  at full res). FSR2 still refuses itself (compute features). Same
+  delete-to-restore contract as the shadow/post floor.
+- If scene fill is the remaining ~230 ms, expect roughly half. WORLD_PERF
+  next run confirms; if FSR resolve itself misbehaves on NVK it shows
+  immediately (never exercised there before).
