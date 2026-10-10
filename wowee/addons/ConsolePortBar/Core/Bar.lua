@@ -595,9 +595,14 @@ function Bar:OnLoad(cfg, benign)
                 -- The fork: read THROUGH the handle, exactly as restricted
                 -- code does. Table read fine + handle read nil = registry
                 -- bridge broken; both fine = secure reads live again.
+                -- Plus the fallback breadcrumb (see mt:GetAttribute): hits
+                -- counts fallback runs on this frame, innerAt whether the
+                -- inner table had attributes at all.
                 local ok, hv = pcall(function() return h:GetAttribute('OnDragStart') end);
                 warn('[WOWEE_ATTRDIAG] handle-read ok=' .. tostring(ok)
-                    .. ' type=' .. type(hv));
+                    .. ' type=' .. type(hv)
+                    .. ' fallbackHits=' .. tostring(w.__woweeFallbackHits)
+                    .. ' fallbackInnerAt=' .. tostring(w.__woweeFallbackInnerAt));
             end
             -- Is the CLICK override baked into the binding set itself?
             if ConsolePort and ConsolePort.GetBindingSet then

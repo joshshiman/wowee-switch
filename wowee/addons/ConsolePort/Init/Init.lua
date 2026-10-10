@@ -185,6 +185,25 @@ function ConsolePort:LoadSettings()
 		ConsolePortMouseHandle:Hide()
 	end
 
+	-- Minus drives the utility ring through a scripted click, but this
+	-- client's Click only runs insecure scripts while the ring's visibility
+	-- lives in its secure show/hide template - so the click lands and nothing
+	-- appears. Mirror the toggle insecurely (HookScript chains, never
+	-- clobbers): release flips the ring, guarded to hook once per session.
+	if ConsolePortUtilityToggle and not ConsolePortUtilityToggle.woweeRingHook then
+		ConsolePortUtilityToggle.woweeRingHook = true
+		ConsolePortUtilityToggle:HookScript('PreClick', function(self, button, down)
+			if down then return end
+			if InCombatLockdown() then return end
+			if self:IsShown() then
+				self:Hide()
+			else
+				if self.Refresh then self:Refresh() end
+				self:Show()
+			end
+		end)
+	end
+
 	-----------------------------------------------------------
 	-- Load controller splash if no preference exists
 	-----------------------------------------------------------

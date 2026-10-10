@@ -6773,6 +6773,17 @@ void LuaEngine::registerCoreAPI() {
         "    if not at then\n"
         "        local inner = rawget(self, 1)\n"
         "        if type(inner) == 'table' then at = rawget(inner, '__attributes') end\n"
+        // Breadcrumb for the surrogate question: count fallback uses on the
+        // inner frame (plain field reads, no metamethods). An insecure probe
+        // can read w.__woweeFallbackHits straight off the frame, which says
+        // whether this path runs at all, in any environment - restricted code
+        // cannot reach __WoweeWarn (not in its env), so the counter is the
+        // only witness that survives. Temporary; remove with the debug round.
+        "        if type(inner) == 'table' then\n"
+        "            local hits = rawget(inner, '__woweeFallbackHits') or 0\n"
+        "            rawset(inner, '__woweeFallbackHits', hits + 1)\n"
+        "            rawset(inner, '__woweeFallbackInnerAt', at ~= nil)\n"
+        "        end\n"
         "    end\n"
         "    if not at then return nil end\n"
         "    if b == nil then return at[a] end\n"
@@ -10135,7 +10146,24 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     }
     if (command == "TOGGLEGAMEMENU" || command == "CP_X_RIGHT") {
         outcome = "panel:gamemenu";
-        if (down) executeString("ToggleGameMenu()");
+        if (down) {
+            executeString("ToggleGameMenu()");
+            // Which menu answered: the engine replaces ToggleGameMenu with the
+            // client settings opener unless FrameXML owns the panel - and the
+            // takeover suppresses FrameXML's frame when it owns it. Log both
+            // the flag and the outcome so "sound but nothing visible" resolves
+            // to a branch instead of another round of guessing.
+            lua_getglobal(L_, "__WoweeOwnsGameMenu");
+            const bool owns = lua_toboolean(L_, -1) != 0;
+            lua_pop(L_, 1);
+            bool shown = false;
+            if (auto* gh = getGameHandler(L_)) {
+                shown = gh->askInterface(
+                    "type(rawget(_G, 'GameMenuFrame')) == 'table' and GameMenuFrame:IsShown()");
+            }
+            LOG_WARNING("[WOWEE_MENU] ownsGameMenu=", owns ? 1 : 0,
+                        " frameShown=", shown ? 1 : 0);
+        }
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }
