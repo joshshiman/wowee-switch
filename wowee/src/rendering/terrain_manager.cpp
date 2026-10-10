@@ -113,6 +113,9 @@ constexpr float kRand16Max = 65535.0f;
 constexpr float kInv1024  = 1.0f / 1024.0f;
 
 int computeTerrainWorkerCount() {
+#ifdef WOWEE_SWITCH
+    return 2;
+#else
     const char* raw = std::getenv("WOWEE_TERRAIN_WORKERS");
     if (raw && *raw) {
         char* end = nullptr;
@@ -132,6 +135,7 @@ int computeTerrainWorkerCount() {
         return static_cast<int>(targetWorkers);
     }
     return 4;  // Fallback
+#endif
 }
 
 using pipeline::decodeLayerAlpha;
@@ -2494,9 +2498,8 @@ bool TerrainManager::startWorkers() {
     workerRunning.store(true);
     try {
         workerThreads.reserve(workerCount);
-        constexpr size_t kWorkerStackSize = 2 * 1024 * 1024; // 2 MiB stack (Switch default is 128 KiB)
         for (int i = 0; i < workerCount; ++i) {
-            workerThreads.emplace_back(kWorkerStackSize, &TerrainManager::workerLoop, this);
+            workerThreads.emplace_back(&TerrainManager::workerLoop, this);
         }
     } catch (const std::exception& e) {
         // A partially constructed pool still owns joinable threads. Join it

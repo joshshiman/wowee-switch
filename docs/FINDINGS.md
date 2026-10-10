@@ -491,3 +491,35 @@ asset reads were lost to allocation failure. This is blocker 6's territory.
    - Converted split `_obj0.adt` loading to populate `objTerrain` on the heap, eliminating 300 KiB stack frames.
 3. **Direct-to-Heap Terrain Mesh Generation**:
    - Added `TerrainMeshGenerator::generate(const ADTTerrain&, TerrainMesh&)` to write chunk geometry directly into heap-allocated `pending->mesh`.
+
+## 2026-10-09 Run 43: Revert Custom Thread Stack Size to Standard std::thread & Fix World Entry Crash
+
+### Symptoms in Run 42:
+- Loading screen progress reached 100% (full progress bar).
+- Client closed / crashed right at the end of the progress bar before entering the 3D world.
+- Log revealed:
+  ```
+  Terrain worker pool could not start: Failed to create thread with stack
+  Failed to initialize terrain manager
+  Could not load terrain for online world - atmospheric rendering only
+  ...
+  Failed to create shadow depth image [1]
+  Failed to create per-frame Vulkan resources
+  [FATAL] [SESSION_RESET] Renderer reconstruction failed; closing safely
+  ```
+
+### Root Cause:
+- On Nintendo Switch (devkitA64 / libnx), `pthread_attr_setstacksize(&attr, 2 * 1024 * 1024)` in `core::ThreadWithStack` causes `pthread_create` to fail with error, throwing `std::runtime_error("Failed to create thread with stack")`.
+- This aborted `TerrainManager::initialize()`, leaving the terrain manager uninitialized.
+- At 100% progress when the world loader attempted to transition into the 3D world, renderer reconstruction failed due to missing terrain manager state, triggering `SESSION_RESET`.
+
+### Solution:
+1. **Reverted to `std::thread`**:
+   - Standard `std::thread` works reliably on devkitA64 / libnx.
+   - The earlier stack overflow in Run 41 was caused solely by 300 KiB `ADTTerrain` objects on the call stack in `ADTLoader::load`.
+   - Now that `ADTTerrain` and `TerrainMesh` are allocated and populated directly on the heap, stack usage in `prepareTile()` is under 2 KiB, fitting safely within the default 128 KiB thread stack.
+2. **Worker Pool Sizing**:
+   - Configured `computeTerrainWorkerCount()` to 2 workers on Switch (`#ifdef WOWEE_SWITCH`), keeping CPU cores free for rendering and audio processing.
+3. **Clean Build & Verification**:
+   - Verified TLS access check (`PASS`), archived ELF to `logs/console/2026-10-09_2019/deployed.elf`.
+   - Deployed `wowee.nro` and `wowee.elf` to Switch FTP at `192.168.2.44:5000`.
