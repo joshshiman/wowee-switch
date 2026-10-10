@@ -6731,12 +6731,14 @@ void LuaEngine::registerCoreAPI() {
         "    self:SetText(ok and out or fmt)\n"
         "end\n"
         "function mt:SetAttribute(name, value)\n"
+        "    if not name then return end\n"
+        "    name = tostring(name)\n"
         "    local at = rawget(self, '__attributes')\n"
         "    if not at then at = {}; rawset(self, '__attributes', at) end\n"
         "    at[name] = value\n"
         "    local s = rawget(self, '__scripts')\n"
         "    local handler = s and s.OnAttributeChanged\n"
-        "    if handler then handler(self, name, value) end\n"
+        "    if handler then pcall(handler, self, name, value) end\n"
         "end\n"
         // The three-argument form names one attribute in pieces, and falls
         // back to the bare name when no piece-specific value was set - which

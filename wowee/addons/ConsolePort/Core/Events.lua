@@ -220,7 +220,7 @@ function Events:ADDON_ACTION_FORBIDDEN(culprit, action)
 end
 
 function Events:ADDON_LOADED(name)
-	self:LoadSettings()
+	if self.LoadSettings then self:LoadSettings() end
 	self:LoadActionPager(db('pagedriver'), db('pageresponse'))
 	self:LoadControllerTheme()
 	self:LoadEvents()

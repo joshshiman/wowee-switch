@@ -677,7 +677,7 @@ function Utility:SpawnButtonAtIndex(i)
 	button:Show()
 
 	self.Buttons[i] = button
-	self:SetAttribute(angle, button)
+	self:SetAttribute(tostring(angle), button)
 	self:SetFrameRef(tostring(i), button)
 	self:SetFrameRef(tostring(angle), button)
 	self:OnNewButton(button, i, angle, rotate)
