@@ -299,10 +299,17 @@ bool WMORenderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayou
 
     // Off unless asked for: a building that is not drawn is a worse fault than
     // a building drawn when it did not need to be.
+    // Switch asks by default (no shell for the env var): indoor views draw
+    // the whole surrounding complex without portal+distance culling (run 62:
+    // ~120 WMO draws inside a small inn). If walls start vanishing, revert
+    // this and gate interiors differently.
     if (const char* v = std::getenv("WOWEE_WMO_CULL"); v && *v && *v != '0') {
         cullingEnabled_ = true;
         core::Logger::getInstance().info("WMO culling enabled by WOWEE_WMO_CULL");
     }
+#ifdef WOWEE_SWITCH
+    cullingEnabled_ = true;
+#endif
 
     VkDevice device = vkCtx_->getDevice();
 

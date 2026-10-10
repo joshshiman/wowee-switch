@@ -1063,3 +1063,22 @@ flow is INFO-suppressed or unlogged. Nothing to diagnose from.
    lock only on one of several release paths; modal owning input focus and
    never releasing it; local-realm death not generating the release event at
    all (single-player content path, cf. local-realm save path bugs).
+
+## Run 63: indoors 2x outdoors + WMO cull default-on (build ef4bbc44)
+
+### Indoor split (run 01:54, inn ~10 s, playerIndoors=1 x6 samples)
+- Outdoors: 59-196 ms. Indoors: 100-226 ms sustained (entry 61 ms, then
+  100/226/214/218/197/139). Indoor draws: m2 ~145-162, wmo ~114-125,
+  chars ~167-191 (vs ~25 outdoors!) — interiors draw MORE, not less.
+- Mechanism: WMO portal+distance culling (cullInstance path) is env-gated
+  (WOWEE_WMO_CULL, unsettable on console) — off by default "because a
+  missing building beats an extra draw". Frustum + bounds-distance culling
+  run regardless, but a frustum from inside a room still intersects the whole
+  complex. Character attempts also spike indoors (distance+frustum active;
+  radius 130 — dense inn population?).
+
+### Change deployed (md5 `ef4bbc44...`): WMO culling on by default (Switch)
+- One ifdef: cullingEnabled_ = true on Switch. If walls vanish anywhere,
+  revert and gate interiors differently — user asked to watch for it.
+- Expectation: indoor wmoDraws collapse; outdoor mostly unchanged (bounds
+  path already culled). Next: character-draw spike indoors (separate).
