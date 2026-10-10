@@ -851,6 +851,24 @@ void pumpInput() {
             if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) left = true;
             if (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) right = true;
         }
+        // Hold-A is left-click too, in any mode. A tap fires the F4 binding
+        // (interact); holding it past a quarter second also holds the left
+        // mouse button, which is what picks a bag item up and what the drop
+        // answers. Without this the pad has right-click but no left-click
+        // outside cursor mode, so nothing can ever be dragged from a bag to
+        // the bar. The tap still fires first - an extra interact on pickup
+        // is harmless beside a drag that would otherwise be impossible.
+        {
+            static bool s_crossWasHeld = false;
+            static Clock::time_point s_crossDownSince{};
+            const bool crossHeld = (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) != 0;
+            if (crossHeld && !s_crossWasHeld) s_crossDownSince = Clock::now();
+            s_crossWasHeld = crossHeld;
+            if (crossHeld &&
+                std::chrono::duration<float>(Clock::now() - s_crossDownSince).count() > 0.25f) {
+                left = true;
+            }
+        }
     } else {
     for (const PadBinding& b : kBindings) {
         if (s_applicationKeyboardOpen || s_menuOwners || b.layer != layer) continue;

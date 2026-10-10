@@ -9989,9 +9989,25 @@ std::string LuaEngine::bindingCommandFor(int sdlKeycode, bool shift, bool ctrl,
 bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                                    bool alt, bool down) {
     if (!L_) return false;
-    const std::string command = bindingCommandFor(sdlKeycode, shift, ctrl, alt);
-    if (command.empty()) return false;
+    std::string command = bindingCommandFor(sdlKeycode, shift, ctrl, alt);
+    // F11/F12 with no binding at all still open the handheld panels: without
+    // an override GetBindingAction answers "" (or the raw CP_X_* pad name),
+    // and the key would read as dead. Minus is the utility ring, Plus is the
+    // game menu - the two doors to the spellbook, bags, character and map.
+    if (command.empty() || command == "CP_X_LEFT" || command == "CP_X_RIGHT") {
+        const std::string raw = wowKeyName(sdlKeycode);
+        if (raw == "F11") command = "CP_X_LEFT";
+        else if (raw == "F12") command = "CP_X_RIGHT";
+        else if (command.empty()) return false;
+    }
 
+    // F-key trace: which pad button became which command and what answered.
+    // Gated to F1..F12 - movement and typing never reach this line, so the
+    // volume stays at one line per pad press. Remove once the handheld map
+    // is settled; it exists to answer "what does X do" without a debugger.
+    const std::string traceRaw = wowKeyName(sdlKeycode);
+    const bool traceKey = traceRaw.size() >= 2 && traceRaw[0] == 'F';
+    const char* outcome = "unhandled";
     // 1. CLICK FrameName:MouseButton commands (e.g. CLICK ConsolePortUtilityToggle:LeftButton)
     if (command.rfind("CLICK ", 0) == 0) {
         std::string rest = command.substr(6);
@@ -10019,6 +10035,8 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                     lua_pop(L_, 1);
                 }
                 lua_pop(L_, 1); // frame table
+                outcome = "click";
+                if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
                 return true;
             }
             lua_pop(L_, 1);
@@ -10027,13 +10045,16 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
 
     // 2. Explicit JUMP binding (e.g. X button in ConsolePort handheld map)
     if (command == "JUMP") {
+        outcome = "jump";
         core::Input::getInstance().setVirtualKey(SDL_SCANCODE_SPACE, down);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }
 
     // 2b. Bag toggle (e.g. B button in ConsolePort handheld map).
     // OpenAllBags is 3.3.5's own toggle-all name.
     if (command == "OPENALLBAGS") {
+        outcome = "bags";
         if (down) {
             lua_getglobal(L_, "OpenAllBags");
             if (lua_isfunction(L_, -1)) {
@@ -10045,6 +10066,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 lua_pop(L_, 1);
             }
         }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }
 
@@ -10052,6 +10074,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     // handheld map). Right-click semantics on the target: loot the dead,
     // talk to the friendly, attack the hostile, use the game object.
     if (command == "INTERACTTARGET") {
+        outcome = "interact";
         if (down) {
             if (auto* gh = getGameHandler(L_)) {
                 if (gh->hasTarget()) {
@@ -10074,14 +10097,62 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 }
             }
         }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }
+
+    // 2d. Panel toggles the client would otherwise swallow. These sit in
+    // clientActsOnBinding (the client answers them on ITS keys - Escape,
+    // Enter, Numlock), so without explicit cases a pad key bound to one of
+    // them yields to a client that never sees it and the key reads as dead.
+    // That is exactly what Minus/Plus did: TOGGLEGAMEMENU and OPENCHAT fell
+    // through to `return false` while the client waited on Escape and Enter.
+    if (command == "TOGGLESPELLBOOK") {
+        outcome = "panel:spellbook";
+        if (down) executeString("ToggleSpellBook(BOOKTYPE_SPELL)");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLETALENTS") {
+        outcome = "panel:talents";
+        if (down) executeString("ToggleTalentFrame()");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLEGAMEMENU" || command == "CP_X_RIGHT") {
+        outcome = "panel:gamemenu";
+        if (down) executeString("ToggleGameMenu()");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLEAUTORUN") {
+        // The camera toggles on the Numlock edge; mirror the press there.
+        outcome = "panel:autorun";
+        core::Input::getInstance().setVirtualKey(SDL_SCANCODE_NUMLOCKCLEAR, down);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "OPENCHAT" || command == "OPENCHATSLASH") {
+        outcome = "panel:chat";
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                gh->runInterfaceCommand(command == "OPENCHATSLASH"
+                    ? "ChatFrame_OpenChat(\"/\")" : "ChatFrame_OpenChat(\"\")");
+            }
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    // Raw pad names with no override (Minus/Plus before LoadBindingSet or
+    // after ClearOverrideBindings): Minus opens the utility ring.
+    if (command == "CP_X_LEFT") command = "CLICK ConsolePortUtilityToggle:LeftButton";
 
     // 3. Action bar slots (e.g. ACTIONBUTTON1..12)
     if (command.rfind("ACTIONBUTTON", 0) == 0) {
         try {
             int slot = std::stoi(command.substr(12));
             if (slot >= 1 && slot <= 120 && down) {
+                outcome = "action";
                 lua_getglobal(L_, "UseAction");
                 if (lua_isfunction(L_, -1)) {
                     lua_pushinteger(L_, slot);
@@ -10089,6 +10160,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 } else {
                     lua_pop(L_, 1);
                 }
+                if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
                 return true;
             }
         } catch (...) {}
@@ -10096,12 +10168,23 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
 
     // Left alone if the client performs it. Not "already handled, so skip the
     // work" - running it as well would undo it.
-    if (clientActsOnBinding(command)) return false;
+    if (clientActsOnBinding(command)) {
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> client");
+        return false;
+    }
 
     lua_getglobal(L_, "__WoweeBindingScripts");
-    if (!lua_istable(L_, -1)) { lua_pop(L_, 1); return false; }
+    if (!lua_istable(L_, -1)) {
+        lua_pop(L_, 1);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> noscript");
+        return false;
+    }
     lua_getfield(L_, -1, command.c_str());
-    if (!lua_isfunction(L_, -1)) { lua_pop(L_, 2); return false; }
+    if (!lua_isfunction(L_, -1)) {
+        lua_pop(L_, 2);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> noscript");
+        return false;
+    }
     lua_pushstring(L_, down ? "down" : "up");
     if (lua_pcall(L_, 1, 0, 0) != 0) {
         LOG_WARNING("Binding ", command, " failed: ",
@@ -10111,6 +10194,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         return false;
     }
     lua_pop(L_, 1);
+    if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> script");
     return true;
 }
 

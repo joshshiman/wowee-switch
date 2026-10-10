@@ -180,18 +180,30 @@ function ItemMenu:SetItem(bagID, slotID)
 		return self:Hide()
 	end
 
-	local count = self:GetCount()
-	self.Count:SetText(count > 1 and ('x'..count) or '')
-	--self.Icon:SetTexture(self:GetItemIcon())
-	SetPortraitToTexture(self.Icon, GetItemIcon(self));
-	self.Name:SetText(GetItemName(self))
-	self.Name:SetTextColor(GetItemQualityColor(self))
+	-- Never sit on screen half-built: if any populate step raises (a tooltip
+	-- API or command lookup this client does not implement), the menu used
+	-- to stay visible with no content and no way to dismiss it - an empty
+	-- dark box floating over the character. Fail closed instead.
+	local ok, err = pcall(function()
+		local count = self:GetCount()
+		self.Count:SetText(count > 1 and ('x'..count) or '')
+		--self.Icon:SetTexture(self:GetItemIcon())
+		SetPortraitToTexture(self.Icon, GetItemIcon(self));
+		self.Name:SetText(GetItemName(self))
+		self.Name:SetTextColor(GetItemQualityColor(self))
 
-	self:SetTooltip()
-	self:SetCommands()
-	self:FixSize()
-	self:Show()
-	self:RedirectCursor()
+		self:SetTooltip()
+		self:SetCommands()
+		self:FixSize()
+		self:Show()
+		if self.itemPool:GetNumActive() > 0 then
+			self:RedirectCursor()
+		end
+	end)
+	if not ok then
+		print('ConsolePort ItemMenu hid itself, populate failed: ' .. tostring(err))
+		self:Hide()
+	end
 end
 
 function ItemMenu:FixSize()
