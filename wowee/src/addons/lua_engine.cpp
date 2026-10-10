@@ -11775,7 +11775,7 @@ int luaTracebackHandler(lua_State* L) {
 
 /// Loads and runs a chunk with the traceback handler in place. Returns the
 /// same non-zero-on-error convention as luaL_dostring.
-int runChunk(lua_State* L, const char* chunk, size_t len, const char* name) {
+int runChunk(lua_State* L, const char* chunk, size_t len, const char* name, const std::string& addonName = "") {
     const int base = lua_gettop(L);
     lua_pushcfunction(L, luaTracebackHandler);
     if (luaL_loadbuffer(L, chunk, len, name) != 0) {
@@ -11784,7 +11784,27 @@ int runChunk(lua_State* L, const char* chunk, size_t len, const char* name) {
         lua_remove(L, base + 1);
         return 1;
     }
-    const int rc = lua_pcall(L, 0, 0, base + 1);
+    int nargs = 0;
+    if (!addonName.empty()) {
+        lua_pushstring(L, addonName.c_str());
+        lua_getfield(L, LUA_REGISTRYINDEX, "wowee_addon_tables");
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            lua_newtable(L);
+            lua_pushvalue(L, -1);
+            lua_setfield(L, LUA_REGISTRYINDEX, "wowee_addon_tables");
+        }
+        lua_getfield(L, -1, addonName.c_str());
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            lua_newtable(L);
+            lua_pushvalue(L, -1);
+            lua_setfield(L, -3, addonName.c_str());
+        }
+        lua_remove(L, -2); // remove registry table from stack; addon table is arg 2
+        nargs = 2;
+    }
+    const int rc = lua_pcall(L, nargs, 0, base + 1);
     lua_remove(L, base + 1);
     return rc;
 }
@@ -11891,7 +11911,7 @@ bool LuaEngine::executeFile(const std::string& path) {
         source.erase(0, 3);
     }
     const std::string chunkName = "@" + path;
-    int err = runChunk(L_, source.c_str(), source.size(), chunkName.c_str());
+    int err = runChunk(L_, source.c_str(), source.size(), chunkName.c_str(), currentAddon_);
     if (err != 0) {
         const char* errMsg = lua_tostring(L_, -1);
         std::string msg = errMsg ? errMsg : "(unknown error)";
@@ -11949,7 +11969,7 @@ bool LuaEngine::executeSource(const std::string& code, const std::string& source
     if (!L_) return false;
 
     BudgetGuard guard(L_, chunkTimeoutMs_);
-    int err = runChunk(L_, code.c_str(), code.size(), sourceName.c_str());
+    int err = runChunk(L_, code.c_str(), code.size(), sourceName.c_str(), currentAddon_);
     if (err != 0) {
         const char* errMsg = lua_tostring(L_, -1);
         std::string msg = errMsg ? errMsg : "(unknown error)";

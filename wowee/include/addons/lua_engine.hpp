@@ -300,6 +300,8 @@ public:
 
     // Store addon info in registry for GetAddOnInfo/GetNumAddOns
     void setAddonList(const std::vector<TocFile>& addons);
+    void setCurrentAddon(const std::string& name) { currentAddon_ = name; }
+    [[nodiscard]] const std::string& currentAddon() const { return currentAddon_; }
 
     /// The widget tree CreateFrame and CreateTexture build into. Owned here so
     /// its lifetime matches the Lua state that holds handles into it.
@@ -369,6 +371,7 @@ private:
     /// Guards against two handlers triggering each other without end.
     int eventDepth_ = 0;
     std::string lastError_;
+    std::string currentAddon_;
     unsigned long long chunkTimeoutMs_ = 0;
 
     // ── What the once-a-frame interface passes have to look at ──────────────

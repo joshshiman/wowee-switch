@@ -1749,6 +1749,17 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
 }
 
 bool AddonManager::loadAddon(const TocFile& addon) {
+    struct AddonScope {
+        LuaEngine& e;
+        std::string prev;
+        AddonScope(LuaEngine& eng, const std::string& name) : e(eng), prev(eng.currentAddon()) {
+            e.setCurrentAddon(name);
+        }
+        ~AddonScope() {
+            e.setCurrentAddon(prev);
+        }
+    } addonScope(luaEngine_, addon.addonName);
+
     // Load SavedVariables before addon code (so globals are available at load time)
     auto savedVars = addon.getSavedVariables();
     if (!savedVars.empty()) {
@@ -1781,13 +1792,16 @@ bool AddonManager::loadAddon(const TocFile& addon) {
 
         if (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".lua") {
             if (!executeSourceFile(fullPath)) {
-                LOG_ERROR("AddonManager: '", addon.addonName, "' failed on ", filename);
+                LOG_ERROR("AddonManager: '", addon.addonName, "' failed on ", filename, ": ", luaEngine_.lastError());
                 success = false;
             } else {
                 LOG_INFO("AddonManager: ran ", addon.addonName, "/", filename);
             }
         } else if (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".xml") {
-            if (!loadXmlFile(fullPath, 0)) success = false;
+            if (!loadXmlFile(fullPath, 0)) {
+                LOG_ERROR("AddonManager: '", addon.addonName, "' failed on XML ", filename, ": ", lastXmlError_);
+                success = false;
+            }
         }
     }
 
@@ -1795,6 +1809,9 @@ bool AddonManager::loadAddon(const TocFile& addon) {
     // This is the standard WoW pattern for addon initialization
     if (success) {
         luaEngine_.fireEvent("ADDON_LOADED", {addon.addonName});
+        LOG_WARNING("AddonManager: successfully loaded addon '", addon.addonName, "'");
+    } else {
+        LOG_ERROR("AddonManager: addon '", addon.addonName, "' failed to load completely");
     }
     return success;
 }
