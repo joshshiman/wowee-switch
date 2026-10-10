@@ -591,7 +591,14 @@ public:
     void setSuppressBakedStars(bool suppress) { suppressBakedStars_ = suppress; }
     void setInsideInterior(bool inside) { insideInterior = inside; }
     void setViewDistance(float distance) {
+#ifdef WOWEE_SWITCH
+        // The renderer forwards an already object-scaled value on Switch
+        // (M2 ~0.55x, WMO ~0.7x of the world distance); the desktop floor
+        // would clamp it straight back to 400.
+        viewDistanceRaw_ = std::clamp(distance, 150.0f, 2400.0f);
+#else
         viewDistanceRaw_ = std::clamp(distance, 400.0f, 2400.0f);
+#endif
         // And the distance itself, as a ceiling. The scale multiplies a
         // constant tuned for scene density - 2800 yards where models are
         // sparse - so at 2400 it put doodads 5600 yards out while the terrain

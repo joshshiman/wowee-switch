@@ -987,3 +987,21 @@ Also explains "Failed to upload chunk"=0 (only the full path warns).
 ### from scratch (in-memory state), so no eviction/repair path was needed.
 ### Lesson: a validity predicate must be updated with every new placement
 ### path, and silent `continue` on a drop path is how tiles vanish for weeks.
+
+## Run 60: draw-count attribution → object-distance cut (build e52a4767)
+
+### Cost ranking from 204 WORLD_PERF samples (draw-count quartiles)
+- M2 draws: +122 ms (135 -> 257). WMO draws: +107 ms (142 -> 249).
+- Characters: +60 ms. Terrain: -16 ms (noise; base cover is fixed cost).
+- Matches the user's look-down-smooth / horizon-slow report exactly:
+  view-dependent draw load, not fullscreen post (post/shadow/volumetric all 0).
+
+### Change deployed (md5 `e52a4767...`): Switch object-distance floor
+- M2 draw distance x0.55, WMO x0.7 of world distance; terrain keeps full
+  (cheap + must not hole). M2/WMO clamp floors lowered 400->150 on Switch so
+  the scaled values stick. Fog auto-tracks 0.95 x full distance, hiding pop.
+- Characters untouched (radius already 130 via env default).
+- Expectation: horizon views lose ~half their M2/WMO draws. WORLD_PERF
+  m2Draws/wmoDraws + frameMeanMs confirm next run; tune factors from there.
+- Path to 15 fps (~65 ms from ~240): this cut + 540p + forces. If still
+  short: grass/clutter, 480p scene, NPC radius — in that order.

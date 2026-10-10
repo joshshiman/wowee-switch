@@ -4300,8 +4300,19 @@ void Renderer::setViewDistance(float distance) {
 #endif
 
     if (terrainRenderer) terrainRenderer->setViewDistance(viewDistance_);
+#ifdef WOWEE_SWITCH
+    // Object distance cut (run 60: +122 ms M2, +107 ms WMO across draw-count
+    // quartiles; terrain ~0). Doodad/forest overdraw at the horizon is the
+    // observed cost (smooth looking down, slow looking out). Terrain keeps
+    // the full distance (cheap + must not hole); M2 x0.55, WMO x0.7. Fog
+    // already tracks 0.95 x viewDistance_, so pop-in stays inside haze.
+    // Delete to restore panel behavior; panel clamps still apply above.
+    if (wmoRenderer) wmoRenderer->setViewDistance(viewDistance_ * 0.7f);
+    if (m2Renderer) m2Renderer->setViewDistance(viewDistance_ * 0.55f);
+#else
     if (wmoRenderer) wmoRenderer->setViewDistance(viewDistance_);
     if (m2Renderer) m2Renderer->setViewDistance(viewDistance_);
+#endif
     if (terrainManager) {
         terrainManager->setLoadRadius(getTerrainLoadRadius());
         terrainManager->setUnloadRadius(getTerrainUnloadRadius());

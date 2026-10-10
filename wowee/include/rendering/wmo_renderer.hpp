@@ -323,7 +323,13 @@ public:
     bool isDistanceCullingEnabled() const { return distanceCulling; }
     uint32_t getLastFrustumCulledGroups() const { return lastFrustumCulledGroups; }
     float getMaxGroupDistance() const { return maxGroupDistance; }
-    void setViewDistance(float distance) { viewDistance_ = std::clamp(distance, 400.0f, 2400.0f); }
+    void setViewDistance(float distance) {
+#ifdef WOWEE_SWITCH
+        viewDistance_ = std::clamp(distance, 150.0f, 2400.0f);
+#else
+        viewDistance_ = std::clamp(distance, 400.0f, 2400.0f);
+#endif
+    }
 
     /**
      * Get number of groups culled by portals last frame
