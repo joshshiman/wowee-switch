@@ -1293,3 +1293,42 @@ Comprehensive note per user request - the whole override picture in one place.
 - Plus routing: callback-vs-frame branch now logged (via=settings/frame).
 - A-treat: talk re-fires per press by design (retail re-sends hello); left
   as-is per operator tolerance note.
+
+## OPERATOR OVERRULE: local realm + double-drive (2026-10-10, normative, supersedes prior layer claims)
+- The operator plays LOCAL REALM (offline). Proof: "Choose a living enemy"
+  (local_gameplay.cpp reject strings), "Attack and casting stopped"
+  (local_gameplay.cpp:5215 stopAttack result), local pad UI live in logs.
+- THREE input layers exist, not two. The earlier "base never fires" claim
+  covered only kBindings-base (truly gated off by consolePortActive). The
+  LOCAL-UI layer (application_local_ui.cpp, raw padSnapshot reads) has NO
+  ConsolePort gate and is FULLY LIVE alongside ConsolePort. Prior traces
+  measured only the ConsolePort half; every "impossible" report was the
+  local half. The operator was right throughout; the instruments were blind.
+- Current per-button behavior (BOTH layers, preserve all of it):
+  - X (SQUARE): local primaryAction(contextual) [talk/loot/attack via
+    localRealm, "Choose a living enemy" reject when nothing valid] PLUS CP
+    F1 jump (+tiers). Operator: "X should only be jump" means the CP half;
+    the local half is load-bearing and stays.
+  - Y (TRIANGLE): local toggleTarget [nearest living NPC any faction, or
+    clear + stopAttack] PLUS CP F3 attack-toggle. Operator: Y is fine, keep.
+  - A (CROSS): NO local action in-world; CP INTERACTTARGET only. Operator:
+    "A does nothing" because every gh method it calls is REMOTE-ONLY
+    (interactWithNpc=socket packet, startAutoAttack/targetEnemy/targetFriend
+    =combatHandler_, lootTarget=inventoryHandler_) while castSpell (Y's path)
+    checks localServiceRealm FIRST and works. A-talk "successes" in old logs
+    were packets to nowhere; visible dialogues came from the local half.
+  - B: CP bags/ring; local clears focus when untargeted (harmless).
+  - Minus/Plus: CP only (local has no reads for them); failures are
+    downstream (ring content/secure, suppressed menu).
+  - R3/L3/D-pad: no conflicts found.
+- "Hold O to ...": NOT ConsolePort text (grep negative in src+addons). Reads
+  as a Circle GLYPH + text = inline-texture hint icon resolving the wrong
+  controller set. Fix at glyph/name resolution to SWITCH set (unchanged plan).
+- Y-targets-friendly source: local toggleTarget via nearestLivingLocalTarget
+  (any living NPC). No dedicated friendly-target binding exists; do not
+  invent one. Y-then-Y dialogue micro-cause still open (tolerated, untouched).
+- Design rules going forward: (1) composition, not replacement - both layers
+  stay live; fixes route through the right layer, never silence one blindly;
+  (2) every gh-level handler used from dispatch MUST check localServiceRealm
+  first (castSpell pattern), else it is dead offline; (3) traces stay on
+  until the operator releases them.
