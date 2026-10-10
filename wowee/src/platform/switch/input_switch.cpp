@@ -1096,7 +1096,7 @@ bool inputMenuNavigation() { return s_menuOwners != 0; }
 
 void setConsolePortActive(bool active) {
     s_consolePortActive = active;
-    LOG_INFO("Switch HID: ConsolePort mode ", active ? "enabled" : "disabled");
+    LOG_WARNING("Switch HID: ConsolePort mode ", active ? "enabled" : "disabled");
 }
 bool consolePortActive() { return s_consolePortActive; }
 

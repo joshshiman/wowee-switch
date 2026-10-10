@@ -46,6 +46,8 @@ fi
 if [ -d "$BIN/addons" ]; then
     rm -rf "$APP_DIR/addons"
     cp -r "$BIN/addons" "$APP_DIR/addons"
+    rm -rf "$APP_DIR/data/addons"
+    cp -r "$BIN/addons" "$APP_DIR/data/addons"
 fi
 
 cat <<EOF

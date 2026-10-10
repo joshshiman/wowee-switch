@@ -164,8 +164,31 @@ void AddonManager::scanAddons(const std::string& addonsPath) {
 #ifdef WOWEE_SWITCH
     // The console has no usable CWD. Packaged addons are independent of the
     // writable extracted interface tree searched above.
-    const fs::path packaged = core::resolveRelativeAssetPath("addons");
-    if (fs::is_directory(packaged, rec)) roots.push_back(packaged);
+    const std::vector<std::string> switchAddonCandidates = {
+        (fs::path(platform::switchport::appRoot()).parent_path() / "addons").string(),
+        std::string("sdmc:/switch/wowee/addons"),
+        core::resolveRelativeAssetPath("addons"),
+        std::string("sdmc:/switch/wowee/data/addons"),
+        std::string("sdmc:/wowps/addons"),
+        std::string("sdmc:/wowps/interface/AddOns"),
+        std::string("romfs:/addons")
+    };
+    for (const auto& candidate : switchAddonCandidates) {
+        fs::path p(candidate);
+        if (fs::is_directory(p, rec)) {
+            bool alreadyInRoots = false;
+            for (const auto& r : roots) {
+                if (fs::equivalent(r, p, rec)) {
+                    alreadyInRoots = true;
+                    break;
+                }
+            }
+            if (!alreadyInRoots) {
+                LOG_WARNING("AddonManager: found packaged Switch addon directory: ", candidate);
+                roots.push_back(p);
+            }
+        }
+    }
 #else
     for (const char* local : {"addons", "../addons", "../../addons"}) {
         fs::path p = fs::absolute(local, rec);
@@ -255,8 +278,8 @@ void AddonManager::scanAddons(const std::string& addonsPath) {
             continue;
         }
 
-        LOG_INFO("AddonManager: registered addon '", toc->getTitle(),
-                 "' (", toc->files.size(), " files) from ", dir.string());
+        LOG_WARNING("AddonManager: registered addon '", toc->getTitle(),
+                    "' (", toc->files.size(), " files) from ", dir.string());
         addons_.push_back(std::move(*toc));
     }
 
@@ -264,9 +287,9 @@ void AddonManager::scanAddons(const std::string& addonsPath) {
     // be silent: every Blizzard addon in a stock Interface directory is
     // LoadOnDemand, so a scan can look at dozens of folders, register none of
     // them, and print one line that reads like an empty directory.
-    LOG_INFO("AddonManager: scanned ", scannedDirs, " directories, registered ",
-             addons_.size(), " addons (", loadOnDemand, " load-on-demand, ",
-             noToc, " without a .toc, ", duplicates, " duplicate)");
+    LOG_WARNING("AddonManager: scanned ", scannedDirs, " directories, registered ",
+                addons_.size(), " addons (", loadOnDemand, " load-on-demand, ",
+                noToc, " without a .toc, ", duplicates, " duplicate)");
     // Load persisted enable/disable choices now that we know which addons exist.
     loadEnabledState();
 }
@@ -588,9 +611,9 @@ void AddonManager::loadAllAddons() {
 #ifdef WOWEE_SWITCH
     platform::switchport::setConsolePortActive(isAddOnLoadedByName("ConsolePort"));
 #endif
-    LOG_INFO("AddonManager: loaded ", loaded, " addons",
-             (failed > 0 ? (", " + std::to_string(failed) + " failed") : ""),
-             (skipped > 0 ? (", " + std::to_string(skipped) + " disabled") : ""));
+    LOG_WARNING("AddonManager: loaded ", loaded, " addons",
+                (failed > 0 ? (", " + std::to_string(failed) + " failed") : ""),
+                (skipped > 0 ? (", " + std::to_string(skipped) + " disabled") : ""));
 }
 
 // ---- Per-addon enable/disable (persisted) ----------------------------------
@@ -1784,7 +1807,16 @@ std::string lowered(std::string v) {
 }  // namespace
 
 bool AddonManager::isAddOnLoadedByName(const std::string& name) const {
-    return lodLoaded_.count(lowered(name)) != 0;
+    const std::string key = lowered(name);
+    if (lodLoaded_.count(key) != 0) return true;
+    if (addonsLoaded_) {
+        for (const auto& a : addons_) {
+            if (lowered(a.addonName) == key) {
+                return isAddonEnabled(a.addonName);
+            }
+        }
+    }
+    return false;
 }
 
 bool AddonManager::loadAddOnByName(const std::string& name, std::string& reason) {

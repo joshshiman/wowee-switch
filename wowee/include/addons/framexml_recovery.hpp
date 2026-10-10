@@ -68,7 +68,9 @@ inline bool writeFrameXmlRecovery(const std::string& path, const char* state, co
     if (!file) return false;
     bool ok = std::fprintf(file, "%s\n%s\n%s\n", kFrameXmlRecoveryPolicy, state, safeStage) > 0;
     ok = std::fflush(file) == 0 && ok;
+#ifndef WOWEE_SWITCH
     if (ok) ok = ::fsync(::fileno(file)) == 0;
+#endif
     ok = std::fclose(file) == 0 && ok;
     if (ok) ok = std::rename(temporary.c_str(), path.c_str()) == 0;
     if (!ok) std::remove(temporary.c_str());
