@@ -1067,6 +1067,13 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
     renderedChunks = 0;
     culledChunks = 0;
     furthestDrawnSq_ = 0.0f;
+#ifdef WOWEE_SWITCH
+    // Invisible-floor diagnosis (run 57: 45-105 chunks drawn/frame, physics
+    // floor solid, sky visible through the ground). Reports the nearest drawn
+    // vs nearest culled chunk so a culling fault (near culled, far drawn)
+    // reads differently from a rasterization fault (near drawn, zero pixels).
+    float nearestDrawnSq = -1.0f, nearestCulledSq = -1.0f;
+#endif
 
     // Use mega VB + IB when available.
     // Bind mega buffers once, then use direct draws with base vertex/index offsets.
@@ -1089,11 +1096,17 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
         const float chunkDistance = maxViewDistance_ + std::max(0.0f, chunk.boundingSphereRadius);
         if (distSq > chunkDistance * chunkDistance) {
             culledChunks++;
+#ifdef WOWEE_SWITCH
+            if (nearestCulledSq < 0.0f || distSq < nearestCulledSq) nearestCulledSq = distSq;
+#endif
             continue;
         }
 
         if (frustumCullingEnabled && !isChunkVisible(chunk, frustum)) {
             culledChunks++;
+#ifdef WOWEE_SWITCH
+            if (nearestCulledSq < 0.0f || distSq < nearestCulledSq) nearestCulledSq = distSq;
+#endif
             continue;
         }
 
@@ -1125,7 +1138,21 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
         }
         renderedChunks++;
         if (distSq > furthestDrawnSq_) furthestDrawnSq_ = distSq;
+#ifdef WOWEE_SWITCH
+        if (nearestDrawnSq < 0.0f || distSq < nearestDrawnSq) nearestDrawnSq = distSq;
+#endif
     }
+#ifdef WOWEE_SWITCH
+    {
+        static uint32_t diagFrames = 0;
+        if (++diagFrames % 60 == 0) {
+            LOG_WARNING("TERRAIN_DIAG drawn=", renderedChunks, " culled=", culledChunks,
+                        " nearestDrawn=", nearestDrawnSq < 0.0f ? -1.0 : std::sqrt(nearestDrawnSq),
+                        " nearestCulled=", nearestCulledSq < 0.0f ? -1.0 : std::sqrt(nearestCulledSq),
+                        " cam=(", camPos.x, ",", camPos.y, ",", camPos.z, ")");
+        }
+    }
+#endif
 
 }
 

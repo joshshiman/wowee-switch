@@ -1751,13 +1751,16 @@ void GameScreen::processTargetInput(game::GameHandler& gameHandler) {
             // both for any pump instant fires once; releasing B re-arms.
             // (The layer system maps B to interact and bypasses L1 when bars
             // are up, so the chord never arrives as a scancode — read raw.)
+            // Any shoulder counts: L vs ZL is ambiguous in prose and both
+            // select non-Base layers where B is free.
             {
                 const auto& pad = platform::switchport::padSnapshot();
                 static bool chordFired = false;
-                const bool held = pad.connected &&
-                    (pad.buttons & ORBIS_PAD_BUTTON_L1) &&
-                    (pad.buttons & ORBIS_PAD_BUTTON_CIRCLE);
-                if (held && !chordFired) {
+                const bool shoulder = pad.connected &&
+                    (pad.buttons & (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1)) != 0;
+                const bool chordHeld = shoulder &&
+                    (pad.buttons & ORBIS_PAD_BUTTON_CIRCLE) != 0;
+                if (chordHeld && !chordFired) {
                     chordFired = true;
                     takeScreenshot();
                 } else if (!(pad.buttons & ORBIS_PAD_BUTTON_CIRCLE)) {
