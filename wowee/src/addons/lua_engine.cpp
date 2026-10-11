@@ -10391,8 +10391,8 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         // the zone the player is standing in.
         if (down) executeString(
             "if SetMapToCurrentZone then SetMapToCurrentZone() end "
-            "if ToggleWorldMap then ToggleWorldMap() elseif WorldMapFrame then "
-            "if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
+            "if ToggleFrame and WorldMapFrame then ToggleFrame(WorldMapFrame) "
+            "elseif WorldMapFrame then WorldMapFrame:Show() end");
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }

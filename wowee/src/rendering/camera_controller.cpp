@@ -2547,7 +2547,10 @@ void CameraController::update(float deltaTime) {
     bool keyQ = !uiWantsKeyboard && !sitting && !movementSuppressed && input.isKeyPressed(SDL_SCANCODE_Q);
     bool keyE = !uiWantsKeyboard && !sitting && !movementSuppressed && input.isKeyPressed(SDL_SCANCODE_E);
     bool shiftDown = !uiWantsKeyboard && (input.isKeyPressed(SDL_SCANCODE_LSHIFT) || input.isKeyPressed(SDL_SCANCODE_RSHIFT));
-    bool ctrlDown = !uiWantsKeyboard && (input.isKeyPressed(SDL_SCANCODE_LCTRL) || input.isKeyPressed(SDL_SCANCODE_RCTRL));
+    // No Ctrl walk modifier. WoW-parity "hold Ctrl to walk" read the pad's ZR
+    // (which is Ctrl for the ConsolePort modifier tiers) as a walk key, so
+    // merely holding a modifier slowed the player to walking. Walk is now only
+    // the forced (confused) mode; ordinary movement is the run speed.
     bool nowJump = !uiWantsKeyboard && !sitting && !movementSuppressed && input.isKeyJustPressed(SDL_SCANCODE_SPACE);
     // Swimming needs the held state, not the press edge: on land space is a
     // one-shot jump, but in water it is continuous ascent, and an edge gave a
@@ -2786,12 +2789,14 @@ void CameraController::update(float deltaTime) {
     // Calculate movement speed based on direction and modifiers
     float speed;
     if (useWoWSpeed) {
-        // Movement speeds (WoW-like: Ctrl walk, default run, backpedal slower)
+        // Movement speeds (WoW-like: default run, backpedal slower). Ctrl is
+        // not a walk key here - the pad's ZR is Ctrl and holding a modifier
+        // must not slow the player (see the note above).
         if (nowBackward && !nowForward) {
             speed = (runBackSpeedOverride_ > 0.0f && runBackSpeedOverride_ < 100.0f
                      && !std::isnan(runBackSpeedOverride_))
                         ? runBackSpeedOverride_ : WOW_BACK_SPEED;
-        } else if (ctrlDown || forcedMode_ == 2) {
+        } else if (forcedMode_ == 2) {
             // A confused character walks (ConfusedMovementGenerator SetWalk(true)).
             speed = (walkSpeedOverride_ > 0.0f && walkSpeedOverride_ < 100.0f && !std::isnan(walkSpeedOverride_))
                         ? walkSpeedOverride_ : WOW_WALK_SPEED;
@@ -2806,16 +2811,13 @@ void CameraController::update(float deltaTime) {
         if (shiftDown) {
             speed *= sprintMultiplier;
         }
-        if (ctrlDown) {
-            speed *= slowMultiplier;
-        }
     }
 
     bool hasMoveInput = nowForward || nowBackward || nowStrafeLeft || nowStrafeRight;
     if (useWoWSpeed) {
         // "Sprinting" flag drives run animation/stronger footstep set.
         // In WoW mode this means running pace (not walk/backpedal), not Shift.
-        runPace = hasMoveInput && !ctrlDown && !nowBackward;
+        runPace = hasMoveInput && !nowBackward;
     } else {
         runPace = hasMoveInput && shiftDown;
     }

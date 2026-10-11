@@ -1306,6 +1306,47 @@ void Application::renderMenuHub() {
     platform::switchport::setInputMenuNavigation(platform::switchport::MenuOwner::Hub, menuHubOpen_);
 #endif
     if (!menuHubOpen_ || state != AppState::IN_GAME || !gameHandler) return;
+
+    // The doors, and the command each runs. One list, so the highlight and the
+    // action can never disagree.
+    struct Door { const char* label; const char* command; };
+    static const Door kDoors[] = {
+        {"Character", "ToggleCharacter(\"PaperDollFrame\")"},
+        {"Spellbook", "ToggleSpellBook(BOOKTYPE_SPELL)"},
+        {"Talents",   "ToggleTalentFrame()"},
+        {"World Map", "if SetMapToCurrentZone then SetMapToCurrentZone() end "
+                      "if ToggleFrame and WorldMapFrame then ToggleFrame(WorldMapFrame) "
+                      "elseif WorldMapFrame then WorldMapFrame:Show() end"},
+        {"Quest Log", "ToggleFrame(QuestLogFrame)"},
+        {"Bags",      "if ToggleAllBags then ToggleAllBags() elseif OpenAllBags then OpenAllBags() end"},
+        {"System",    "if __WoweeOpenClientSettings then __WoweeOpenClientSettings() end"},
+    };
+    constexpr int kDoorCount = static_cast<int>(sizeof(kDoors) / sizeof(kDoors[0]));
+    constexpr int kSystemDoor = kDoorCount - 1;
+    if (menuHubSel_ < 0 || menuHubSel_ >= kDoorCount) menuHubSel_ = 0;
+
+    auto choose = [&](int i) {
+        if (i < 0 || i >= kDoorCount) return;
+        LOG_WARNING("[WOWEE_HUB] door=", kDoors[i].label);
+        menuHubOpen_ = false;
+        if (gameHandler) gameHandler->runInterfaceCommand(kDoors[i].command);
+    };
+
+    // Input is the raw pad, not ImGui navigation. The activation key is the
+    // same A the world uses and the close key the same B; reading them here
+    // means one path that cannot silently stop reaching the buttons, and the
+    // hub owns the pad while it is up (MenuOwner::Hub suppresses the F-keys),
+    // so nothing else answers the same press.
+    bool activate = false;
+#ifdef WOWEE_SWITCH
+    const auto& pad = platform::switchport::padSnapshot();
+    if (pad.pressed & ORBIS_PAD_BUTTON_UP)   menuHubSel_ = (menuHubSel_ + kDoorCount - 1) % kDoorCount;
+    if (pad.pressed & ORBIS_PAD_BUTTON_DOWN) menuHubSel_ = (menuHubSel_ + 1) % kDoorCount;
+    if (pad.pressed & ORBIS_PAD_BUTTON_CROSS)  activate = true;
+    if (pad.pressed & ORBIS_PAD_BUTTON_CIRCLE) { menuHubOpen_ = false; return; }
+#endif
+    if (activate) { choose(menuHubSel_); return; }
+
     const auto& io = ImGui::GetIO();
     const float scale = std::clamp(io.DisplaySize.y / 900.0f, 0.8f, 1.35f);
     const float width = 460 * scale;
@@ -1313,45 +1354,21 @@ void Application::renderMenuHub() {
                             ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(width, 0), ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.92f);
-    bool open = menuHubOpen_;
-    if (ImGui::Begin("Menus", &open,
+    if (ImGui::Begin("Menus", nullptr,
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoFocusOnAppearing)) {
-        if (ImGui::IsWindowAppearing()) ImGui::SetWindowFocus();
+            ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing)) {
         ImGui::SetWindowFontScale(scale);
-        // B closes it, the same button that closes any other panel. Plus cannot
-        // be the toggle-out: while the hub owns the pad its F-key is suppressed
-        // so the D-pad never leaks through to the world behind it.
-        if (ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
-            menuHubOpen_ = false;
-            ImGui::End();
-            return;
+        for (int i = 0; i < kDoorCount; ++i) {
+            if (i == kSystemDoor) ImGui::Separator();
+            const bool selected = (i == menuHubSel_);
+            if (selected) ImGui::PushStyleColor(ImGuiCol_Button,
+                                                ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+            if (ImGui::Button(kDoors[i].label, ImVec2(-1, 30 * scale))) choose(i);
+            if (selected) ImGui::PopStyleColor();
         }
-        // The same commands the Minus/Plus doors and the ConsolePort tiers
-        // dispatch, so the two routes cannot drift apart.
-        auto door = [&](const char* label, const char* command) {
-            if (ImGui::Button(label, ImVec2(-1, 30 * scale))) {
-                menuHubOpen_ = false;
-                if (gameHandler) gameHandler->runInterfaceCommand(command);
-            }
-        };
-        door("Character",       "ToggleCharacter(\"PaperDollFrame\")");
-        door("Spellbook",       "ToggleSpellBook(BOOKTYPE_SPELL)");
-        door("Talents",         "ToggleTalentFrame()");
-        door("World Map",
-             "if SetMapToCurrentZone then SetMapToCurrentZone() end "
-             "if ToggleWorldMap then ToggleWorldMap() elseif WorldMapFrame then "
-             "if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
-        door("Quest Log",       "ToggleFrame(QuestLogFrame)");
-        door("Bags",            "if ToggleAllBags then ToggleAllBags() elseif OpenAllBags then OpenAllBags() end");
-        ImGui::Separator();
-        door("System / Settings", "if __WoweeOpenClientSettings then __WoweeOpenClientSettings() end");
-        ImGui::Separator();
-        if (ImGui::Button("Close", ImVec2(-1, 30 * scale))) menuHubOpen_ = false;
     }
     ImGui::End();
-    if (!open) menuHubOpen_ = false;
 }
 
 } // namespace wowee::core

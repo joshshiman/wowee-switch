@@ -385,6 +385,7 @@ private:
     bool localRealmMenuOpen_ = false;
     bool localRealmPopupOpen_ = false; // Nested popup state before ImGui handles Circle.
     bool menuHubOpen_ = false;
+    int menuHubSel_ = 0;
     bool localRealmJournalOpen_ = false;
     bool localRealmInventoryOpen_ = false;
     bool localRealmNpcPanelOpen_ = false;

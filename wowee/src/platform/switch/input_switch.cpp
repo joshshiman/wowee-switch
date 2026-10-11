@@ -817,6 +817,12 @@ void pumpInput() {
          (s_menuOwners & (static_cast<unsigned>(MenuOwner::Hub) |
                           static_cast<unsigned>(MenuOwner::FrameXml))) != 0);
     if (padMenuOwns) s_menuSuppressedButtons |= st.buttons;
+    // While the hub is up, Plus stays live: it is the hub's own toggle. The
+    // dispatch is edge-triggered (one F12 per press, not per held frame), so
+    // Plus opens and closes the hub once per press. Everything else - D-pad, A,
+    // B - stays suppressed so it drives the hub instead of the world.
+    if (s_menuOwners & static_cast<unsigned>(MenuOwner::Hub))
+        s_menuSuppressedButtons &= ~ORBIS_PAD_BUTTON_OPTIONS;
     const uint32_t gameplayButtons = st.buttons & ~s_menuSuppressedButtons;
     const Layer layer = activeLayer(gameplayButtons);
 
@@ -954,14 +960,21 @@ void pumpInput() {
         want[SDL_SCANCODE_D] = false;
     }
 
-    if (s_menuOwners && !s_applicationKeyboardOpen)
+    // The Plus-held and B-held Escape mirror is for the interface's own menus,
+    // which close on Escape. The client's hub is one of those menus now, but it
+    // owns Plus and B itself (Plus toggles it, B closes it), so mirroring them
+    // to Escape would toggle it a second time on the same press and it would not
+    // stay open. Exclude the hub from the mirror.
+    const bool escapeMenu = s_menuOwners != 0 &&
+        (s_menuOwners & static_cast<unsigned>(MenuOwner::Hub)) == 0;
+    if (escapeMenu && !s_applicationKeyboardOpen)
         want[SDL_SCANCODE_ESCAPE] = (st.buttons & ORBIS_PAD_BUTTON_OPTIONS) != 0;
     // WoWee handheld: B doubles as menu-cancel. While any menu owns the pad,
     // holding B holds Escape, so the same chain that Plus uses closes the top
     // menu instead. With no menu open this contributes nothing (and must not:
     // an unowned Escape would toggle the game menu open). F2 still fires
     // alongside for cast/attack/target cancel.
-    if (s_menuOwners && !s_applicationKeyboardOpen)
+    if (escapeMenu && !s_applicationKeyboardOpen)
         want[SDL_SCANCODE_ESCAPE] = want[SDL_SCANCODE_ESCAPE] ||
             ((gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0);
     // Chat. No row in the table can reach it, because in the world nothing is
