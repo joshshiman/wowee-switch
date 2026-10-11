@@ -246,6 +246,24 @@ contributions, in order:
    needed for hardware builds — the Linux host build covers most UI and
    systems work.
 
+## Acknowledgments
+
+This port stands on other projects' work, used with thanks:
+
+- **[WoWee](https://github.com/Kelsidavis/WoWee)** — the 3.3.5a client this
+  project derives from.
+- **[WoWPS](https://github.com/01cedric/WoWPS)** — the console port (PS4)
+  whose platform-layer split made this Switch retarget possible; see
+  [PORTING.md](docs/PORTING.md) for what was kept and what was replaced.
+- **WoWx** — a WoW Xbox port, now offline, that inspired attempting this at
+  all.
+- **[ConsolePortLK](https://github.com/leoaviana/ConsolePortLK)** — the
+  3.3.5a backport of ConsolePort whose controller UI, assets, and bindings
+  ship as this port's native in-game interface (see `wowee/addons/`).
+
+Blizzard's game data and client art are not included anywhere here and this
+project is not affiliated with or endorsed by Blizzard Entertainment.
+
 ## Legal
 
 Blizzard game data is not included and cannot be — bring your own 3.3.5a
