@@ -186,18 +186,28 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   `imgui_impl_vulkan.cpp` now carry.
 - **Never overwrite a `.nro` while the title is running.** Close it from the
   Home menu first.
-- **An embedded romfs beats `sdmc:/switch/wowee/data`.** `appRoot()` resolves
-  `WOWEE_RESOURCE_ROOT` → `data/` beside the `.nro` → the `.nro`'s own
-  directory → `sdmc:/switch/<name>/data` → **the romfs inside the `.nro`** →
-  `sdmc:/switch/wowee/data`. Both current and card builds embed a romfs, so
-  copying a shader or asset onto the card does *not* take effect — changing
-  anything shipped as an asset means rebuilding and redeploying the whole
-  `.nro`.
-- **The romfs wins for Lua too.** Addons ship baked into the `.nro`
-  (`switchpkg` copies `wowee/addons/` at package time), and the game reads the
-  baked copies. An FTP-only Lua push is void — proven twice (a layout fix and
-  a diagnostic probe that never printed). **Every round rebuilds**, no
-  exceptions; the card-side `addons/` mirror is belt and suspenders only.
+- **The card's `data/` is authoritative; the romfs is only a fallback.**
+  `appRoot()` resolves `WOWEE_RESOURCE_ROOT` → `data/` beside the `.nro` →
+  the `.nro`'s own directory → `sdmc:/switch/<name>/data` → **the romfs inside
+  the `.nro`** → `sdmc:/switch/wowee/data`, and the first candidate that has
+  `assets/shaders/` wins. On the normal SD layout (`sdmc:/switch/wowee/wowee.nro`
+  with a `data/` beside it) that is `sdmc:/switch/wowee/data`, so a shader or
+  asset pushed onto the card **does** take effect. The romfs takes over only if
+  the card's `data/` is missing or has no shaders — which is what the Oct 5–6
+  "romfs wins" note actually measured. Check the `resource root:` line in
+  `boot.log`: it names the winner and lists the `not used:` candidates.
+- **Addon Lua is read straight off the card, so a Lua-only FTP push works.**
+  The romfs contains only `Data/` and `assets/` — **never `addons/`**.
+  `switchpkg` stages `addons/` *beside* the `.nro` (and into `data/addons`),
+  after the romfs is built. At runtime `AddonManager` scans
+  `sdmc:/switch/wowee/addons` first and reads each Lua/XML file with a plain
+  file read (`InterfaceSource` only special-cases `mpq/`-prefixed paths). So
+  editing a file under `wowee/addons/` and FTPing **only that file** to the card
+  takes effect on the next launch — no rebuild. The earlier "proven void"
+  rounds were almost certainly SavedVariables shadowing the changed default or
+  a `print()` probe (which goes to chat, not the log), not a romfs override.
+  Code changes still need a rebuild and redeploy, and archived `Blizzard_*`
+  addons still come out of the MPQs.
 - **A crash report's `wowee + 0x…` offsets only symbolize against the exact
   ELF that built that `.nro`.** Resolve them with
   `/opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e
@@ -244,8 +254,12 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
 
 ## State as of 2026-10-11
 
-- Work happens on `main` — `feature/consoleport-native-ui` is merged
-  (`b03313e`, plus follow-ups). The branch is left in place, not deleted.
+- `main` now carries the handheld perf work through Phase 6 (`perf/switch-audit`
+  was fast-forwarded onto it and pushed). `feature/consoleport-native-ui` is a
+  literal ancestor of `main` — fully contained, nothing to reconcile; it is left
+  in place, not deleted.
+- UI/controls work lives on **`feature/console-ui`** (worktree
+  `../wowee-switch-ui`) — keep `perf/switch-audit` for perf work.
 - `build-switch/` builds clean and stages to `wowee/out/switch/switch/wowee/`
   (clean configure + ~4 min; incremental much less). Commands in step 1 above.
   **A flag change needs a clean configure** - `CMAKE_CXX_FLAGS_INIT` only
@@ -286,11 +300,14 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   upload batches and retry once. VMA block sizes land as a fallback ladder
   (32, 16, 8, 4 MiB); `preferredLargeHeapBlockSize` stays 32 MiB (8 MiB broke
   M2 transfers).
-- Open from handheld testing (see `docs/FINDINGS.md` for the ledger): the Plus
-  system menu opens nothing visible (benched — all panels reachable via
-  Minus/Plus tiers); the utility ring opens but has no pad selection gesture
-  yet; a mid-session Lua-heap OOM crash with no clean signature match (new
-  variant under investigation, `lua_kb` breadcrumb in place).
+- Controller panel access is rebuilt on `feature/console-ui` (pending hardware
+  validation): the utility ring is retired, **Minus = world map** and
+  **Plus = the all-panels hub**, the bar's show/hide button opens the same hub,
+  and the native FrameXML pad lane (D-pad focus, Cross pick-up/put-down, Y
+  use/equip in bags) is re-enabled under ConsolePort so the hub's panels are
+  wire-walkable and spells/items can be placed onto action slots. Still open: a
+  mid-session Lua-heap OOM crash with no clean signature match (new variant
+  under investigation, `lua_kb` breadcrumb in place).
 - **Character creation, login, world load and in-game rendering are all
   exercised regularly now.** The largest remaining unknown is sustained
   in-world stability (memory over long sessions), not reaching the world.

@@ -27,10 +27,19 @@ Last updated: 2026-10-09 (evening — flashing/crash/audio session).
 Every crash and fatal report maps one-for-one onto a run in `boot.log` at
 exactly `FS mtime − 4 h`. Always interpret mtimes with that offset.
 
-**The card's `data/` directory is ignored by the running title.** `appRoot()`
-resolves to the embedded romfs, so `sdmc:/switch/wowee/data` is inert while the
-`.nro` carries a romfs. Changing an asset on the card does nothing; rebuild the
-`.nro`.
+**The card's `data/` directory is authoritative; the romfs is a fallback.**
+`appRoot()` tries `WOWEE_RESOURCE_ROOT`, then `data/` beside the `.nro`, then
+the `.nro`'s own directory, then `sdmc:/switch/<name>/data`, then the romfs, then
+`sdmc:/switch/wowee/data`, and the first that has `assets/shaders/` wins. With a
+`data/` beside the `.nro` that is `sdmc:/switch/wowee/data`, so a changed asset
+on the card **does** take effect; the romfs wins only when the card's `data/` is
+absent or has no shaders. `boot.log`'s `resource root:` line names the winner.
+(Correction: the earlier "romfs always wins, card data is inert" note measured
+the Oct 5–6 window, before the card gained its own `data/`.)
+
+**Addons are never in the romfs.** They are scanned from loose directories
+(`sdmc:/switch/wowee/addons` first) and read with plain file reads, so an
+FTP-only Lua push takes effect on the next launch without a rebuild.
 
 ---
 
@@ -1251,9 +1260,14 @@ Comprehensive note per user request - the whole override picture in one place.
   frame - whichever renders; "sound + nothing" is the current failure).
 - Drag-to-bar DEPRIORITIZED by operator. Requirement in its place: A-on-slot
   activation (above). Secure-drop work pauses; do not delete the diagnostics.
-- Romfs wins for Lua: every round rebuilds + redeploys the .nro, no
-  exceptions. Lua-only FTP rounds are void (proven twice: L/R swap round,
-  repro-probe round). State the build contents explicitly each round.
+- Lua-only rounds DO take effect: the romfs carries no `addons/`, and addon
+  Lua/XML are read straight off `sdmc:/switch/wowee/addons` with plain file
+  reads. FTP the edited file and relaunch; no rebuild. (Correction to the
+  earlier "Lua-only rounds are void" note — the L/R-swap and repro-probe
+  rounds that fed it were almost certainly SavedVariables shadowing the changed
+  default, or a `print()` probe going to chat rather than the log.) Code
+  changes still rebuild and redeploy; archived `Blizzard_*` addons still come
+  from the MPQs.
 - Targeting gap (open design, do not "fix" blindly): nothing pad-side
   acquires targets except cursor clicks; Y-attack needs a target. The
   operator's Y-targets experience has no binding-side source (TAB is
@@ -1419,3 +1433,38 @@ Comprehensive note per user request - the whole override picture in one place.
 - Workaround in place: all panel doors reachable via Minus/Plus modifier
   tiers (spellbook/talents/character/map/quests/bags) - direct dispatch,
   no secure path.
+
+## 2026-10-11 audit: controller panel access, the three layers, and the two stale notes
+- Layers, restated precisely (four, not two): (A) the ConsolePort addon, fed by
+  pad->F-keys, realm-agnostic; (B) the legacy kBindings table, gated off whenever
+  ConsolePort is active; (C) the local-realm native overlay
+  (application_local_ui.cpp), offline-only; (D) the native FrameXML pad lane
+  (local_framexml_input.cpp: navigate/panelOpen/navigateBars/padMicroMenuLane),
+  which is gated off under ConsolePort. Fixes must route through the right one.
+- ROOT CAUSE, "no way to open the panels": the door commands exist
+  (lua_engine.cpp TOGGLESPELLBOOK/TOGGLETALENTS/TOGGLEWORLDMAP/TOGGLECHARACTER0/
+  TOGGLEQUESTLOG) but were bound only to ZL/ZR+Minus/Plus chords that no archived
+  run ever pressed; the base buttons were the empty ring (Minus) and the settings
+  opener (Plus). The native FrameXML pad lane that would walk the panels was off
+  under ConsolePort (local_framexml_input.cpp:409/612/618). Fixed on
+  feature/console-ui: whole lane re-enabled (panelOpen + navigate), pad menu
+  ownership now suppresses the F-keys under ConsolePort (input_switch.cpp pump),
+  ring retired, Minus=map, Plus=all-panels hub, eye button opens the hub.
+- Plus "sound + nothing" mechanism, pinned: TOGGLEGAMEMENU routed to
+  __WoweeOpenClientSettings, whose render (settingsPanel_.renderSettingsWindow)
+  lives in GameScreen::render, which UIManager skips on the local realm
+  (ui_manager.cpp IN_GAME gate). The flag flipped on a 0x0 frame and drew
+  nothing. Fixed: GameScreen::renderInGameOverlays draws settings + world map on
+  the local realm; Plus now opens the client's own hub instead.
+- World map "opens empty": TOGGLEWORLDMAP did only ToggleFrame(WorldMapFrame),
+  with no SetMapToCurrentZone and no renderWorldMap on the local realm. Both
+  fixed (dispatch string + renderInGameOverlays).
+- Layout pitch: face/D-pad diamonds were 100 wide by 84 tall. Matched to 84
+  (ConsolePortBar/Core/Lookup.lua, layout rev 5).
+- Ring empty preset cause: GetMacroIndexByName stubbed to 0 (lua_engine.cpp),
+  so Utility.lua's ensureMacro returned nil and every seeded door was skipped.
+- Pad placement of spells/items onto action slots ALREADY EXISTS in the native
+  lane (padPickup kind Action -> PlaceAction); it was only unreachable because
+  navigate() was gated. Re-enabling it is the feature, not new code.
+- Bag Y=use/equip added in navigate() (raw Triangle on a Container slot -> the
+  interface's own right click). A stays the left-click pick up.

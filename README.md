@@ -152,9 +152,9 @@ profile was chosen.
 ## Controls
 
 The in-world UI is a controller-native action bar (ConsolePort) rather than
-the PC hotbars: face-button clusters with ZL/ZR modifier tiers, plus a radial
-utility ring. Buttons below are named by position — **X top, Y left, A right,
-B bottom** — since letter layouts differ between controllers.
+the PC hotbars: face-button clusters with ZL/ZR modifier tiers. Buttons below
+are named by position — **X top, Y left, A right, B bottom** — since letter
+layouts differ between controllers.
 
 **On the pad**
 
@@ -172,15 +172,26 @@ B bottom** — since letter layouts differ between controllers.
 | D-pad | Extra action slots |
 | L3 | Toggle autorun |
 | R3 | Toggle cursor / mouse-look |
-| − (minus) | Utility ring (radial menu) |
-| + (plus) | System menu |
+| − (minus) | World map (opens on the zone you are standing in) |
+| + (plus) | Menus — the hub that lists every panel |
 
-**Minus and Plus combos** open panels directly: Minus with ZL/ZR held opens
-bags, spellbook, or talents; Plus with ZL/ZR held opens the world map,
-character sheet, or quest log.
+**Menus hub** — **+ (plus)**, or the **show/hide button beside the bag icon**.
+It lists Character, Spellbook, Talents, World Map, Quest Log, Bags and
+System/Settings; pick one with the D-pad and press A. Whatever it opens is then
+walked with the D-pad: A activates, B closes, Cross (A) picks a spell or item up
+and puts it down on another slot — so a spell from the spellbook or an item from
+your bags can be dropped straight onto an action button.
+
+**Minus and Plus combos** still open panels directly: Minus with ZL/ZR held opens
+bags or spellbook; Plus with ZL/ZR held opens the world map, character sheet, or
+quest log.
 
 **Held modifiers** — ZL, ZR, or both held together swap every face button and
 bumper to another pane of action slots.
+
+**In a bag** — A picks an item up (the left click), Y uses or equips it (the
+right click). While something is on the cursor, press A on an action button to
+place it there, or on another bag slot to move it.
 
 **In a text field** (server address, realm name, character name, chat):
 
@@ -202,12 +213,6 @@ else is already spoken for. See the comment at
 
 ### Known control gaps
 
-- **The Plus (system menu) may open nothing visible.** Known issue, benched —
-  the keypress is confirmed to dispatch, but no panel appears. The Minus/Plus
-  combos above still open every panel directly.
-- **The utility ring opens but has no selection gesture yet,** so its buttons
-  can't be activated from the pad. Tracked; the ring already ships with
-  Hearthstone plus spellbook/talent/character/map/quest doors for when it lands.
 - **The touchscreen cannot click.** It moves the cursor and nothing else. Use the
   right stick and A to press buttons; there is no tap-to-click and no multitouch.
 - A **single** Joy-Con is not read. Handheld mode and a docked Pro Controller both
