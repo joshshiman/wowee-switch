@@ -1404,3 +1404,17 @@ Comprehensive note per user request - the whole override picture in one place.
   match. [WOWEE_MEM] lua_kb breadcrumb added on first Lua error.
 - Portraits: NOT worth static-caching (already change-guarded + 10/20Hz
   throttled + tiny targets; unmeasurable vs 150ms frames). Declined with data.
+
+## KNOWN ISSUE (benched): Plus opens nothing visible
+- Symptom (all sessions): Plus press -> sound, no visible menu.
+- Proven: F12 dispatches TOGGLEGAMEMENU every press; ToggleGameMenu replaced
+  by the client-settings opener when FrameXML doesn't own the panel; latest
+  build routes explicitly (`via=settings` logged) yet nothing appears.
+- Ruled out: FaceRight self-dismiss (removed - A closed it same-frame);
+  anchorless frame (GameMenuFrame pinned 195x240 center, verified in dump).
+- Next (not started): verify showSettingsWindow actually flips and the
+  settings panel draws in-world (render gating? ImGui focus?); operator to
+  confirm whether ANY panel (vs nothing) appears on Plus.
+- Workaround in place: all panel doors reachable via Minus/Plus modifier
+  tiers (spellbook/talents/character/map/quests/bags) - direct dispatch,
+  no secure path.
