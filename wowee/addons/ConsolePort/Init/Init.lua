@@ -187,6 +187,26 @@ function ConsolePort:LoadSettings()
 				ConsolePort:OnNewBindings(set)
 			end
 		end
+		-- WoWee handheld remap (rev 4): the utility ring is retired. Minus
+		-- becomes the world map, freed from the ring's own click binding, so
+		-- the ring is unreachable from the pad. Saved sets still hold the old
+		-- CLICK ConsolePortUtilityToggle binding; rewrite it in place.
+		if set and (ConsolePortBindingSet.woweeBindRev or 0) < 4 then
+			if type(set.CP_X_LEFT) == 'table' then
+				set.CP_X_LEFT[''] = 'TOGGLEWORLDMAP'
+			end
+			ConsolePortBindingSet.woweeBindRev = 4
+			db.Bindings = set
+			if ConsolePortButtonHandler and ClearOverrideBindings then
+				ClearOverrideBindings(ConsolePortButtonHandler)
+			end
+			if ConsolePort.LoadBindingSet then
+				ConsolePort:LoadBindingSet(set, true)
+			end
+			if ConsolePort.OnNewBindings then
+				ConsolePort:OnNewBindings(set)
+			end
+		end
 	end
 
 	-- The utility ring is built by SetupUtilityRing, which nothing on the

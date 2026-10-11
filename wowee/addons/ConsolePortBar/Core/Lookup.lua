@@ -149,8 +149,10 @@ function ab:GetDefaultButtonLayout(button)
 	local layout = {
 		-- RIGHT CLUSTER (Face Buttons) - Centered at +330, raised to clear bags.
 		-- WoWee rev 4: row pitch 84 (was 56) - satellites overlapped rows.
-		CP_R_LEFT    = {dir = 'left',  point = {'BOTTOM',  280, 98}, size = 38},
-		CP_R_RIGHT   = {dir = 'right', point = {'BOTTOM',  380, 98}, size = 38},
+		-- WoWee rev 5: column pitch 84 too (was 100) - the diamond is now a
+		-- square, so the gaps read equidistant instead of wider than tall.
+		CP_R_LEFT    = {dir = 'left',  point = {'BOTTOM',  288, 98}, size = 38},
+		CP_R_RIGHT   = {dir = 'right', point = {'BOTTOM',  372, 98}, size = 38},
 		CP_R_UP      = {dir = 'up',    point = {'BOTTOM',  330, 140}, size = 38},
 		CP_R_DOWN    = {dir = 'down',  point = {'BOTTOM',  330, 56}, size = 38},
 
@@ -160,8 +162,9 @@ function ab:GetDefaultButtonLayout(button)
 		CP_T2        = {dir = 'down',  point = {'BOTTOM',  180, 56}, size = 38},
 
 		-- LEFT CLUSTER (D-Pad) - Centered at -330, raised to clear bags
-		CP_L_LEFT    = {dir = 'left',  point = {'BOTTOM', -380, 98}, size = 38},
-		CP_L_RIGHT   = {dir = 'right', point = {'BOTTOM', -280, 98}, size = 38},
+		-- WoWee rev 5: column pitch matched to the 84 row pitch (was 100).
+		CP_L_LEFT    = {dir = 'left',  point = {'BOTTOM', -372, 98}, size = 38},
+		CP_L_RIGHT   = {dir = 'right', point = {'BOTTOM', -288, 98}, size = 38},
 		CP_L_UP      = {dir = 'up',    point = {'BOTTOM', -330, 140}, size = 38},
 		CP_L_DOWN    = {dir = 'down',  point = {'BOTTOM', -330, 56}, size = 38},
 

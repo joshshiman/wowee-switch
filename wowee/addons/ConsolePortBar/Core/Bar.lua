@@ -294,6 +294,13 @@ function Bar:ADDON_LOADED(name)
 				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
 				ConsolePortBarSetup.woweeRev = 4
 			end
+			-- WoWee rev 5: column pitch matched to the row pitch (the face
+			-- and D-pad diamonds become squares). Refresh the layout only;
+			-- the rest of the rev-4 presentation is already correct.
+			if (ConsolePortBarSetup.woweeRev or 0) < 5 then
+				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
+				ConsolePortBarSetup.woweeRev = 5
+			end
 		-------------------------------
 		end
 		ab:CreateManifest()

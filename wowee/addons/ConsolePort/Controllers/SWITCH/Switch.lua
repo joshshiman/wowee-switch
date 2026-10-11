@@ -135,9 +135,12 @@ db.Controllers.SWITCH = {
 			['CTRL-'] 		= 'MULTIACTIONBAR2BUTTON7',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR2BUTTON11',
 		},
-		-- Center buttons
+		-- Center buttons (WoWee handheld: Minus = world map, Plus = menus).
+		-- The utility ring that used to live on Minus is retired; the freed
+		-- buttons carry the doors directly instead of a radial nobody could
+		-- select from the pad.
 		['CP_X_LEFT'] = {
-			[''] 			= 'CLICK ConsolePortUtilityToggle:LeftButton',
+			[''] 			= 'TOGGLEWORLDMAP',
 			['SHIFT-'] 		= 'OPENALLBAGS',
 			['CTRL-'] 		= 'TOGGLESPELLBOOK',
 			['CTRL-SHIFT-'] = 'TOGGLETALENTS',
