@@ -1468,3 +1468,22 @@ Comprehensive note per user request - the whole override picture in one place.
   navigate() was gated. Re-enabling it is the feature, not new code.
 - Bag Y=use/equip added in navigate() (raw Triangle on a Container slot -> the
   interface's own right click). A stays the left-click pick up.
+
+## 2026-10-11 remote-realm parity: what actually diverges (and the one fix)
+- A button-by-button pass (the four layers above) shows only FOUR gestures differ
+  between local and remote: A-loot, L1 target+act, the vehicle bridge, and
+  corpse reclaim. X jump, Y attack (via ACTIONBUTTON1 -> UseAction -> castSpell,
+  realm-branched), B cancel (CANCELALL is realm-branched), R bags, ZL/ZR tiers,
+  Minus map, Plus hub, L3/R3 are already realm-agnostic - they travel the
+  ConsolePort -> dispatch path, which has no realm gate.
+- A := INTERACTTARGET (Switch.lua CP_R_RIGHT base, rev5 migration). The command
+  was ALREADY realm-aware (lua_engine.cpp: local branch mirrors the pad lambda,
+  remote branch does targetEnemy/targetFriend/lootTarget/interactWithNpc); it
+  was simply unbound since rev3. Now bound, and the dispatch no-ops on the local
+  realm so the native overlay stays the only local actor - no double loot.
+- Still open (remote-untestable here, no external-realm logs): L1 target+act and
+  vehicle-bridge parity, and corpse reclaim (no dispatch command exists; needs a
+  realm-branched RECLAIMCORPSE case and a free gesture - Square is JUMP). The
+  native FrameXML lane's raw-pad parts (padWorldMapToggle, corpse Square,
+  cancel-carried Circle) must stay ConsolePort-gated: they read rawSnapshot and
+  would double-drive with both ConsolePort and the local overlay.

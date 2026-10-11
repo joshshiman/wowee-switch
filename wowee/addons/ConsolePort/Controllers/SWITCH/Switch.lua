@@ -92,7 +92,11 @@ db.Controllers.SWITCH = {
 		},
 		['CP_R_RIGHT'] = {
 			-- WoWee handheld: A is the mouse button (tap-left in cursor,
-			-- hold-left everywhere, B is right). No base binding; tiers kept.
+			-- hold-left everywhere). Its base is INTERACTTARGET so the button
+			-- works the same on an external realm - interact / talk / attack
+			-- through the server; offline the local overlay owns A and the
+			-- dispatch defers to it. Tiers kept.
+			[''] 			= 'INTERACTTARGET',
 			['SHIFT-'] 		= 'ACTIONBUTTON8',
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON3',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON8',

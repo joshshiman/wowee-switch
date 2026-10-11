@@ -1,5 +1,6 @@
 #ifdef WOWEE_SWITCH
 #include "platform/switch/switch_platform.hpp"
+#include "platform/switch/input_switch.hpp"
 #endif
 #include "addons/lua_engine.hpp"
 #include "ui/link_hit.hpp"
@@ -10111,6 +10112,22 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     // attack it; nothing found -> logged, never silent.
     if (command == "INTERACTTARGET") {
         outcome = "interact";
+#ifdef WOWEE_SWITCH
+        // On the local realm the native overlay already owns unmodified A (it
+        // loots the corpse under or nearest the player). This command is the
+        // REMOTE-realm path - interact, talk, attack, loot through the server
+        // - so defer to the overlay offline rather than loot twice. A is bound
+        // to this so the same button means the same thing on an external
+        // realm, where there is no overlay.
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                if (gh->localServiceRealm()) {
+                    if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> local-overlay");
+                    return true;
+                }
+            }
+        }
+#endif
         if (down) {
             if (auto* gh = getGameHandler(L_)) {
                 std::string how = "none";

@@ -207,6 +207,26 @@ function ConsolePort:LoadSettings()
 				ConsolePort:OnNewBindings(set)
 			end
 		end
+		-- WoWee handheld remap (rev 5): A's base returns as INTERACTTARGET, so
+		-- the button interacts/talks/attacks through the server on an external
+		-- realm. Offline the local overlay still owns A (the dispatch defers
+		-- to it), so this changes nothing on the local realm.
+		if set and (ConsolePortBindingSet.woweeBindRev or 0) < 5 then
+			if type(set.CP_R_RIGHT) == 'table' then
+				set.CP_R_RIGHT[''] = 'INTERACTTARGET'
+			end
+			ConsolePortBindingSet.woweeBindRev = 5
+			db.Bindings = set
+			if ConsolePortButtonHandler and ClearOverrideBindings then
+				ClearOverrideBindings(ConsolePortButtonHandler)
+			end
+			if ConsolePort.LoadBindingSet then
+				ConsolePort:LoadBindingSet(set, true)
+			end
+			if ConsolePort.OnNewBindings then
+				ConsolePort:OnNewBindings(set)
+			end
+		end
 	end
 
 	-- The utility ring is built by SetupUtilityRing, which nothing on the
