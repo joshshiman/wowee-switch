@@ -16,6 +16,8 @@ end to end. The porting approach is in [PORTING.md](PORTING.md).
 MPQs, renders the login screen with working audio, character creation, and —
 as of 2026-10-09, launched via Title Override (hold R on any game, for the full
 ~3.2 GB RAM) — enters the world: terrain streaming, NPCs, HUD, ground clutter.
+The in-world UI is a controller-native action bar with radial menu
+(ConsolePort), playable offline in the local realm as well as on servers.
 The remaining work is console memory tuning and polish, not boot blockers. See
 [AGENTS.md](AGENTS.md) for the live status and the hardware debugging loop.
 
@@ -124,8 +126,10 @@ profile was chosen.
 
 ## Controls
 
-One layer is active at a time, chosen by which shoulder you hold. Text fields
-override all of it.
+The in-world UI is a controller-native action bar (ConsolePort) rather than
+the PC hotbars: face-button clusters with ZL/ZR modifier tiers, plus a radial
+utility ring. Buttons below are named by position — **X top, Y left, A right,
+B bottom** — since letter layouts differ between controllers.
 
 **On the pad**
 
@@ -133,46 +137,54 @@ override all of it.
 |---|---|
 | Left stick | Walk forward / back, strafe |
 | Right stick | Mouse look (or move the cursor off the world screen) |
-| ✕ | Left click / interact |
-| ○ | Right click |
-| □ | Action slot 1 |
-| △ | Target nearest NPC or mob |
-| D-pad ↑ / ↓ | Zoom in / out |
-| D-pad ← / → | Turn left / right |
+| X (top) | Jump |
+| B (bottom) | Cancel: stops casting and attacking, clears the target; closes open menus while held |
+| Y (left) | Auto-attack (toggle — press again to stop) |
+| A (right) | Interact / loot / attack (nearest enemy is acquired if you have no target); a mouse click in menus (hold to drag); loots corpses |
+| L (left bumper) | Target nearest (friend or foe) and act on it: talk, loot, or attack |
+| R (right bumper) | Bags |
+| ZL / ZR | Shift / Ctrl tiers: each face button and bumper reaches more action slots; holding both gives a third pane |
+| D-pad | Extra action slots |
 | L3 | Toggle autorun |
 | R3 | Toggle cursor / mouse-look |
-| − (minus) | World map |
-| + (plus) | Game menu, close |
+| − (minus) | Utility ring (radial menu) |
+| + (plus) | System menu |
 
-**Held modifiers** — the face buttons become a second, third and fourth row of
-the action bar:
+**Minus and Plus combos** open panels directly: Minus with ZL/ZR held opens
+bags, spellbook, or talents; Plus with ZL/ZR held opens the world map,
+character sheet, or quest log.
 
-| Hold | Face buttons become |
-|------|---------------------|
-| ZR | slots 1–4 |
-| ZL | slots 5–8 |
-| R | slots 9–12 |
-| L1 | character keys: A jump / swim up, X sit / stand, Y reset camera, B screenshot; D-pad walks |
+**Held modifiers** — ZL, ZR, or both held together swap every face button and
+bumper to another pane of action slots.
 
 **In a text field** (server address, realm name, character name, chat):
 
 | | |
 |---|---|
-| △ | Open the on-screen keyboard |
-| □ | Backspace |
+| A (right) | Left click |
+| B (bottom) | Right click |
+| Y (left) | Open the on-screen keyboard |
+| X (top) | Backspace |
 | − (minus) | Send |
-| R1 | Next field |
+| + (plus) | Close the box |
+| R (right bumper) | Next field |
 | D-pad | Move the caret, and walk chat history up / down |
 
-To open chat in the world, hold **both index shoulders** (L1 and R1) at the same
+To open chat in the world, hold **both bumpers** (L and R) at the same
 time. That gesture is deliberately the only thing that claims it — everything
 else is already spoken for. See the comment at
 `wowee/include/platform/switch/input_switch.hpp` for the reasoning.
 
 ### Known control gaps
 
+- **The Plus (system menu) may open nothing visible.** Known issue, benched —
+  the keypress is confirmed to dispatch, but no panel appears. The Minus/Plus
+  combos above still open every panel directly.
+- **The utility ring opens but has no selection gesture yet,** so its buttons
+  can't be activated from the pad. Tracked; the ring already ships with
+  Hearthstone plus spellbook/talent/character/map/quest doors for when it lands.
 - **The touchscreen cannot click.** It moves the cursor and nothing else. Use the
-  right stick and ✕ to press buttons; there is no tap-to-click and no multitouch.
+  right stick and A to press buttons; there is no tap-to-click and no multitouch.
 - A **single** Joy-Con is not read. Handheld mode and a docked Pro Controller both
   work.
 - If the on-screen keyboard opens and then the game leaves that screen without
@@ -189,6 +201,7 @@ else is already spoken for. See the comment at
 | Settings don't stick | Expected before first login. See blocker 2. |
 | Black screen, title still running | A failed present is treated as permanent. Force-close from the Home menu. |
 | Pad does nothing | Suspect the on-screen keyboard is stuck open, or that no controller was detected at boot. |
+| Plus opens nothing | Known issue (benched). Every panel is still reachable through the Minus/Plus combos listed under Controls. |
 
 ## Legal
 
