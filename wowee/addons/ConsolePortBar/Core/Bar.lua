@@ -184,6 +184,7 @@ function Bar:OnNewBindings(...)
 		WrapperLib:UpdateAllBindings(...)
 		self:UpdateOverrides()
         self:SetupShoulderButtons()
+		self:WoWeeScrubPadOverrides()
 	end
 end
 
@@ -653,6 +654,11 @@ function Bar:OnLoad(cfg, benign)
                 .. ' anchors=' .. tostring(GameMenuFrame:GetNumPoints())
                 .. ' shown=' .. tostring(GameMenuFrame:IsShown()));
         end
+        -- Glyph-set check: which controller the icon/hint formatting resolves.
+        if db then
+            warn('[WOWEE_GLYPH] type=' .. tostring(db('type'))
+                .. ' iconX=' .. tostring(db.ICONS and db.ICONS.CP_X_LEFT));
+        end
     end
 end
 
@@ -857,13 +863,21 @@ Bar.CallMethodFromFrame = CPAPI.CallMethodFromFrame
 
 ---
 
+-- WoWee handheld: scrub the F3 base override. CP_R_LEFT keeps ACTIONBUTTON1
+-- in the set for honest bar display, but the local layer owns unmodified Y
+-- (target + act, ordered) - a live F3->ACTIONBUTTON1 override would resurrect
+-- the double attack-toggle. Called after every binding rebuild (migration,
+-- OnNewBindings); the PEW reassert below skips writing it in the first place.
+function Bar:WoWeeScrubPadOverrides()
+	if InCombatLockdown() then return end
+	local handler = _G.ConsolePortButtonHandler
+	if not handler then return end
+	local k1, k2 = GetBindingKey('CP_R_LEFT')
+	if k1 then SetOverrideBinding(handler, false, k1, nil) end
+	if k2 then SetOverrideBinding(handler, false, k2, nil) end
+end
+
 function Bar:PLAYER_ENTERING_WORLD()
-	-- WoWee handheld: re-assert the pad F-key overrides late. F3 was found
-	-- answering "CLICK CPB_R_LEFT:ControllerInput" - a secure click path this
-	-- client cannot drive - while the handler's own ACTIONBUTTON entry lost,
-	-- leaving Y dead. Same owner/table as the handler's own writes, so these
-	-- overwrite that bucket deterministically; this event runs after every
-	-- binding pass (login, talent swap, ring setup).
 	if InCombatLockdown() then return end
 	local handler = _G.ConsolePortButtonHandler
 	local set = ConsolePort and ConsolePort.GetBindingSet and ConsolePort:GetBindingSet()
@@ -873,7 +887,14 @@ function Bar:PLAYER_ENTERING_WORLD()
 		if type(key) == 'table' and name:match('^CP_') then
 			local base = key['']
 			for modifier in ConsolePort:GetModifiers() do
-				local override = key[modifier] or base
+				-- WoWee handheld: the local layer owns unmodified Y (target +
+				-- act, ordered). Writing F3->ACTIONBUTTON1 here would resurrect
+				-- the double attack-toggle the neutralize killed. Tiers still
+				-- register; only the bare base is skipped.
+				local override = nil
+				if not (name == 'CP_R_LEFT' and modifier == '') then
+					override = key[modifier] or base
+				end
 				if override then
 					local k1, k2 = GetBindingKey(name)
 					if k1 then SetOverrideBinding(handler, false, modifier .. k1, override) n = n + 1 end

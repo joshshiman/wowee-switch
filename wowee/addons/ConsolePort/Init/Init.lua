@@ -151,6 +151,42 @@ function ConsolePort:LoadSettings()
 				ConsolePort:OnNewBindings(set)
 			end
 		end
+		-- WoWee handheld remap (rev 3): attack-toggle moves Y->L (L feels
+		-- better; Y's slot is freed); bags move B->R; B becomes CANCELALL;
+		-- A goes mouse-only (base cleared, tiers kept); B+chord ring click
+		-- becomes a plain spell slot. Y keeps ACTIONBUTTON1 in the set for
+		-- honest display, but its F3 override is SKIPPED below (the local
+		-- layer owns unmodified Y now - writing it would double-toggle
+		-- attack with the local press). Saved sets shadow all of this.
+		if set and (ConsolePortBindingSet.woweeBindRev or 0) < 3 then
+			if type(set.CP_T1) == 'table' then
+				set.CP_T1[''] = 'ACTIONBUTTON1'
+			end
+			if type(set.CP_T2) == 'table' then
+				set.CP_T2[''] = 'OPENALLBAGS'
+			end
+			if type(set.CP_R_DOWN) == 'table' then
+				set.CP_R_DOWN[''] = 'CANCELALL'
+				set.CP_R_DOWN['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON9'
+			end
+			if type(set.CP_R_RIGHT) == 'table' then
+				set.CP_R_RIGHT[''] = nil
+			end
+			ConsolePortBindingSet.woweeBindRev = 3
+			db.Bindings = set
+			-- Wipe the handler bucket first: emptied entries (A base) and
+			-- skipped ones (Y base) would otherwise keep their older
+			-- overrides alive past this rewrite.
+			if ConsolePortButtonHandler and ClearOverrideBindings then
+				ClearOverrideBindings(ConsolePortButtonHandler)
+			end
+			if ConsolePort.LoadBindingSet then
+				ConsolePort:LoadBindingSet(set, true)
+			end
+			if ConsolePort.OnNewBindings then
+				ConsolePort:OnNewBindings(set)
+			end
+		end
 	end
 
 	-- The utility ring is built by SetupUtilityRing, which nothing on the

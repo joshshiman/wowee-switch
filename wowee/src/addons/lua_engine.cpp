@@ -10350,6 +10350,27 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }
+    // Dedicated cancel (B button, handheld map): stop casting, stop
+    // attacking, drop the target. Local-aware throughout; the remote calls
+    // below are inert offline and the local ones inert online.
+    if (command == "CANCELALL") {
+        outcome = "cancel";
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                gh->cancelCast();
+                if (auto* realm = gh->localServiceRealm()) {
+                    realm->stopAttack();
+                } else {
+                    gh->stopAutoAttack();
+                }
+                gh->setTargetGuidRaw(0);
+                gh->clearFocus();
+                LOG_WARNING("[WOWEE_ACT] cancel -> cleared");
+            }
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
     // Raw pad names with no override (Minus/Plus before LoadBindingSet or
     // after ClearOverrideBindings): Minus opens the utility ring.
     if (command == "CP_X_LEFT") command = "CLICK ConsolePortUtilityToggle:LeftButton";

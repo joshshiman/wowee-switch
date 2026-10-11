@@ -115,16 +115,24 @@ void Application::renderLocalRealmOverlay() {
         return distanceTo(self, *a) < distanceTo(self, *b);
     });
     bool toggleTarget=pressed(ImGuiKey_Tab);
+    // WoWee handheld: Y (Triangle) also acts on the fresh selection, in
+    // order, so one press targets + talks/loots/attacks (syncs the
+    // ConsolePort-Y half, whose CP attack moved to L). Pad only, never Tab.
+    bool triangleAct = false;
 #ifdef WOWEE_SWITCH
     const auto& targetPad=platform::switchport::padSnapshot();
-    if(keys && localFrameXml_.ready() && targetPad.connected &&
-       !platform::switchport::inputTextFocus() && !platform::switchport::keyboardCapturesInput() && (targetPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE))toggleTarget=true;
+    const bool padTriangle = keys && localFrameXml_.ready() && targetPad.connected &&
+       !platform::switchport::inputTextFocus() && !platform::switchport::keyboardCapturesInput() && (targetPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE);
+    if (padTriangle) toggleTarget=true;
 #endif
     if(toggleTarget && !self.dead){
         const auto next=ui::toggledLocalTarget(localRealmTarget_,game::nearestLivingLocalTarget(self,npcs));
         if(!next){localRealm_->stopAttack();if(gameHandler)gameHandler->clearFocus();}
         select(next);
         LOG_INFO("[PAD_TARGET] ",next?"selected nearest target":"cleared target");
+#ifdef WOWEE_SWITCH
+        if (padTriangle && next) triangleAct=true;
+#endif
     }
     auto interactWith = [&](const game::LocalRealmNpc& npc) {
         if (self.dead) return;
@@ -262,6 +270,11 @@ void Application::renderLocalRealmOverlay() {
         if (contextual && npc && (npc->dead || !npc->hostile)) interactWith(*npc);
         else localRealm_->attack(localRealmTarget_);
     };
+#ifdef WOWEE_SWITCH
+    // Y-press follow-through, set above: act on the just-selected target so
+    // target + talk/loot/attack land in one press, in order.
+    if (triangleAct) primaryAction(true);
+#endif
     const auto selectedSpell=[&](bool heal) -> const game::LocalSpellDefinition* {
         const game::LocalSpellDefinition* unavailable=nullptr;
         for(auto id:self.knownSpells) {

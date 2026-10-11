@@ -79,10 +79,10 @@ db.Controllers.SWITCH = {
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON7',
 		},
 		['CP_R_DOWN'] = {
-			['']		 	= 'OPENALLBAGS',
+			['']		 	= 'CANCELALL',
 			['SHIFT-'] 		= 'ACTIONBUTTON9',
 			['CTRL-']  		= 'EXTRAACTIONBUTTON1',
-			['CTRL-SHIFT-'] = 'CLICK ConsolePortUtilityToggle:LeftButton',
+			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON9',
 		},
 		['CP_R_LEFT'] = {
 			['']		 	= 'ACTIONBUTTON1',
@@ -91,20 +91,21 @@ db.Controllers.SWITCH = {
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON6',
 		},
 		['CP_R_RIGHT'] = {
-			['']		 	= 'INTERACTTARGET',
+			-- WoWee handheld: A is the mouse button (tap-left in cursor,
+			-- hold-left everywhere, B is right). No base binding; tiers kept.
 			['SHIFT-'] 		= 'ACTIONBUTTON8',
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON3',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON8',
 		},
-		-- Trigger buttons
+		-- Trigger buttons (WoWee handheld: L = attack toggle, R = bags)
 		['CP_T1'] =	{
-			['']		 	= 'ACTIONBUTTON4',
+			['']		 	= 'ACTIONBUTTON1',
 			['SHIFT-'] 		= 'TARGETNEARESTENEMY', --TARGETSCANENEMY not available on 3.3.5a
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON4',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON9',
 		},
 		['CP_T2'] = 	{
-			['']		 	= 'ACTIONBUTTON5',
+			['']		 	= 'OPENALLBAGS',
 			['SHIFT-'] 		= 'ACTIONBUTTON10',
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON5',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON10',
