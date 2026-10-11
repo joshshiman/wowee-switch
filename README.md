@@ -1,10 +1,35 @@
 # wowee-switch
 
-The WoWee WoW 3.3.5a (WotLK) client, running natively on a hacked Nintendo Switch.
+<p align="center">
+  <img src="docs/wowee-hero.jpg" alt="WoWee on Nintendo Switch" width="640">
+</p>
 
-This file is for **playing the thing**. If you want to build it from source,
-start at [GETTING_STARTED.md](GETTING_STARTED.md) — the verified Linux path,
-end to end. The porting approach is in [PORTING.md](PORTING.md).
+<p align="center">
+  <a href="GETTING_STARTED.md"><img alt="Platform: Nintendo Switch (homebrew)" src="https://img.shields.io/badge/platform-Nintendo%20Switch%20(homebrew)-E60012"></a>
+  <img alt="Client: 3.3.5a (WotLK)" src="https://img.shields.io/badge/client-3.3.5a%20(WotLK)-1a7f37">
+  <img alt="Renderer: Vulkan (NVK)" src="https://img.shields.io/badge/renderer-Vulkan%20(NVK)-8250df">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT%20%2B%20restriction-yellow">
+</p>
+
+<p align="center"><i>The World of Warcraft: Wrath of the Lich King (3.3.5a) client,
+running natively on Nintendo Switch hardware — devkitA64 + libnx, Vulkan via
+Mesa NVK, with a controller-native UI.</i></p>
+
+## About
+
+WoWee is a source port of the 3.3.5a client to the Switch: the game logic,
+interface (stock FrameXML + Lua 5.1), and rendering run on-console against
+your own WotLK data, targeting private/local servers and an offline local
+realm. There is no streaming, no emulation layer, and no Blizzard code or
+game data in this repository — the `.MPQ` archives stay yours, on your SD
+card.
+
+- **Players:** this file. Install below, play, report back with logs.
+- **Builders:** [GETTING_STARTED.md](GETTING_STARTED.md) — the verified Linux
+  path, end to end.
+- **Porting approach & licensing:** [PORTING.md](PORTING.md).
+- **Live project state:** [AGENTS.md](AGENTS.md) — the hardware loop, the
+  console on the LAN, and how a run gets diagnosed.
 
 ![Porting progress by remaining work](docs/port-progress.svg)
 
@@ -203,9 +228,28 @@ else is already spoken for. See the comment at
 | Pad does nothing | Suspect the on-screen keyboard is stuck open, or that no controller was detected at boot. |
 | Plus opens nothing | Known issue (benched). Every panel is still reachable through the Minus/Plus combos listed under Controls. |
 
+## Contributing
+
+The bottleneck is hardware time, not code review. The highest-value
+contributions, in order:
+
+1. **Console runs with logs.** Play on hardware, and when something breaks,
+   pull `sdmc:/wowps/wowps/logs/boot.log` and `wowps.log` (see above) and
+   attach them with what you were doing. `logs/console/` is git-ignored for
+   exactly this — run artifacts may contain realmlist addresses and account
+   names, so check before posting anywhere public.
+2. **Reproductions with teeth.** A report that names the button pressed, the
+   target, and the visible result beats a perfect theory. Screenshots of the
+   bar help more than descriptions of it.
+3. **Code.** Open PRs against `main`; small, one-concern commits with log
+   evidence beat large refactors. The Switch toolchain (`devkitA64`) is only
+   needed for hardware builds — the Linux host build covers most UI and
+   systems work.
+
 ## Legal
 
-Blizzard game data is not included, and this project is not affiliated with or
+Blizzard game data is not included and cannot be — bring your own 3.3.5a
+`Data` directory (see Installing). This project is not affiliated with or
 endorsed by Blizzard Entertainment.
 
 Distributing a binary requires shipping the corresponding source: the client
