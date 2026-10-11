@@ -765,6 +765,21 @@ bool LocalFrameXml::navigate() {
         }
     }
 #endif
+    // A greeting or a quest: A is confirm here, the button the pad uses on the
+    // menus hub, not the pick-up/put-down the world uses. There is nothing to
+    // carry in a conversation, so the pickup contract below is the wrong answer
+    // and Square was the only way to accept a quest. FrameXML's own press/
+    // release dispatch at the focused control, so the authored OnClick runs.
+    if (focused && !rootChanged &&
+        (root->name == "GossipFrame" || root->name == "QuestFrame") &&
+        ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false) &&
+        !ui::interfaceConsumedKey(ImGuiKey_GamepadFaceDown)) {
+        const auto id = focused->id;
+        activatePadControl(id);
+        ui::noteInterfaceConsumedKey(ImGuiKey_GamepadFaceDown);
+        LOG_INFO("[PAD_UI] A confirmed dialog control=", id);
+        return true;
+    }
     // Cross is the pad's own pick up / put down, ahead of the synthetic mouse
     // at the bottom of this function. Each of the three interface calls behind
     // padPickup already does both halves against the cursor, so the one button

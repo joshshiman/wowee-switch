@@ -10155,14 +10155,27 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                                                     const int slot = static_cast<int>(lua_tonumber(L_, -1));
                                                     lua_pop(L_, 1);
                                                     if (slot >= 1 && slot <= 120) {
-                                                        lua_getglobal(L_, "UseAction");
+                                                        // Place when the cursor is
+                                                        // carrying something, use
+                                                        // otherwise - the mouse's
+                                                        // own contract on a slot.
+                                                        lua_getglobal(L_, "GetCursorInfo");
+                                                        bool holding = false;
+                                                        if (lua_isfunction(L_, -1)) {
+                                                            if (lua_pcall(L_, 0, 1, 0) == 0) { holding = !lua_isnil(L_, -1); lua_pop(L_, 1); }
+                                                            else lua_pop(L_, 1);
+                                                        } else {
+                                                            lua_pop(L_, 1);
+                                                        }
+                                                        lua_getglobal(L_, holding ? "PlaceAction" : "UseAction");
                                                         if (lua_isfunction(L_, -1)) {
                                                             lua_pushinteger(L_, slot);
                                                             lua_pcall(L_, 1, 0, 0);
                                                         } else {
                                                             lua_pop(L_, 1);
                                                         }
-                                                        how = std::string("slot ") + std::to_string(slot);
+                                                        how = std::string("slot ") + std::to_string(slot) +
+                                                              (holding ? " (place)" : "");
                                                     }
                                                 } else {
                                                     lua_pop(L_, 1);
@@ -10414,8 +10427,21 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         try {
             int slot = std::stoi(command.substr(12));
             if (slot >= 1 && slot <= 120 && down) {
-                outcome = "action";
-                lua_getglobal(L_, "UseAction");
+                // A slot press with something on the cursor places it there
+                // rather than trying to use it - the same thing a mouse click
+                // on the slot does. Without this, carrying a spell picked up
+                // from the spellbook and pressing the slot it should go on
+                // tried to cast from an empty slot and nothing happened.
+                lua_getglobal(L_, "GetCursorInfo");
+                bool carrying = false;
+                if (lua_isfunction(L_, -1)) {
+                    if (lua_pcall(L_, 0, 1, 0) == 0) { carrying = !lua_isnil(L_, -1); lua_pop(L_, 1); }
+                    else lua_pop(L_, 1);
+                } else {
+                    lua_pop(L_, 1);
+                }
+                outcome = carrying ? "place" : "action";
+                lua_getglobal(L_, carrying ? "PlaceAction" : "UseAction");
                 if (lua_isfunction(L_, -1)) {
                     lua_pushinteger(L_, slot);
                     lua_pcall(L_, 1, 0, 0);
