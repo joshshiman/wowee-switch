@@ -782,9 +782,10 @@ bool Renderer::initialize(core::Window* win) {
         //
         // Level 0 no longer means a 512 map. It means no casters at all - see
         // setShadowQuality - so the size it names is never filled and exists
-        // only because the images are built unconditionally, the pass still
-        // clears them, and the readers still sample them. 512 is the cheapest
-        // thing to keep valid.
+        // only because the images are built unconditionally. The readers skip
+        // sampling at level 0, so the image only has to stay in the layout its
+        // descriptor declares; on Switch the pass then skips the clear and
+        // performs just that transition. 512 is the cheapest thing to keep valid.
         //
         // On the console the top of the range is held at 1024 rather than
         // following the desktop ladder. What limits shadows there is fill
@@ -820,10 +821,11 @@ bool Renderer::initialize(core::Window* win) {
 #ifdef WOWEE_SWITCH
         // Measured 2026-10-09 on Tegra X1: ~400 ms GPU frames at 720p with
         // quality 2 (every caster drawn). Level 0 is the designed off-ramp:
-        // the pass still runs and clears the atlas (which its readers sample),
-        // but nothing is drawn into it, and cleared depth reads as lit. Forced
-        // regardless of the saved CVar — the dropdown still works mid-session
-        // via setShadowQuality for anyone who wants them back.
+        // nothing is drawn into the atlas and the readers skip sampling it
+        // (cleared depth reads as lit). On Switch the pass also skips the clear
+        // and only performs the layout transition - see renderShadowPass.
+        // Forced regardless of the saved CVar — the dropdown still works
+        // mid-session via setShadowQuality for anyone who wants them back.
         constexpr int kSwitchShadowQuality = 0;
         setShadowMapSize(kShadowSideForLevel[kSwitchShadowQuality]);
         setShadowQuality(kSwitchShadowQuality);
@@ -1270,6 +1272,17 @@ void Renderer::setWaterRefractionEnabled(bool /*enabled*/) {
 }
 void Renderer::setMsaaSamples(VkSampleCountFlagBits samples) {
     if (!vkCtx) return;
+
+#ifdef WOWEE_SWITCH
+    // Switch floor, in the sink so every route (startup, saved CVar, panel, Lua)
+    // is covered. desiredSceneExtent() only returns the 480p world target while
+    // msaaSamples == VK_SAMPLE_COUNT_1_BIT, so a saved antialiasing > 0 would
+    // both quadruple scene fill (MSAA attachments) and silently abandon the
+    // render scale back to native - the worst possible pair for this GPU. MSAA
+    // is already off (measured msaa=1); this closes the latent path. Delete this
+    // guard to re-enable MSAA on hardware.
+    samples = VK_SAMPLE_COUNT_1_BIT;
+#endif
 
     // FSR2 requires non-MSAA render pass - block MSAA changes while FSR2 is active
     if (postProcessPipeline_ && postProcessPipeline_->isFsr2BlockingMsaa() && samples > VK_SAMPLE_COUNT_1_BIT) return;
@@ -1742,6 +1755,18 @@ void Renderer::endFrame() {
             glm::vec3(currentFrameData.lightDir), glm::vec3(currentFrameData.lightColor) * localShaftScale,
             shadowDepthView[frame], volumeEligibility.allowed && !inspectSurfaceShadow,
             inspectSurfaceShadow ? "surface-shadow-inspection" : volumeEligibility.reason);
+#ifdef WOWEE_SWITCH
+        // Switch floor: the FXAA pass always runs on Switch - it is also the
+        // 480p -> native upscale - but when fxaa=1 the fragment kernel is the
+        // full FXAA 3.11 search: 12 steps and up to ~20 taps per pixel at native
+        // 720p. Disabled it takes the cheap bypass (sharpness = -1, a single
+        // tap), which is invisible over an already-soft upscale. There is no
+        // separate FXAA sink to floor (the setter lives in PostProcessPipeline
+        // and every route - saved CVar, panel, Lua - calls it directly), so the
+        // force is applied here, the one point every route passes through before
+        // the pass is recorded. Re-enable by deleting this guard.
+        postProcessPipeline_->setFXAAEnabled(false);
+#endif
         postProcessPipeline_->executePostProcessing(
             currentCmd, currentImageIndex, camera.get(), lastDeltaTime_);
     }
@@ -3460,6 +3485,14 @@ void Renderer::renderWorld(game::World* world, game::GameHandler* gameHandler) {
     } else {
         // ── Fallback: single-threaded inline recording (original path) ──
 
+        // The sky is drawn before the world. Deferring it to after the opaque
+        // geometry would let the skybox's depth test (LEQUAL, z=1.0) reject
+        // covered fragments instead of shading all 409k of them, but the sky
+        // unit is not only the skybox: Celestial draws its discs with depth
+        // test disabled (celestial.cpp:35) and the lens flare is a depth-less
+        // screen effect, so both would paint over terrain if the unit moved
+        // late. Reordering it safely needs the skybox split out of the unit
+        // first; until then the whole unit stays here.
         if (skySystem && camera && !skipSky) {
             const rendering::SkyParams skyParams = rendering::skyParamsFromLighting(
                 timeOfDay,
@@ -3557,7 +3590,30 @@ void Renderer::renderWorld(game::World* world, game::GameHandler* gameHandler) {
     // that copy from the finished frame instead fed the water its own output:
     // a moving object left one sharp copy per frame (a train of ghosts) and the
     // brightness applied to the water compounded through the loop and pumped.
-    if (waterDrawsInContinuePass() && camera) {
+    //
+    // Switch floor (audit 02 W3): with MSAA off the scene continuation pass
+    // always exists, so this ran even in zones and interiors with no water at
+    // all - every such frame copied scene colour + depth into the refraction
+    // history (~6.5 MB) and opened the LOAD continuation pass (~3.3 MB) for an
+    // empty draw. Require at least one loaded surface, the same test the
+    // endFrame fallback copy already applies (isRefractionEnabled() is
+    // hard-wired true). This is a coarse gate: it removes the every-frame cost
+    // of waterless frames, not of every frame with no water on screen. A finer
+    // camera-frustum/range test belongs on WaterRenderer (its surfaces are
+    // private here); the accepted cost of a too-eager gate is one frame of
+    // unrefracted water when a surface appears.
+    //
+    // Deliberately gated here and not inside waterDrawsInContinuePass(): that
+    // predicate also selects the swim-spray pass once, before any surface is
+    // loaded, and changing its answer then would move the spray out of the
+    // continuation pass for the whole session.
+    const bool waterVisible =
+        waterDrawsInContinuePass() && camera
+#ifdef WOWEE_SWITCH
+        && waterRenderer->hasSurfaces()
+#endif
+        ;
+    if (waterVisible) {
         vkCmdEndRenderPass(currentCmd);
 
         VkImage sceneColor = VK_NULL_HANDLE;
@@ -4748,7 +4804,9 @@ void Renderer::renderShadowPass() {
     // What casts, from extShadowQuality. Level 0 draws nothing into the map,
     // level 1 the ground only, level 2 and up everything that stands on it.
     // The pass still runs at level 0 for the reason above: it is what leaves
-    // the image in the layout its readers expect.
+    // the image in the layout its readers expect. On Switch it now does only
+    // that - see the quality-0 early-out below, which performs the transition
+    // and skips the clear.
     const bool drawCasters = shadowsEnabled && shadowLevelDrawsCasters(shadowQuality_);
     const bool drawObjectCasters = drawCasters && shadowLevelDrawsObjects(shadowQuality_);
     static int reportedShadowQuality = -1;
@@ -4765,6 +4823,48 @@ void Renderer::renderShadowPass() {
     // Zero matrix means character position isn't set yet - skip shadow pass entirely.
     if (lightSpaceMatrix == glm::mat4(0.0f)) return;
     uint32_t frame = vkCtx->getCurrentFrame();
+
+#ifdef WOWEE_SWITCH
+    // Switch floor (audit 02 W1): at quality 0 nothing is drawn into the atlas,
+    // yet the pass above still began it and cleared 1024x512 D32 (~2.1 MB) plus
+    // two barriers every frame. Phase 1 made the receivers skip sampling too
+    // (shadowParams.x is written from shadowLevelDrawsCasters()), so the clear's
+    // product is read by nobody. Skip the begin/clear/end entirely; the only
+    // work that must still happen is the transition that leaves the image in the
+    // layout its (still-bound) descriptor declares. Do that once - from whatever
+    // layout the slot is in - and return. Re-enabling shadows mid-session falls
+    // straight back into the normal path below: barrier 1 reads
+    // shadowDepthLayout_[frame] (SHADER_READ_ONLY_OPTIMAL here) and transitions
+    // into the attachment layout before the clear, so the render pass's
+    // initialLayout always matches.
+    if (!drawCasters) {
+        if (shadowDepthLayout_[frame] != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+            VkImageMemoryBarrier2 bc{};
+            bc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+            bc.srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            bc.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            bc.oldLayout = shadowDepthLayout_[frame];
+            bc.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            bc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bc.srcAccessMask = 0;
+            bc.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            bc.image = shadowDepthImage[frame];
+            bc.subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .baseMipLevel = 0, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1};
+            VkDependencyInfo bcDep{.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+            bcDep.dependencyFlags = 0;
+            bcDep.imageMemoryBarrierCount = 1;
+            bcDep.pImageMemoryBarriers = &bc;
+            cmdPipelineBarrier2(currentCmd, bcDep);
+            shadowDepthLayout_[frame] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+        // No render happened, so the retired-depth receipt must not claim one
+        // (the receipt path is PS4-only and meaningless at quality 0 anyway).
+        shadowDepthRecorded_ = false;
+        if (vkCtx) vkCtx->gpuMark(currentCmd, "shadows");
+        return;
+    }
+#endif
 
     // Barrier 1: transition this frame's shadow map into writable depth layout.
     VkImageMemoryBarrier2 b1{};
@@ -5008,9 +5108,10 @@ void Renderer::buildFrameGraph(game::GameHandler* gameHandler) {
         // Shadow pre-pass → outputs shadow_depth
         renderGraph_->addPass("shadow_pass", {}, {shadowDepth},
             [this](VkCommandBuffer) {
-                // Not gated on shadowsEnabled: renderShadowPass is what clears the
-                // map and leaves it in the layout its readers expect, and it
-                // already skips the casters on its own when shadows are off.
+                // Not gated on shadowsEnabled: renderShadowPass leaves the map
+                // in the layout its readers expect (and, on Switch at quality 0,
+                // now does only that - the clear is skipped), and it already
+                // skips the casters on its own when shadows are off.
                 if (shadowDepthImage[0] != VK_NULL_HANDLE) {
                     const auto t0 = std::chrono::steady_clock::now();
                     renderShadowPass();

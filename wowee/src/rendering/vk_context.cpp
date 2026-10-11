@@ -3292,16 +3292,19 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
 #if defined(WOWEE_SWITCH)
         // Bracketed in the boot log because this is the one frame step that can
         // wait forever on something outside our control: the presentation
-        // engine. "render: beginFrame" with no "gpu: acquire done" after it
-        // names the hang without any further instrumentation. The exact
-        // VkResult rides along on the failure so the next run can tell a
-        // timeout (2) from out-of-date (-1000001004) from anything else.
-        char acquireStage[96];
-        std::snprintf(acquireStage, sizeof acquireStage,
-                      "gpu: swapchain acquire %s rc=%d",
-                      (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) ? "done" : "FAILED",
-                      static_cast<int>(result));
-        platform::switchport::reportBootStage(acquireStage);
+        // engine. A stalled log - the last breadcrumb with no later line - names
+        // the hang; the exact VkResult rides along on a failure so the next run
+        // can tell a timeout (2) from out-of-date (-1000001004) from anything
+        // else.
+        // A healthy acquire is silent: this used to fire once per frame and
+        // turned the SD-card boot log into 18 MiB of the same line.
+        if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            char acquireStage[96];
+            std::snprintf(acquireStage, sizeof acquireStage,
+                          "gpu: swapchain acquire FAILED rc=%d",
+                          static_cast<int>(result));
+            platform::switchport::reportBootStage(acquireStage);
+        }
 #endif
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {

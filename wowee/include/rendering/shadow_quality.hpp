@@ -42,9 +42,11 @@ inline constexpr const char* kShadowQualityDefaultCVar = "2";
 /// hardware that cannot spend the memory.
 inline constexpr int kShadowQualityMaxLevel = 4;
 
-/// True when this level draws anything at all into the map. Level 0 still runs
-/// the pass - it is what clears the image and leaves it in the layout its
-/// readers expect - and simply submits no casters.
+/// True when this level draws anything at all into the map. Level 0 submits no
+/// casters, and the receivers skip sampling (their shadowParams.x is written
+/// from this), so the map only has to stay in the layout its descriptor
+/// declares: on Switch the pass skips the clear and performs that transition,
+/// elsewhere it still clears and draws nothing.
 [[nodiscard]] inline constexpr bool shadowLevelDrawsCasters(int level) {
     return level > 0;
 }
