@@ -1,7 +1,7 @@
 # AGENTS.md — WoWee Switch
 
 Working notes for anyone (human or agent) driving this project. Facts here were
-verified against the live console on **2026-10-09**; anything that changes
+verified against the live console on **2026-10-11**; anything that changes
 (address, Atmosphere version, where logs land) should be updated here first.
 
 **Read [docs/FINDINGS.md](docs/FINDINGS.md) before debugging anything.** It is
@@ -113,7 +113,8 @@ can contain realmlist addresses and account names.
 
 | Path | What |
 |------|------|
-| `/switch/wowee/wowee.nro` | the title (only file there today) |
+| `/switch/wowee/wowee.nro` | the title (addons + data assets are baked into its romfs too) |
+| `/switch/wowee/addons/` | card-side addon mirror (ConsolePort set; read only if romfs changes — see traps) |
 | `/wowps/Data` | the 17 GB WotLK client data, `enUS/` included — never re-deploy |
 | `/wowps/wowps/logs/` | `boot.log` (startup breadcrumbs), `wowps.log` (client log), `chat.log` |
 | `/wowps/wowps/{cache,saves,config,tmp}` | writable tree; `config/paths.cfg` overrides the data root |
@@ -191,6 +192,11 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   copying a shader or asset onto the card does *not* take effect — changing
   anything shipped as an asset means rebuilding and redeploying the whole
   `.nro`.
+- **The romfs wins for Lua too.** Addons ship baked into the `.nro`
+  (`switchpkg` copies `wowee/addons/` at package time), and the game reads the
+  baked copies. An FTP-only Lua push is void — proven twice (a layout fix and
+  a diagnostic probe that never printed). **Every round rebuilds**, no
+  exceptions; the card-side `addons/` mirror is belt and suspenders only.
 - **A crash report's `wowee + 0x…` offsets only symbolize against the exact
   ELF that built that `.nro`.** Resolve them with
   `/opt/devkitpro/devkitA64/bin/aarch64-none-elf-addr2line -f -C -e
@@ -204,28 +210,62 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
 - Anonymous FTP will happily let you overwrite the client data or the card's
   Atmosphere files. Push only into `sdmc:/switch/wowee/` and
   `sdmc:/wowps/wowps/`.
+- **SavedVariables shadow code defaults.** Per-character binding sets and bar
+  setups persist on the card, so a changed default never reaches an existing
+  character. Every handheld default ships with a one-shot in-place migration
+  (`woweeBindRev` / `woweeRev` stamps in `Init.lua` / `Bar.lua`) — bump the
+  stamp when changing a default.
+- **Override buckets merge by owner-pointer order.** Key→command overrides
+  live per owner and merge ascending, so a later-allocated frame's bucket
+  silently wins collisions (this ate F1–F4 mid-session via the bar's
+  `SetBindingClick`). Same-owner rewrites are the only deterministic move.
+- **`print()` goes to chat, not the log.** Release logs sit at WARNING, so Lua
+  diagnostics must use `__WoweeWarn`. A whole probe round was once lost to
+  chat spam.
+- **A crash report naming only `hbmenu`/`nx-hbmenu` with User Break is
+  teardown noise**, not the game — it names no `wowee + 0x…` offsets and
+  cannot be symbolized. Only reports carrying game offsets are actionable.
+- **Scripted `Click()` never drives secure state.** `mt:Click` runs insecure
+  scripts only; secure show/hide, clicks, and drag-drop are inert until the
+  secure layer lands. Anything depending on them needs an insecure mirror or
+  it reads as dead.
+- **Frame alpha does not cascade to children** (each widget draws at its own
+  alpha), while visibility does. An `alpha=0` frame with art children renders
+  anyway — hide the frame instead.
+- **Every game-handler method used from pad dispatch must check
+  `localServiceRealm()` first** (`castSpell` pattern). The direct methods are
+  remote-only and go nowhere offline — this exact gap killed an entire round
+  of A-button work.
+- **Temporary `[WOWEE_*]` instruments** (`PAD`, `KEYTRACE`, `ACT`, `OVR`,
+  `MENU`, `MEM`, `ATTRDIAG`, `GLYPH`, center-band scan) are debug-round
+  scaffolding, not features. Grep for them before adding another, and remove
+  the set before calling the branch done.
 
-## State as of 2026-10-09
+## State as of 2026-10-11
 
+- Work happens on `main` — `feature/consoleport-native-ui` is merged
+  (`b03313e`, plus follow-ups). The branch is left in place, not deleted.
 - `build-switch/` builds clean and stages to `wowee/out/switch/switch/wowee/`
   (clean configure + ~4 min; incremental much less). Commands in step 1 above.
   **A flag change needs a clean configure** - `CMAKE_CXX_FLAGS_INIT` only
   applies to a fresh build tree, so editing the toolchain and rebuilding an
   existing `build-switch/` silently keeps the old flags.
-- **The port reaches the login screen on hardware.** Full boot path is live:
-  romfs mount, resource-root resolution, renderer init with every pipeline,
-  all 18 MPQs opened (including the 2.9 GB `common.MPQ`), FrameXML addons
-  loaded, login logo and text rendered, and music playing. The character
-  creator scene loads too, and it is where it currently dies.
-- **The remaining blocker is console memory.** The driver refuses allocations
-  the heap reports it can serve. Measured: a 512x256 image fails at ~96 MiB
-  live, and the probe run immediately after finds 256x128 servable - so the
-  heap was full for an instant, not permanently short. `createBuffer` and
-  `createImage` now drain completed upload batches and retry once before giving
-  up, which is the structural answer rather than a tuning knob.
-- VMA block sizes come out as a fallback ladder (32, 16, 8, 4 MiB), so the
-  driver does not reliably serve the 32 MiB request VMA prefers. `preferredLargeHeapBlockSize`
-  is set to 32 MiB, the best measured value; 8 MiB broke the M2 transfers.
+- **The port is in-world on hardware with a controller-native UI.** Full boot
+  path is live (romfs mount, resource-root resolution, renderer init with
+  every pipeline, all 18 MPQs opened including the 2.9 GB `common.MPQ`,
+  FrameXML addons loaded), and the login screen, character creator, and world
+  entry all run. Playable offline in the local realm as well as on servers.
+- **In-game UI is ConsolePort** (baked in as the native interface, Switch
+  profile): face-button clusters with ZL/ZR modifier tiers, radial utility
+  ring on Minus, panel doors on Minus/Plus tiers. The live map is in
+  [README.md](README.md#controls) — that table is verified against traces,
+  treat it as the contract.
+- **Three input layers are live at once** (base pad table is gated off; the
+  local-realm UI reads the raw pad; ConsolePort drives F-keys): X = local
+  action + jump, Y = auto-attack, A = interact/loot/attack + mouse, B =
+  cancel, L = target + act, R = bags. Fixes go through the right layer —
+  never silence one blindly. Details in `docs/FINDINGS.md` (operator overrule
+  + double-drive record).
 - **Audio is fixed** (blocker 1). `devWrite` no longer pre-waits on its own
   in-flight flag: libnx's `audoutPlayBuffer` already blocks until the hardware
   consumes the buffer and harvests the release.
@@ -239,5 +279,17 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
 - Still open from the audit: the config path writing to a PS4 location
   (blocker 2), local-realm saves (blocker 3), the swallowed fatal-error text
   (blocker 4), and the 1.5 GiB heap request (blocker 6).
-- **World entry has never run.** Character creation, login, world load and
-  in-game rendering are all untested. That is the largest remaining unknown.
+- Console memory is still the structural risk: the driver refuses allocations
+  the heap reports it can serve (a 512x256 image fails at ~96 MiB live while
+  256x128 serves right after), so `createBuffer`/`createImage` drain completed
+  upload batches and retry once. VMA block sizes land as a fallback ladder
+  (32, 16, 8, 4 MiB); `preferredLargeHeapBlockSize` stays 32 MiB (8 MiB broke
+  M2 transfers).
+- Open from handheld testing (see `docs/FINDINGS.md` for the ledger): the Plus
+  system menu opens nothing visible (benched — all panels reachable via
+  Minus/Plus tiers); the utility ring opens but has no pad selection gesture
+  yet; a mid-session Lua-heap OOM crash with no clean signature match (new
+  variant under investigation, `lua_kb` breadcrumb in place).
+- **Character creation, login, world load and in-game rendering are all
+  exercised regularly now.** The largest remaining unknown is sustained
+  in-world stability (memory over long sessions), not reaching the world.
