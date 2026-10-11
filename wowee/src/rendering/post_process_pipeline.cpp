@@ -287,6 +287,7 @@ bool PostProcessPipeline::executePostProcessing(VkCommandBuffer cmd, uint32_t im
     camera_ = camera;
     lastDeltaTime_ = deltaTime;
     bool inlineMode = false;
+    overlayPassOpen_ = false;
     bloom_.rendered = false;
     bloom_.status = !bloom_.enabled ? "disabled" : bloom_.intensity <= 0.0f ? "zero-intensity" :
         !worldRendering_ ? "not-world" : fsr2_.enabled ? "unsupported-fsr2-route" :
@@ -454,6 +455,29 @@ bool PostProcessPipeline::executePostProcessing(VkCommandBuffer cmd, uint32_t im
         rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         // Output goes through the single-sampled overlay pass. The scene pass
         // carries the scene's sample count, and these quads are 1x.
+#ifdef WOWEE_SWITCH
+        // W2: the off-screen scene is upscaled across the whole output here, so
+        // every pixel is written by the fullscreen triangle. The clearing
+        // overlay pass exists for the loading/menu route (loading_screen.cpp),
+        // which has nothing underneath. In-world the upscale's LOAD overlay
+        // pass and Renderer::endFrame's UI pass are render-pass-compatible
+        // (identical attachments/subpasses; only load/store ops differ), and
+        // the FXAA pipeline is in fact built against getOverlayRenderPass()
+        // already, so draw the upscale into that LOAD pass and leave it open
+        // for endFrame to append ImGui. This removes a full native-resolution
+        // clear (~3.7 MB at 720p) and a pass begin/end every in-world frame.
+        // Uses the dedicated merge pass (DONT_CARE/UNDEFINED), not the LOAD
+        // overlay pass: the upscale overwrites every pixel, so no prior
+        // contents are needed and the pass stays valid on a swapchain image
+        // whose layout is UNDEFINED (first frame after a mid-world rebuild).
+        rpInfo.renderPass = vkCtx_->getOverlayMergeRenderPass();
+        rpInfo.framebuffer = vkCtx_->getOverlayFramebuffers()[imageIndex];
+        rpInfo.renderArea.offset = {.x = 0, .y = 0};
+        rpInfo.renderArea.extent = vkCtx_->getSwapchainExtent();
+        rpInfo.clearValueCount = 0;
+        rpInfo.pClearValues = nullptr;
+        overlayPassOpen_ = true;
+#else
         rpInfo.renderPass = vkCtx_->getOverlayClearRenderPass();
         rpInfo.framebuffer = vkCtx_->getOverlayFramebuffers()[imageIndex];
         rpInfo.renderArea.offset = {.x = 0, .y = 0};
@@ -462,6 +486,7 @@ bool PostProcessPipeline::executePostProcessing(VkCommandBuffer cmd, uint32_t im
         fxaaClear[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         rpInfo.clearValueCount = 1;
         rpInfo.pClearValues = fxaaClear;
+#endif
 
         vkCmdBeginRenderPass(currentCmd_, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 

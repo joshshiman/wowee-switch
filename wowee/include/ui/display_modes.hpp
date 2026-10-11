@@ -22,15 +22,26 @@ namespace ui {
 // What the player can usefully choose is how large the *world* is rendered
 // before it is sampled up to the 1080p output - which is a real quality and
 // frame-rate decision, and the one the B21 scene profile already implements.
-// So on the console this list is those two choices, in the same index-carrying
-// shape both option screens already speak.
+// So on the console this list is those render-quality profiles, tallest (best
+// looking, slowest) first so index 0 stays the native/full entry every other
+// "unset means native" code path expects, in the same index-carrying shape
+// both option screens already speak.
+//
+// The world height is the only number that does anything: the entries carry a
+// real 16:9 pair so the label reads honestly and the FrameXML video panel can
+// divide the two halves, but the renderer sizes the off-screen target from the
+// height alone (fitSwitchSceneExtent), so the width here is presentation.
+// 480 and 360 are the below-output-detail profiles the console needs; 480 was
+// the shipped default and 360 is the new performance default.
 //
 // The sizes stay real numbers rather than the words "high" and "normal": the
 // label below is what the interface shows, and the FrameXML video panel reads
 // the digits out of it.
 inline constexpr int kDisplayResolutions[][2] = {
     {1920, 1080},   // High Definition - the world rendered at full output size
-    {1280, 720},    // Normal HD - the performance profile
+    {1280, 720},    // Normal HD - quality profile
+    {853, 480},     // Performance - below the old shipped default
+    {640, 360},     // Low - the new performance default
 };
 #else
 inline constexpr int kDisplayResolutions[][2] = {
@@ -78,10 +89,14 @@ inline std::string displayResolutionName(int index) {
     std::string label = displayResolutionLabel(index);
     if (label.empty()) return label;
 #if defined(WOWEE_SWITCH)
-    // On the console these two entries are render-quality profiles rather than
+    // On the console these entries are render-quality profiles rather than
     // display modes - the output stays 1080p either way - so the plain numbers
     // do not say what a player is choosing between.
-    label += kDisplayResolutions[index][1] >= 1080 ? " (High Definition)" : " (Normal HD)";
+    const int height = kDisplayResolutions[index][1];
+    if (height >= 1080)      label += " (High Definition)";
+    else if (height >= 720)  label += " (Normal HD)";
+    else if (height >= 480)  label += " (Performance)";
+    else                     label += " (Low)";
 #endif
     return label;
 }

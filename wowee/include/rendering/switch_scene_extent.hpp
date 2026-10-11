@@ -18,15 +18,26 @@ namespace wowee::rendering {
 inline uint32_t parseSwitchSceneHeight(const char* value) noexcept {
     if (value && (std::strcmp(value, "native") == 0 || std::strcmp(value, "1080") == 0))
         return 0;
-    if (value && std::strcmp(value, "900") == 0) return 900;
+    // Any other plain number is a world height (360/480/720/900...), clamped to
+    // the supported range. Previously only "900" was recognised and every other
+    // number fell through to the default, so "480" matched 480 only by
+    // coincidence and "720" never worked at all.
+    if (value && value[0] != '\0') {
+        char* end = nullptr;
+        const long parsed = std::strtol(value, &end, 10);
+        if (end && end != value && *end == '\0' && parsed > 0)
+            return static_cast<uint32_t>(std::clamp(parsed, 360L, 2160L));
+    }
 #ifdef WOWEE_SWITCH
     // In-world frames are ~240 ms of GPU fill at 720p with shadows, volumetric
     // and bloom all off (run 56) — fill is what's left, so the default world
-    // height is 480 (UI/menus stay native). FSR1 is blocked on nxvk, so this
-    // profile is the render-scale lever. Raisable at runtime in the video
-    // options; the env var still seeds it. (540 first, then 480 chasing the
-    // 15 fps target alongside the object-distance cuts.)
-    return 480;
+    // height is 360 (UI/menus stay native). 360 is the performance default;
+    // 480 and 720 are the quality options the video menu offers above it. FSR1
+    // is blocked on nxvk, so this profile is the render-scale lever. Raisable
+    // at runtime in the video options; the env var still seeds it. (540 first,
+    // then 480 chasing the 15 fps target alongside the object-distance cuts,
+    // now 360 as the shipped default.)
+    return 360;
 #else
     return 720;
 #endif
@@ -58,9 +69,11 @@ inline uint32_t configuredSwitchSceneHeight() noexcept {
 
 // 0 means native. Any other value is clamped into the supported range rather
 // than trusted: this is reached from the interface, and an out-of-range height
-// would allocate a scene target the console cannot afford.
+// would allocate a scene target the console cannot afford. The floor is the
+// 360 performance default - the smallest profile the video menu offers - so a
+// selection can never fall below it.
 inline void setSwitchSceneHeight(uint32_t height) noexcept {
-    if (height != 0) height = std::clamp(height, 480u, 2160u);
+    if (height != 0) height = std::clamp(height, 360u, 2160u);
     detail::SwitchSceneHeightCell().store(height, std::memory_order_relaxed);
 }
 

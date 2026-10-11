@@ -2366,6 +2366,20 @@ bool VkContext::createOverlayRenderPass() {
         overlayClearRenderPass = VK_NULL_HANDLE;
     }
 
+    // Switch W2: the merged upscale+UI frame draws the upscale into this pass and
+    // Renderer::endFrame appends ImGui to it. It must not depend on the swapchain
+    // image's prior contents - a mid-world swapchain rebuild leaves them UNDEFINED
+    // - and the upscale covers every pixel, so DONT_CARE/UNDEFINED is both
+    // correct and cheaper than LOAD. Same attachments, so the same framebuffers
+    // and ImGui pipelines are compatible.
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    if (vkCreateRenderPass(device, &rpInfo, nullptr, &overlayMergeRenderPass) != VK_SUCCESS) {
+        LOG_ERROR("Failed to create merged overlay render pass");
+        overlayMergeRenderPass = VK_NULL_HANDLE;
+    }
+
     overlayFramebuffers.resize(swapchainImageViews.size());
     for (size_t i = 0; i < swapchainImageViews.size(); i++) {
         VkFramebufferCreateInfo fbInfo{};
@@ -2470,6 +2484,10 @@ void VkContext::destroyOverlayRenderPass() {
     if (overlayClearRenderPass) {
         vkDestroyRenderPass(device, overlayClearRenderPass, nullptr);
         overlayClearRenderPass = VK_NULL_HANDLE;
+    }
+    if (overlayMergeRenderPass) {
+        vkDestroyRenderPass(device, overlayMergeRenderPass, nullptr);
+        overlayMergeRenderPass = VK_NULL_HANDLE;
     }
     if (sceneContinueRenderPass) {
         vkDestroyRenderPass(device, sceneContinueRenderPass, nullptr);

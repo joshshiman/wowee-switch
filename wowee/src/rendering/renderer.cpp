@@ -1726,6 +1726,12 @@ void Renderer::endFrame() {
     // it swapped the scene pass for an INLINE one no longer matters to the
     // caller: the UI is drawn in the overlay pass, which this function opens
     // itself once whichever pass is current has been closed.
+    //
+    // Switch W2: in-world the upscale may have already opened that overlay
+    // (LOAD) pass and left it open for the UI to be appended. When so,
+    // overlayPassAlreadyOpen is true and this function must neither close it
+    // nor open a second one - it just records ImGui into it and ends it once.
+    bool overlayPassAlreadyOpen = false;
     if (postProcessPipeline_) {
         const uint32_t frame = vkCtx->getCurrentFrame();
         bool cameraSubmerged = false;
@@ -1769,6 +1775,7 @@ void Renderer::endFrame() {
 #endif
         postProcessPipeline_->executePostProcessing(
             currentCmd, currentImageIndex, camera.get(), lastDeltaTime_);
+        overlayPassAlreadyOpen = postProcessPipeline_->isOverlayPassOpen();
     }
 
     // The scene is complete: close its pass so the water refraction copy can run
@@ -1776,14 +1783,24 @@ void Renderer::endFrame() {
     // pass. Capturing after the UI instead is what refracted the interface into
     // the water. The overlay pass is single-sampled and colour-only, which is
     // also why the UI costs the same here whatever MSAA the scene uses.
-    vkCmdEndRenderPass(currentCmd);
-    if (postProcessPipeline_) postProcessPipeline_->finishVolumetricFrame(currentCmd);
+    // Switch W2: skip the close when the upscale already opened the overlay
+    // pass; the single vkCmdEndRenderPass below (after ImGui) closes it.
+    if (!overlayPassAlreadyOpen) {
+        vkCmdEndRenderPass(currentCmd);
+    }
+    // Volumetric is forced off on Switch, so this is a no-op there and safe to
+    // skip while the merged overlay pass is open (it would otherwise issue a
+    // depth-layout transition inside a render pass). If volumetric is ever
+    // enabled on Switch, it must instead run before that pass begins.
+    if (postProcessPipeline_ && !overlayPassAlreadyOpen)
+        postProcessPipeline_->finishVolumetricFrame(currentCmd);
 
     // Only when water could not be moved out of the scene pass (MSAA). Otherwise
     // renderWorld already took the copy at the one point in the frame where the
     // scene is finished but the water is not yet over it; copying again here
     // would replace that with an image containing the water.
-    if (!waterDrawsInContinuePass()
+    if (!overlayPassAlreadyOpen
+        && !waterDrawsInContinuePass()
         && waterRenderer && waterRenderer->isRefractionEnabled() && waterRenderer->hasSurfaces()
         && currentImageIndex < vkCtx->getSwapchainImages().size()) {
         waterRenderer->captureSceneHistory(
@@ -1797,22 +1814,27 @@ void Renderer::endFrame() {
 
     const auto& overlayFbs = vkCtx->getOverlayFramebuffers();
     if (vkCtx->getOverlayRenderPass() != VK_NULL_HANDLE && currentImageIndex < overlayFbs.size()) {
-        VkRenderPassBeginInfo overlayRp{};
-        overlayRp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        overlayRp.renderPass = vkCtx->getOverlayRenderPass();
-        overlayRp.framebuffer = overlayFbs[currentImageIndex];
-        overlayRp.renderArea.extent = vkCtx->getSwapchainExtent();
-        vkCmdBeginRenderPass(currentCmd, &overlayRp, VK_SUBPASS_CONTENTS_INLINE);
+        // Switch W2: when executePostProcessing already opened this exact LOAD
+        // overlay pass for the upscale, do not begin it again - the pass,
+        // viewport and scissor it set are still current. Just append the UI.
+        if (!overlayPassAlreadyOpen) {
+            VkRenderPassBeginInfo overlayRp{};
+            overlayRp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            overlayRp.renderPass = vkCtx->getOverlayRenderPass();
+            overlayRp.framebuffer = overlayFbs[currentImageIndex];
+            overlayRp.renderArea.extent = vkCtx->getSwapchainExtent();
+            vkCmdBeginRenderPass(currentCmd, &overlayRp, VK_SUBPASS_CONTENTS_INLINE);
 
-        VkExtent2D ext = vkCtx->getSwapchainExtent();
-        VkViewport vp{};
-        vp.width = static_cast<float>(ext.width);
-        vp.height = static_cast<float>(ext.height);
-        vp.maxDepth = 1.0f;
-        vkCmdSetViewport(currentCmd, 0, 1, &vp);
-        VkRect2D sc{};
-        sc.extent = ext;
-        vkCmdSetScissor(currentCmd, 0, 1, &sc);
+            VkExtent2D ext = vkCtx->getSwapchainExtent();
+            VkViewport vp{};
+            vp.width = static_cast<float>(ext.width);
+            vp.height = static_cast<float>(ext.height);
+            vp.maxDepth = 1.0f;
+            vkCmdSetViewport(currentCmd, 0, 1, &vp);
+            VkRect2D sc{};
+            sc.extent = ext;
+            vkCmdSetScissor(currentCmd, 0, 1, &sc);
+        }
 
 #if defined(WOWEE_SWITCH)
         // Keep the fullscreen diagnostic opt-in: it replaces the scene's

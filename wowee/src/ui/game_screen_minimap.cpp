@@ -2046,7 +2046,7 @@ void GameScreen::loadSettings() {
                 settingsPanel_.displaySettingsLoaded_ = true;
             }
             else if (key == "resolution_height") {
-                settingsPanel_.pendingResolutionHeight = std::clamp(std::stoi(val), 480, 4320);
+                settingsPanel_.pendingResolutionHeight = std::clamp(std::stoi(val), 360, 4320);
                 settingsPanel_.displaySettingsLoaded_ = true;
             }
             else if (key == "vsync") settingsPanel_.pendingVsync = (std::stoi(val) != 0);

@@ -227,6 +227,13 @@ public:
     // The same pass but clearing, for screens that draw the UI with no scene
     // behind it. Shares getOverlayFramebuffers().
     [[nodiscard]] VkRenderPass getOverlayClearRenderPass() const { return overlayClearRenderPass; }
+
+    /// Switch W2: the merged upscale+UI pass. Same attachments as the other two
+    /// (so the same framebuffers are compatible), but loadOp DONT_CARE with
+    /// initialLayout UNDEFINED: the upscale fullscreen triangle writes every
+    /// pixel, so no prior contents are needed and the pass is valid even on a
+    /// freshly (re)created swapchain image whose layout is UNDEFINED.
+    [[nodiscard]] VkRenderPass getOverlayMergeRenderPass() const { return overlayMergeRenderPass; }
     [[nodiscard]] const std::vector<VkFramebuffer>& getOverlayFramebuffers() const { return overlayFramebuffers; }
     // Compatible with getImGuiRenderPass(), but loads the scene instead of
     // clearing it, so drawing can continue into the same framebuffer after the
@@ -613,6 +620,7 @@ private:
     VkRenderPass imguiRenderPass = VK_NULL_HANDLE;
     VkRenderPass overlayRenderPass = VK_NULL_HANDLE;
     VkRenderPass overlayClearRenderPass = VK_NULL_HANDLE;
+    VkRenderPass overlayMergeRenderPass = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> overlayFramebuffers;
     VkRenderPass sceneContinueRenderPass = VK_NULL_HANDLE;
     bool createOverlayRenderPass();

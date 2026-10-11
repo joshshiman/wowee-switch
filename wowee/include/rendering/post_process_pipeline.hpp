@@ -79,6 +79,14 @@ public:
     bool executePostProcessing(VkCommandBuffer cmd, uint32_t imageIndex,
                                Camera* camera, float deltaTime);
 
+    /// Switch W2: true when executePostProcessing left the overlay (UI) render
+    /// pass open with the upscale already drawn into it, so Renderer::endFrame
+    /// must append ImGui to that pass rather than ending it and opening a
+    /// second one. Always false on desktop and on every route that still uses
+    /// the clearing overlay pass. Reset at the top of every
+    /// executePostProcessing call.
+    [[nodiscard]] bool isOverlayPassOpen() const { return overlayPassOpen_; }
+
     // --- MSAA interop (called from Renderer::applyMsaaChange) ---
 
     /// Destroy FSR/FSR2/FXAA resources (they will be lazily recreated).
@@ -172,6 +180,9 @@ private:
     VkCommandBuffer currentCmd_ = VK_NULL_HANDLE;
     Camera* camera_ = nullptr;
     float lastDeltaTime_ = 0.0f;
+    // Switch W2: set when the upscale drew into the LOAD overlay pass and left
+    // it open for Renderer::endFrame to append the UI. Reset every frame.
+    bool overlayPassOpen_ = false;
 
     // Brightness
     float brightness_ = 1.0f;

@@ -264,3 +264,37 @@ crossing the cap.
 
 **Not yet done from the report:** everything in Phase 2/3 (#5 texture-cache LRU,
 #9 BC textures, #18 cheap clouds, #19 skin LODs, #21 present overlap, …).
+
+## 10. Phase 2 + Phase 3 status (deployed, audited)
+
+**The measurement that redirected everything** (run 2026-10-10_2338, Phase 1 on
+card): `frameMeanMs 83` = `update 9` + `render 74`, and `presentMeanUs ≈ 58,000`
+with all CPU passes summing to ~14 ms. The CPU blocks ~58 ms in
+`vkQueuePresentKHR` waiting on the GPU — the frame is **GPU-bound**, so Phase 1
+(CPU-side) could not move it. `presentMaxUs` tracks load, so that is real GPU
+execution, not vsync pacing. `boot.log` was 17.9 MB of one per-frame line.
+
+**Phase 2 (`846d811`, GPU-fill cuts):** skip the quality-0 shadow clear (2.1 MB +
+2 barriers/frame); MSAA floored to 1× (latent 4×-fill path); FXAA forced off (the
+full 3.11 kernel, up to ~20 taps/px at 720p); water refraction copy + continuation
+pass gated on `hasSurfaces()` (~9.8 MB/frame in waterless frames); the per-frame
+acquire log removed. The skybox reorder was implemented then **reverted** — the
+sky unit also contains depth-less celestial discs and lens flare, so deferring it
+paints the sun over terrain; it needs the skybox split out first.
+
+**Phase 3 (render scale + overlay merge):**
+- **Render scale is the largest remaining fill lever.** The Switch profile list was
+  `{1080p, 720p}` while the shipped world height was 480p — a height matching no
+  entry, so the panel reported "Normal HD" and selecting it would have *raised* the
+  world to 720p. Now: profiles `{1080p, 720p, 853×480, 640×360}`, and the Switch
+  default world height is **360** (clamp floor 360; the env var accepts any numeric
+  height). UI/menus stay native.
+- **Overlay pass merge (audit 02 W2):** the upscale/FXAA now draws into a dedicated
+  `DONT_CARE`/`UNDEFINED` overlay pass and `endFrame` appends ImGui to the same
+  pass, removing a native-resolution clear + a pass begin/end per in-world frame.
+  The merge pass is separate from the `LOAD` overlay pass specifically so it is
+  valid on a swapchain image whose layout is `UNDEFINED` (first frame after a
+  mid-world rebuild).
+
+Both audited (no blockers; the two MAJOR overlay-merge follow-ups — the initial
+layout above and the volumetric-ordering guard — were fixed before deploy).
