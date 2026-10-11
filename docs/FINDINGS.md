@@ -1348,3 +1348,37 @@ Comprehensive note per user request - the whole override picture in one place.
 - A outcomes logged (slot/object/loot/talk/attack/acquire±/too-far/unusable/
   none/no-target); Plus logs via=settings vs via=frame branch.
 - X/Y/local layers untouched (composition preserved). Traces stay on.
+
+## APPROVED DIRECTION: single ring door, Y->L move, B=cancel, menu-mode A (2026-10-10, operator-approved plan, NOT YET IMPLEMENTED)
+- Single ring door: Minus only. Remove CP_R_DOWN CTRL-SHIFT- ring click ->
+  MULTIACTIONBAR1BUTTON9 (matches sibling tiers 6/7/8). Saved sets need a
+  binding migration rev (per-char sets shadow defaults). ZL+ZR then uniformly
+  shows the third spell pane; no code needed beyond the rebind.
+- Y->L attack move: L('') takes ACTIONBUTTON1 (attack toggle; operator: feels
+  better there); Y('') goes EMPTY (local Triangle target-toggle continues
+  underneath -> Y becomes target-only, the original vision). Orphan question
+  for operator: slots 4 (ex-L) and 5 (ex-R) become pad-unbound - confirm they
+  should stay free for future spells (reads as the intent of "frees a spell
+  slot") vs reassigned somewhere.
+- B bags->R: R('') takes OPENALLBAGS; B('') becomes CANCELALL (new dispatch
+  case: local-aware cancelCast (gh->cancelCast already routes) + local
+  stopAttack + target/focus clear). Y keeps its incidental stopping (untouched
+  rule); B is the ADDITIONAL dedicated cancel. B's modified tiers: proposed
+  kept, flagged for confirmation.
+- Stale-override subtlety (must implement with the rebind): empty-table
+  entries skip SetTempBinding writes, leaving OLDER F-key overrides live in
+  the handler bucket. Migration must ClearOverrideBindings(handler) BEFORE
+  LoadBindingSet, then re-register from the patched set. Bar display for
+  emptied wrappers goes through SetEligbleForRebind (unbound art) - set empty
+  tables {}, never nil.
+- Menu-mode A conflict (operator-reported, believed): A now means interact
+  (F4) AND click (hold-left) on one button; X never had this problem because
+  interact and click lived on different physical buttons. In menus, A-tap to
+  click ALSO fires interact (talks/attacks, panel exclusivity closes the menu
+  under the click). Proposal (awaiting approval): menu mode (cursorMode on OR
+  any of SpellBook/Character/Talent/QuestLog/WorldMap/Container/Bank visible)
+  -> F4-interact suppressed in dispatch (consumed, no-op); A stays pure mouse
+  (tap-left/hold-left via input layer, B stays right). Deviates from the old
+  tap=right sketch deliberately: tap-left is load-bearing for UI buttons.
+- Glyph set (->Switch) and Plus visibility still queued behind this batch.
+- Traces stay on until released.
