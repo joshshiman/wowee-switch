@@ -14,9 +14,9 @@ namespace rendering {
 /// terrain_renderer.cpp described this three times: twice for the two pipeline
 /// builders, and once more for the shadow pass with the offsets as literals
 /// beside a comment asserting a stride of 44. That stride is not a number
-/// anyone chose; it is what the trailing `chunkIndex` byte pads out to, so a
-/// field added or reordered in TerrainVertex moves it without touching the
-/// comment.
+/// anyone chose; it is derived from TerrainVertex (four float arrays, now 40
+/// bytes with the dead trailing byte removed), so a field added or reordered
+/// in TerrainVertex moves it without touching the comment.
 
 /// What assets/shaders/terrain.vert.glsl declares, in its order.
 inline constexpr std::array<VertexAttribute, 4> kTerrainVertexAttributes = {{

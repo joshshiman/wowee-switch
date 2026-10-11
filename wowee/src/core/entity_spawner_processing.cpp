@@ -272,7 +272,13 @@ void EntitySpawner::processAsyncNpcCompositeResults(bool unlimited) {
     if (batchCtx) batchCtx->beginUploadBatch();
     struct BatchGuard {
         rendering::VkContext* ctx;
-        ~BatchGuard() { if (ctx) ctx->endUploadBatchSync(); }
+        ~BatchGuard() { if (ctx) {
+#ifdef WOWEE_SWITCH
+            ctx->endUploadBatch();      // async: one-frame texture lag on new NPCs, no GPU drain
+#else
+            ctx->endUploadBatchSync();
+#endif
+        } }
     } batchGuard{batchCtx};
 
     auto* charRenderer = renderer_ ? renderer_->getCharacterRenderer() : nullptr;

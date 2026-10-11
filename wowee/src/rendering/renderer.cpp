@@ -593,8 +593,16 @@ void Renderer::updatePerFrameUBO() {
     const float shadowTexel = 1.0f / static_cast<float>(std::max(1u, SHADOW_MAP_SIZE));
     const bool inspectSurfaceShadow = postProcessPipeline_ &&
         postProcessPipeline_->getVolumetricDebug() == 4;
+    // shadowParams.x is the "sample the shadow map" bit the character/m2/
+    // terrain/wmo fragment shaders read. Gate it on the caster scope, not just
+    // shadowsEnabled: shadowsEnabled is hard-wired true, so at quality 0 the
+    // atlas has no casters (clear depth 1.0, every comparison lit) and every
+    // lit fragment was running up to 8 discarded sampler2DShadow taps for
+    // nothing. Visually identical - the cleared atlas already evaluates lit.
+    const bool shadowSamplingActive =
+        shadowsEnabled && shadowLevelDrawsCasters(shadowQuality_);
     currentFrameData.shadowParams =
-        glm::vec4(shadowsEnabled ? 1.0f : 0.0f, shadowStrength, shadowTexel,
+        glm::vec4(shadowSamplingActive ? 1.0f : 0.0f, shadowStrength, shadowTexel,
             inspectSurfaceShadow ? 1.0f : 0.0f);
 
     for (uint32_t i = 0; i < MAX_LOCAL_LIGHTS; ++i) {
@@ -1993,8 +2001,30 @@ bool Renderer::ensureSkyboxModel() {
     // with no restart, and the frame time beside it is steady. So the next
     // thing worth knowing is whether taking it away takes the fault with it,
     // and that is one bit that no amount of reading the code will supply.
-    static const bool noSkyM2 = std::getenv("WOWEE_NO_SKY_M2") != nullptr;
-    if (noSkyM2) return false;
+    static const bool envNoSkyM2 = std::getenv("WOWEE_NO_SKY_M2") != nullptr;
+#ifdef WOWEE_SWITCH
+    // On Switch the skybox model is a second full M2Renderer, drawing its ~34
+    // batches (6 opaque + 10 alpha + 18 full-screen additive layers) on top of
+    // the procedural sky every frame. Skip it by default; the procedural sky
+    // still runs (SkySystem::render/renderAtmosphere are unconditional). The
+    // model is trivially forced back on for A/B with WOWEE_SKY_M2 (unsettable on
+    // console, so the default is what ships). WOWEE_NO_SKY_M2 still wins.
+    static const bool envForceSkyM2 = std::getenv("WOWEE_SKY_M2") != nullptr;
+    const bool noSkyM2 = envNoSkyM2 || !envForceSkyM2;
+#else
+    const bool noSkyM2 = envNoSkyM2;
+#endif
+    if (noSkyM2) {
+#ifdef WOWEE_SWITCH
+        static bool reportedSkyM2Skip = false;
+        if (!reportedSkyM2Skip) {
+            reportedSkyM2Skip = true;
+            LOG_WARNING("Sky M2 skipped on Switch by default (procedural sky still drawn); "
+                        "set WOWEE_SKY_M2=1 to force the original skybox model back on");
+        }
+#endif
+        return false;
+    }
 
     if (!skyboxModelRenderer_ || !lightingManager || !cachedAssetManager ||
         !camera) {

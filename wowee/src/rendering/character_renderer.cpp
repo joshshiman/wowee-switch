@@ -1989,16 +1989,27 @@ bool CharacterRenderer::loadSharedModel(std::shared_ptr<const pipeline::M2Model>
             // batch, submit the already-recorded copies and prove completion
             // before destroying their destinations. The failure path may block;
             // the successful path below uses exactly one synchronous wait.
-            if (ownUploadBatch && owner->vkCtx_ && owner->vkCtx_->isInUploadBatch()) {
+            // On the async success path endUploadBatch() has already submitted
+            // the batch but not waited on it, so isInUploadBatch() is false while
+            // the copies are still in flight. Destroying the buffers now would
+            // free memory the GPU is still copying into. This model owns its
+            // batch, so always prove completion - whether it is still open or
+            // already submitted.
+            if (ownUploadBatch && owner->vkCtx_) {
                 try {
-                    owner->vkCtx_->finishInterruptedUploadBatch();
+                    if (owner->vkCtx_->isInUploadBatch())
+                        owner->vkCtx_->finishInterruptedUploadBatch();
                     (void)owner->vkCtx_->waitAllUploads();
                 } catch (...) {
                     // The renderer is already in a failed-upload state. Resource
                     // destruction below is still preferable to leaking the model.
                 }
             }
-            owner->destroyModelGPU(*model);
+            // Deferred for both branches: an enclosing (nested) batch may still
+            // hold recorded copies into these buffers, and deferring to frame
+            // fences is safe because that batch always submits on the same queue
+            // before the frame that will fence.
+            owner->destroyModelGPU(*model, /*defer=*/true);
         }
     } rollback{this, &gpuModel, ownUploadBatch};
 #endif
@@ -2048,9 +2059,11 @@ bool CharacterRenderer::loadSharedModel(std::shared_ptr<const pipeline::M2Model>
     // Batch all GPU uploads (VB, IB, textures) into one command buffer. On
     // switch 2.06, local entity loading reached 19 ms/frame average and 197 ms
     // worst while each buffer/texture paid its own immediate-submit fence. A
-    // character model is not published until this function returns, so one
-    // synchronous batch completion preserves the old visibility guarantee with
-    // a single queue round-trip. Nested callers keep ownership of their batch.
+    // character model is not published until this function returns, and on
+    // Switch that CPU publication stays synchronous while GPU completion is
+    // deferred to same-queue submission order plus the transfer->read barrier
+    // VkContext::beginFrame records. Nested callers keep ownership of their
+    // batch.
 #ifdef WOWEE_SWITCH
     if (ownUploadBatch) vkCtx_->beginUploadBatch();
 #else
@@ -2073,7 +2086,12 @@ bool CharacterRenderer::loadSharedModel(std::shared_ptr<const pipeline::M2Model>
     }
 
 #ifdef WOWEE_SWITCH
-    if (ownUploadBatch) vkCtx_->endUploadBatchSync();
+    // Async on the success path: publication is CPU state in `models` (still
+    // synchronous), and same-queue ordering plus beginFrame's
+    // TRANSFER_WRITE->MEMORY_READ barrier make the copy precede any draw that
+    // references it. No per-model GPU round trip. The failure path below
+    // (ModelRollback -> finishInterruptedUploadBatch/waitAllUploads) is unchanged.
+    if (ownUploadBatch) vkCtx_->endUploadBatch();
 #else
     vkCtx_->endUploadBatch();
 #endif
@@ -2393,8 +2411,14 @@ void CharacterRenderer::update(float deltaTime, const glm::vec3& cameraPos,
                                const glm::mat4* viewProjection) {
     Frustum animationFrustum;
     if (viewProjection) animationFrustum.extractFromMatrix(*viewProjection);
-    // Distance culling for animation updates in dense areas.
+    // Distance culling for animation updates in dense areas. Switch matches the
+    // draw radius (90) so NPCs in the 90-120 band are not bones-recomputed and
+    // uploaded only to be culled at draw.
+#ifdef WOWEE_SWITCH
+    const float animUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_ANIM_RADIUS", 90));
+#else
     const float animUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_ANIM_RADIUS", 120));
+#endif
     const float animUpdateRadiusSq = animUpdateRadius * animUpdateRadius;
     // Creature birds are rendered by this path rather than M2Renderer.  Their
     // rapid wing motion remains conspicuous at distance, and the render radius

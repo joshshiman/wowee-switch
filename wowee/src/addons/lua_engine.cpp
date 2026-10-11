@@ -11944,6 +11944,27 @@ void LuaEngine::drainPendingTextChanged() {
     lua_pop(L_, 1);
 }
 
+// Bounded runtime Lua collection.
+//
+// `lua_gc` appeared only in the FrameXML loader: the only forced reclamation
+// happened while the interface loaded, and gameplay relied entirely on Lua's
+// default incremental collector. Against the 64 MiB budget
+// (lua_memory_budget.hpp) the heap could still reach the cap mid-session and
+// the next allocation failed - the recorded mid-session OOM raised in
+// SecureStateDriverManager OnUpdate. A small explicit step every few frames
+// spreads reclamation across the session rather than leaving it all to the
+// default collector's pacing.
+//
+// A step of n asks the collector to work off n KiB of debt (Lua 5.1 lapi.c,
+// LUA_GCSTEP), far cheaper than a stop-the-world collect, and the cadence
+// keeps it off the frame budget. If steady-state frame time ever shows this,
+// raise kLuaGcStepFrames (collect less often) before lowering kLuaGcStepKiB.
+[[maybe_unused]] constexpr uint32_t kLuaGcStepFrames = 8;
+[[maybe_unused]] constexpr int kLuaGcStepKiB = 32;
+// Live Lua heap, in KiB, at which a run's boot.log gets one WARNING so a
+// near-cap session is visible (LOG_INFO does not survive a Release build).
+[[maybe_unused]] constexpr int kLuaGcWarnKiB = 48 * 1024;
+
 void LuaEngine::dispatchOnUpdate(float elapsed) {
     // Asked for by the check, and answered here because only this side can ask
     // the interface anything.
@@ -11966,6 +11987,21 @@ void LuaEngine::dispatchOnUpdate(float elapsed) {
     lastOnUpdateCalls_ = 0;
 
     if (!L_) return;
+
+    // Bounded runtime collection. Safe here: this is the main thread's frame
+    // tick and no Lua call is on the stack, which is where a step belongs.
+#ifdef WOWEE_SWITCH
+    if (++gcStepFrame_ >= kLuaGcStepFrames) {
+        gcStepFrame_ = 0;
+        lua_gc(L_, LUA_GCSTEP, kLuaGcStepKiB);
+        const int liveKiB = lua_gc(L_, LUA_GCCOUNT, 0);
+        if (!gcHighWaterWarned_ && liveKiB >= kLuaGcWarnKiB) {
+            gcHighWaterWarned_ = true;
+            LOG_WARNING("[WOWEE_LUA_GC] lua_kb=", liveKiB, " crossed ",
+                        kLuaGcWarnKiB, " KiB after a GC step");
+        }
+    }
+#endif
 
     drainPendingTextChanged();
 

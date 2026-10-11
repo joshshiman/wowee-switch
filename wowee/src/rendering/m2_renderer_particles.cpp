@@ -1,4 +1,6 @@
 #include "rendering/m2_renderer.hpp"
+#include "rendering/m2_view_distance.hpp"
+#include "rendering/render_constants.hpp"
 #include "rendering/glue_emitter_motion.hpp"
 #include <unordered_set>
 #include "rendering/m2_renderer_internal.h"
@@ -461,6 +463,22 @@ void M2Renderer::renderM2Ribbons(VkCommandBuffer cmd, VkDescriptorSet perFrameSe
         if (index >= instances.size()) continue;
         const auto& inst = instances[index];
         if (!inst.cachedModel) continue;
+        // Distance cull, mirroring the model draw test rather than a plain
+        // origin distance: large/offset-pivot models are culled against their
+        // visual-bounds center and their own effective distance (per-instance
+        // factor, game-object floor, ground-detail ceiling, then the absolute
+        // view clamp), so a trail cannot outlive - or predecease - the model it
+        // trails. cachedCamPos_ is the same cached camera state the draw uses.
+        {
+            const float ribbonMaxDistSq = rendering::m2InstanceMaxDistSq(
+                cachedMaxRenderDistSq_, inst.cachedEffectiveMaxDistSqFactor,
+                inst.isGameObject, rendering::M2_GAME_OBJECT_MIN_RENDER_DISTANCE,
+                viewDistanceAbsolute_, inst.cachedIsGroundDetail, groundDetailMaxDistance_);
+            const glm::vec3 toCenter = inst.cachedCullCenter - cachedCamPos_;
+            const float centerDist = std::sqrt(glm::dot(toCenter, toCenter));
+            const float surfaceDist = std::max(0.0f, centerDist - inst.cachedVisualRadius);
+            if (surfaceDist * surfaceDist > ribbonMaxDistSq) continue;
+        }
         const auto& gpu = *inst.cachedModel;
         if (gpu.ribbonEmitters.empty()) continue;
 

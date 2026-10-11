@@ -227,3 +227,40 @@ bottleneck off the GPU.
 - **Character instancing** (#C10) — real but CPU-side; the device is GPU-bound today.
 - **Portrait caching** — already change-guarded/throttled; FINDINGS declined it with data.
 - **Screenshots, minimap arrow rotation, lamp sway** — outstanding feel items, unrelated to perf.
+
+---
+
+## 9. Phase 1 status (implemented, independently audited, built)
+
+Phase 1 shipped on `perf/switch-audit`: items **#1, #3, #4, #6, #7, #11, #13, #14,
+#20** plus the frame-CPU telemetry promotion (measurement enabler). Files:
+`renderer.cpp` (shadow gate, sky-M2 skip), `entity_spawner_processing.cpp`
+(NPC-composite async), `character_renderer.cpp` (loadModel async, anim radius,
+rollback hardening), `terrain_renderer.{cpp,hpp}` (mega free-list, uint16 indices,
+40-byte vertex) + `terrain_mesh.hpp`/`terrain_vertex.hpp`, `m2_renderer_particles.cpp`
+(ribbon distance cull), `lua_engine.{hpp,cpp}` (bounded GC step),
+`vk_context.cpp` (telemetry + unconditional transfer→read barrier).
+
+**Verification:** `cmake --build build-switch` clean (exit 0); the only warnings in
+touched files are pre-existing. `verify_tls_access.py` PASS. Staged via `switchpkg`.
+
+**Independent audit (4 reviewers, read-only):** **no blockers.** Findings applied:
+- MAJOR — `beginFrame`'s transfer→read barrier was gated on `inFlightBatches_` being
+  non-empty, so a render-phase upload (character preview/paperdoll path) could lack
+  the dependency. Now recorded unconditionally (`vk_context.cpp`).
+- MAJOR — the `ModelRollback` fix covered the batch owner but not nested callers;
+  destruction is now deferred (`destroyModelGPU(*model, defer=true)`).
+- MAJOR — ribbon cull diverged from the draw cull (origin vs visual-bounds center,
+  raw base distance vs per-instance effective distance, a ~2× pop at Environment
+  Detail < 1.0). Now mirrors `m2InstanceMaxDistSq` + cull-center/radius.
+- MINOR — terrain `destroyChunkGPU` now clears the mega placement sentinel; stale
+  44-byte comments corrected.
+
+**Accepted, not fixed (noted):** the sky M2 *renderer* is still allocated on Switch
+(one-time memory, the per-frame draw cost is gone); a debug-only surface-shadow
+inspection view now renders magenta at quality 0 (`shadowParams.x` is the debug
+key); the Lua GC step reduces but cannot eliminate a single-frame allocation burst
+crossing the cap.
+
+**Not yet done from the report:** everything in Phase 2/3 (#5 texture-cache LRU,
+#9 BC textures, #18 cheap clouds, #19 skin LODs, #21 present overlap, …).

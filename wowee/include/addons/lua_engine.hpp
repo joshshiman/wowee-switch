@@ -415,6 +415,12 @@ private:
     size_t lastSizeChangeVisits_ = 0;
     size_t lastOnUpdateCalls_ = 0;
 
+    /// Runtime GC pacing. `gcStepFrame_` counts frames between explicit
+    /// LUA_GCSTEP calls; `gcHighWaterWarned_` holds the crossing of the
+    /// high-water mark to a single boot.log WARNING. See dispatchOnUpdate.
+    uint32_t gcStepFrame_ = 0;
+    bool gcHighWaterWarned_ = false;
+
     /// Runs a bootstrap Lua chunk and says so when it fails.
     ///
     /// Seventeen of these ran with their result thrown away, so a syntax error

@@ -18,7 +18,6 @@ struct TerrainVertex {
     float normal[3];       // Normal vector
     float texCoord[2];     // Base texture coordinates
     float layerUV[2];      // Layer texture coordinates
-    uint8_t chunkIndex = 0;    // Which chunk this vertex belongs to
 
     TerrainVertex()  {
         position[0] = position[1] = position[2] = 0.0f;
@@ -29,9 +28,14 @@ struct TerrainVertex {
 };
 
 /**
- * Triangle index (3 vertices)
+ * Triangle index (3 vertices).
+ *
+ * A chunk is 145 vertices and every draw supplies a per-chunk baseVertex
+ * (mega placement or the fallback's own buffer), so indices stay local to
+ * 0..144 and always fit a 16-bit index. Halves the index-buffer footprint and
+ * index fetch bandwidth, and doubles the mega IB's tile coverage.
  */
-using TerrainIndex = uint32_t;
+using TerrainIndex = uint16_t;
 
 /**
  * Renderable terrain mesh for a single map chunk

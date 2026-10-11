@@ -244,7 +244,7 @@ bool TerrainRenderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameL
         // Mega index buffer
         VkBufferCreateInfo ibCI{};
         ibCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        ibCI.size = static_cast<VkDeviceSize>(MEGA_IB_MAX_INDICES) * sizeof(uint32_t);
+        ibCI.size = static_cast<VkDeviceSize>(MEGA_IB_MAX_INDICES) * sizeof(pipeline::TerrainIndex);
         ibCI.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
         VmaAllocationCreateInfo ibAllocCI{};
         ibAllocCI.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
@@ -690,6 +690,52 @@ bool TerrainRenderer::createChunkParamsUBO(TerrainChunkGPU& gpuChunk) {
     return true;
 }
 
+bool TerrainRenderer::peekMegaRange(const std::vector<MegaRange>& list, uint32_t count,
+                                    uint32_t& outOffset) {
+    for (const auto& range : list) {
+        if (range.count >= count) {
+            outOffset = range.offset;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TerrainRenderer::takeMegaRange(std::vector<MegaRange>& list, uint32_t count,
+                                    uint32_t& outOffset) {
+    for (auto it = list.begin(); it != list.end(); ++it) {
+        if (it->count < count) continue;
+        outOffset = it->offset;
+        it->offset += count;
+        it->count -= count;
+        if (it->count == 0) list.erase(it);
+        return true;
+    }
+    return false;
+}
+
+void TerrainRenderer::returnMegaRange(std::vector<MegaRange>& list, uint32_t offset,
+                                      uint32_t count) {
+    if (count == 0) return;
+    // Sorted by offset, merged with neighbours, so repeated tile churn cannot
+    // shatter the list into slivers too small for the next chunk.
+    auto it = std::lower_bound(list.begin(), list.end(), offset,
+        [](const MegaRange& range, uint32_t off) { return range.offset < off; });
+    it = list.insert(it, MegaRange{offset, count});
+    auto next = it + 1;
+    if (next != list.end() && it->offset + it->count == next->offset) {
+        it->count += next->count;
+        list.erase(next);
+    }
+    if (it != list.begin()) {
+        auto prev = it - 1;
+        if (prev->offset + prev->count == it->offset) {
+            prev->count += it->count;
+            list.erase(it);
+        }
+    }
+}
+
 TerrainChunkGPU TerrainRenderer::uploadChunk(const pipeline::ChunkMesh& chunk) {
     StreamLoadStageScope geometryTiming(activeStreamLoadTiming, StreamLoadStage::Geometry);
     TerrainChunkGPU gpuChunk;
@@ -703,19 +749,42 @@ TerrainChunkGPU TerrainRenderer::uploadChunk(const pipeline::ChunkMesh& chunk) {
     uint32_t vertCount = static_cast<uint32_t>(chunk.vertices.size());
     uint32_t idxCount = static_cast<uint32_t>(chunk.indices.size());
 
-    if (megaVBMapped_ && megaIBMapped_ &&
-        megaVBUsed_ + vertCount <= MEGA_VB_MAX_VERTS &&
-        megaIBUsed_ + idxCount <= MEGA_IB_MAX_INDICES) {
-        // Copy into mega buffers directly - avoid creating 512 individual per-chunk buffers
-        auto* vbDst = static_cast<pipeline::TerrainVertex*>(megaVBMapped_) + megaVBUsed_;
-        std::memcpy(vbDst, chunk.vertices.data(), vertCount * sizeof(pipeline::TerrainVertex));
-        auto* ibDst = static_cast<uint32_t*>(megaIBMapped_) + megaIBUsed_;
-        std::memcpy(ibDst, chunk.indices.data(), idxCount * sizeof(uint32_t));
+    uint32_t megaVBBase = 0;
+    uint32_t megaIBBase = 0;
+    bool placedInMega = false;
+    if (megaVBMapped_ && megaIBMapped_) {
+        // Prefer a reclaimed run. The bump pointer below never moves back, so
+        // without this a removed tile's ranges stayed reserved and mega became
+        // a one-shot - full after ~3.5 tiles, with every later tile paying 512
+        // per-chunk VMA allocations. A run is only in the free list after the
+        // frames that could read it have fenced (see destroyChunkGPU).
+        uint32_t freeVB = 0, freeIB = 0;
+        if (peekMegaRange(megaFree_->vbFree, vertCount, freeVB) &&
+            peekMegaRange(megaFree_->ibFree, idxCount, freeIB)) {
+            takeMegaRange(megaFree_->vbFree, vertCount, freeVB);
+            takeMegaRange(megaFree_->ibFree, idxCount, freeIB);
+            megaVBBase = freeVB;
+            megaIBBase = freeIB;
+            placedInMega = true;
+        } else if (megaVBUsed_ + vertCount <= MEGA_VB_MAX_VERTS &&
+                   megaIBUsed_ + idxCount <= MEGA_IB_MAX_INDICES) {
+            megaVBBase = megaVBUsed_;
+            megaIBBase = megaIBUsed_;
+            megaVBUsed_ += vertCount;
+            megaIBUsed_ += idxCount;
+            placedInMega = true;
+        }
+    }
 
-        gpuChunk.megaBaseVertex = static_cast<int32_t>(megaVBUsed_);
-        gpuChunk.megaFirstIndex = megaIBUsed_;
-        megaVBUsed_ += vertCount;
-        megaIBUsed_ += idxCount;
+    if (placedInMega) {
+        // Copy into mega buffers directly - avoid creating 512 individual per-chunk buffers
+        auto* vbDst = static_cast<pipeline::TerrainVertex*>(megaVBMapped_) + megaVBBase;
+        std::memcpy(vbDst, chunk.vertices.data(), vertCount * sizeof(pipeline::TerrainVertex));
+        auto* ibDst = static_cast<pipeline::TerrainIndex*>(megaIBMapped_) + megaIBBase;
+        std::memcpy(ibDst, chunk.indices.data(), idxCount * sizeof(pipeline::TerrainIndex));
+
+        gpuChunk.megaBaseVertex = static_cast<int32_t>(megaVBBase);
+        gpuChunk.megaFirstIndex = megaIBBase;
 
         gpuChunk.vertexBuffer = VK_NULL_HANDLE;
         gpuChunk.vertexAlloc = VK_NULL_HANDLE;
@@ -1092,7 +1161,7 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
     if (useMegaBuffers) {
         VkDeviceSize megaOffset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &megaVB_, &megaOffset);
-        vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT16);
         megaBuffersBound = true;
     }
 
@@ -1155,7 +1224,7 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
             if (!megaBuffersBound) {
                 VkDeviceSize megaOffset = 0;
                 vkCmdBindVertexBuffers(cmd, 0, 1, &megaVB_, &megaOffset);
-                vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT16);
                 megaBuffersBound = true;
             }
             vkCmdDrawIndexed(cmd, chunk.indexCount, 1,
@@ -1164,7 +1233,7 @@ void TerrainRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, c
             // Fallback: per-chunk VB/IB bind + direct draw
             VkDeviceSize offset = 0;
             vkCmdBindVertexBuffers(cmd, 0, 1, &chunk.vertexBuffer, &offset);
-            vkCmdBindIndexBuffer(cmd, chunk.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(cmd, chunk.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
             vkCmdDrawIndexed(cmd, chunk.indexCount, 1, 0, 0, 0);
             megaBuffersBound = false;
         }
@@ -1350,7 +1419,7 @@ void TerrainRenderer::renderShadow(VkCommandBuffer cmd, const glm::mat4& lightSp
             }
             VkDeviceSize megaOffset = 0;
             vkCmdBindVertexBuffers(cmd, 0, 1, &megaVB_, &megaOffset);
-            vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT16);
             vkCmdDrawIndexed(cmd, chunk.indexCount, 1, chunk.megaFirstIndex,
                              chunk.megaBaseVertex, 0);
             ++fallbackDraws;
@@ -1359,7 +1428,7 @@ void TerrainRenderer::renderShadow(VkCommandBuffer cmd, const glm::mat4& lightSp
 
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &chunk.vertexBuffer, &offset);
-        vkCmdBindIndexBuffer(cmd, chunk.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(cmd, chunk.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
         vkCmdDrawIndexed(cmd, chunk.indexCount, 1, 0, 0, 0);
         ++fallbackDraws;
     }
@@ -1371,7 +1440,7 @@ void TerrainRenderer::renderShadow(VkCommandBuffer cmd, const glm::mat4& lightSp
                                                    sliceOffset, bytes);
         VkDeviceSize megaOffset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &megaVB_, &megaOffset);
-        vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(cmd, megaIB_, 0, VK_INDEX_TYPE_UINT16);
         if (flush == VK_SUCCESS) {
             vkCmdDrawIndexedIndirect(cmd, indirectBuffer_, sliceOffset, indirectCount,
                                      sizeof(VkDrawIndexedIndirectCommand));
@@ -1471,6 +1540,11 @@ void TerrainRenderer::clear() {
     renderedChunks = 0;
     megaVBUsed_ = 0;
     megaIBUsed_ = 0;
+    // Drop the previous world's reclaimed ranges rather than reusing them: the
+    // bump pointers were just reset, so any range returned by a still-pending
+    // destroy callback would overlap space a new tile is about to occupy.
+    // Replacing the state makes those late returns land in the old list.
+    megaFree_ = std::make_shared<MegaFreeState>();
 
     // A whole-world reset must not retain the previous map's terrain textures
     // or failed-load keys. Keep images alive until submitted frames finish,
@@ -1514,6 +1588,16 @@ void TerrainRenderer::destroyChunkGPU(TerrainChunkGPU& chunk) {
     VkDescriptorPool pool = materialDescPool;
     VkDescriptorSet materialSet = chunk.materialSet;
 
+    // The chunk's placement in the mega buffers, if any, is returned to the
+    // free list only after all in-flight frames have fenced - the same safety
+    // the per-chunk buffers above use. The shared_ptr also keeps a late return
+    // from a previous map from landing in a fresh map's list after clear().
+    const int32_t megaBaseVertex = chunk.megaBaseVertex;
+    const uint32_t megaVertexCount = chunk.vertexCount;
+    const uint32_t megaFirstIndex = chunk.megaFirstIndex;
+    const uint32_t megaIndexCount = chunk.indexCount;
+    std::shared_ptr<MegaFreeState> megaFreeState = megaFree_;
+
 #ifdef WOWEE_SWITCH
     VkTexture* alphaPackTexture = chunk.alphaPackTexture.release();
     std::array<VkImageView, 3> alphaPackViews = {
@@ -1537,13 +1621,27 @@ void TerrainRenderer::destroyChunkGPU(TerrainChunkGPU& chunk) {
     chunk.paramsAlloc = VK_NULL_HANDLE;
     chunk.materialSet = VK_NULL_HANDLE;
     chunk.ownedAlphaTextures.clear();
+    // Clear the mega placement identity too. A second destroyChunkGPU on the
+    // same object would otherwise return the same range to the free list twice;
+    // no path does that today, but the sentinel keeps it impossible.
+    chunk.megaBaseVertex = -1;
+    chunk.megaFirstIndex = 0;
+    chunk.vertexCount = 0;
+    chunk.indexCount = 0;
 
     vkCtx->deferAfterAllFrameFences([device, allocator, vertexBuffer, vertexAlloc, indexBuffer, indexAlloc,
-                                     paramsUBO, paramsAlloc, pool, materialSet, alphaTextures
+                                     paramsUBO, paramsAlloc, pool, materialSet, alphaTextures,
+                                     megaFreeState, megaBaseVertex, megaVertexCount,
+                                     megaFirstIndex, megaIndexCount
 #ifdef WOWEE_SWITCH
                                      , alphaPackTexture, alphaPackViews
 #endif
                                      ]() {
+        if (megaFreeState && megaBaseVertex >= 0) {
+            returnMegaRange(megaFreeState->vbFree,
+                            static_cast<uint32_t>(megaBaseVertex), megaVertexCount);
+            returnMegaRange(megaFreeState->ibFree, megaFirstIndex, megaIndexCount);
+        }
         if (vertexBuffer) {
             AllocatedBuffer ab{}; ab.buffer = vertexBuffer; ab.allocation = vertexAlloc;
             destroyBuffer(allocator, ab);

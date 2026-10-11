@@ -204,6 +204,33 @@ private:
     bool writeMaterialDescriptors(VkDescriptorSet set, const TerrainChunkGPU& chunk);
     void destroyChunkGPU(TerrainChunkGPU& chunk);
 
+    /// A contiguous run inside a mega buffer, in elements (vertices or
+    /// indices). Freed runs are only returned to a list after every in-flight
+    /// frame that could still read them has been fenced.
+    struct MegaRange {
+        uint32_t offset = 0;
+        uint32_t count = 0;
+    };
+    /// Free runs for one mega buffer generation. Held behind a shared_ptr so a
+    /// deferred return from an unloaded map can never land in a later map's
+    /// list after clear() reset the bump pointers (which would let a live
+    /// chunk's range be handed out twice).
+    struct MegaFreeState {
+        std::vector<MegaRange> vbFree;
+        std::vector<MegaRange> ibFree;
+    };
+    /// First-fit lookup that does not mutate; pairs with takeMegaRange so a VB
+    /// and IB must both be available before either is consumed.
+    static bool peekMegaRange(const std::vector<MegaRange>& list, uint32_t count,
+                              uint32_t& outOffset);
+    /// Consume `count` from the first run that fits, splitting the remainder.
+    static bool takeMegaRange(std::vector<MegaRange>& list, uint32_t count,
+                              uint32_t& outOffset);
+    /// Return a run, inserting by offset and coalescing with its neighbours so
+    /// churn cannot shatter the list into unusable slivers.
+    static void returnMegaRange(std::vector<MegaRange>& list, uint32_t offset,
+                                uint32_t count);
+
     /// Point a chunk's base, layer and alpha textures at the loaded ones.
     ///
     /// Both load paths do this identically; chunkX and chunkY only name the
@@ -309,15 +336,18 @@ private:
     VkBuffer megaIB_ = VK_NULL_HANDLE;
     VmaAllocation megaIBAlloc_ = VK_NULL_HANDLE;
     void* megaIBMapped_ = nullptr;
-    uint32_t megaVBUsed_ = 0;  // vertices used
-    uint32_t megaIBUsed_ = 0;  // indices used
+    uint32_t megaVBUsed_ = 0;  // vertices used (high-water; bump pointer)
+    uint32_t megaIBUsed_ = 0;  // indices used (high-water; bump pointer)
+    // Reclaimed runs from unloaded tiles, reusable once their frames have
+    // fenced. See MegaFreeState.
+    std::shared_ptr<MegaFreeState> megaFree_ = std::make_shared<MegaFreeState>();
 #ifdef WOWEE_SWITCH
-    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 128 * 1024; // ~128k verts * 44B ≈ 5.6MB (fits under 9.6MB Tegra X1 NVK cap)
-    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 1024 * 1024; // 1M indices * 4B = 4MB (fits under 9.6MB Tegra X1 NVK cap)
+    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 128 * 1024; // ~128k verts * 40B ≈ 5.1MB (fits under 9.6MB Tegra X1 NVK cap)
+    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 1024 * 1024; // 1M indices * 2B = 2MB (fits under 9.6MB Tegra X1 NVK cap)
     static constexpr uint32_t MAX_INDIRECT_DRAWS = 4096;
 #else
-    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 1536 * 1024; // ~1.5M verts × 44B ≈ 64MB
-    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 6 * 1024 * 1024; // 6M indices × 4B = 24MB
+    static constexpr uint32_t MEGA_VB_MAX_VERTS   = 1536 * 1024; // ~1.5M verts × 40B ≈ 61MB
+    static constexpr uint32_t MEGA_IB_MAX_INDICES  = 6 * 1024 * 1024; // 6M indices × 2B = 12MB
     static constexpr uint32_t MAX_INDIRECT_DRAWS = 8192;
 #endif
 

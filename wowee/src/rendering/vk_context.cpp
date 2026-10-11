@@ -3408,7 +3408,8 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
     markPhase(4);
 #endif
     // Same-queue uploads are ordered by submission plus this GPU barrier, not
-    // by a CPU wait every frame. Keep the wait for diagnostic transfer uploads.
+    // by a CPU wait every frame. Keep the CPU wait only for the diagnostic
+    // transfer-queue path, which genuinely cannot be ordered on this queue.
     if (!inFlightBatches_.empty()) {
         const bool crossQueue = std::any_of(inFlightBatches_.begin(), inFlightBatches_.end(),
             [](const InFlightBatch& batch) { return batch.separateQueue; });
@@ -3416,7 +3417,15 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
             discardUnsubmittedFrame(VK_ERROR_DEVICE_LOST);
             return VK_NULL_HANDLE;
         }
-
+    }
+    // Record the transfer->read barrier unconditionally. A batch can be
+    // submitted later in this frame - render-phase uploads such as the
+    // character preview / paperdoll path call loadSharedModel during render -
+    // after this command buffer is recorded but before it is submitted;
+    // submission order then places the copy before the frame, and this barrier
+    // supplies the memory dependency that submission order alone does not.
+    // With no transfers pending it is an empty dependency.
+    {
         VkMemoryBarrier2 memBarrier{};
         memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
         memBarrier.srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -3433,7 +3442,10 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
     markPhase(5);
     static CpuPhaseWindow<6> beginProfile;
     if (beginProfile.add(phaseUs)) {
-        LOG_INFO("[VK_FRAME_BEGIN_CPU] samples=", beginProfile.samples,
+        // WARNING, not INFO: a Release console is pinned to WARNING, so this
+        // window summary is the only way one run can show whether beginFrame
+        // blocks. Already periodic (one line per 120-frame window).
+        LOG_WARNING("[VK_FRAME_BEGIN_CPU] samples=", beginProfile.samples,
                  " fenceMeanUs=", beginProfile.meanUs(0),
                  " cleanupMeanUs=", beginProfile.meanUs(1),
                  " timestampsMeanUs=", beginProfile.meanUs(2),
@@ -3946,7 +3958,10 @@ void VkContext::endFrame(VkCommandBuffer cmd, uint32_t imageIndex) {
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
         static CpuPhaseWindow<4> endProfile;
         if (endProfile.add(phaseUs)) {
-            LOG_INFO("[VK_FRAME_END_CPU] samples=", endProfile.samples,
+            // WARNING, not INFO: a Release console is pinned to WARNING, and
+            // presentMeanUs here is what decides whether the synchronous
+            // present blocks the CPU. Already periodic (one line per window).
+            LOG_WARNING("[VK_FRAME_END_CPU] samples=", endProfile.samples,
                      " commandEndMeanUs=", endProfile.meanUs(0),
                      " syncPrepareMeanUs=", endProfile.meanUs(1),
                      " queueSubmitMeanUs=", endProfile.meanUs(2),
@@ -4140,8 +4155,31 @@ void VkContext::beginUploadBatch() {
         constexpr VkDeviceSize kMaxInFlightBytes = 32ull * 1024 * 1024;
 #endif
         if (inFlightBatches_.size() >= kMaxInFlightBatches || pendingBytes >= kMaxInFlightBytes) {
+#ifdef WOWEE_SWITCH
+            // Promote to WARNING on the console (INFO is suppressed on a
+            // Release build) so M3 can tell whether the 8-batch / 16 MiB
+            // watermark is ever reached. This site is per-occurrence, so
+            // throttle it to one line per 5 s and carry the suppressed count
+            // as the summary.
+            static std::chrono::steady_clock::time_point lastPressureLog{};
+            static bool pressureLoggedOnce = false;
+            static uint32_t suppressedPressureLogs = 0;
+            const auto pressureNow = std::chrono::steady_clock::now();
+            if (!pressureLoggedOnce || pressureNow - lastPressureLog >= std::chrono::seconds(5)) {
+                LOG_WARNING("[UPLOAD_PRESSURE] pending=", inFlightBatches_.size(),
+                            " stagingKiB=", pendingBytes / 1024,
+                            " suppressed=", suppressedPressureLogs,
+                            " waiting for completion");
+                lastPressureLog = pressureNow;
+                suppressedPressureLogs = 0;
+                pressureLoggedOnce = true;
+            } else {
+                ++suppressedPressureLogs;
+            }
+#else
             LOG_INFO("[UPLOAD_PRESSURE] pending=", inFlightBatches_.size(),
                      " stagingKiB=", pendingBytes / 1024, " waiting for completion");
+#endif
             if (!waitAllUploads()) throw std::runtime_error("Upload backpressure wait failed");
         }
         if (deviceLost_) throw std::runtime_error("Upload attempted on stopped renderer");
