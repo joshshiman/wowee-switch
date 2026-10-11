@@ -2279,15 +2279,17 @@ void Renderer::update(float deltaTime) {
     // for ZONE_CHANGED_INDOORS, and WoW answers the way back out with a plain
     // ZONE_CHANGED - there is no outdoors counterpart. Nothing fired either,
     // so the state was known here and never left this file.
+    // One handler lookup for the frame: this event and the whole lighting/zone
+    // block below read the same singleton, which cannot change inside a frame.
+    auto* environmentHandler = core::Application::getInstance().getGameHandler();
     if (playerInsideInterior != playerIndoors_) {
-        if (auto* gh = core::Application::getInstance().getGameHandler()) {
-            gh->fireAddonEvent(playerInsideInterior ? "ZONE_CHANGED_INDOORS" : "ZONE_CHANGED", {});
+        if (environmentHandler) {
+            environmentHandler->fireAddonEvent(playerInsideInterior ? "ZONE_CHANGED_INDOORS" : "ZONE_CHANGED", {});
         }
     }
     playerIndoors_ = playerInsideInterior;
 
     lastUpdateStage_ = "lighting / zone";
-    const auto* environmentHandler = core::Application::getInstance().getGameHandler();
     const uint32_t resolvedZoneId = getCurrentZoneId();
     const bool serverWeather = environmentHandler && environmentHandler->isConnected() &&
                                !environmentHandler->isLocalExploration();
@@ -2428,7 +2430,7 @@ void Renderer::update(float deltaTime) {
     // is thrown by SwimEffects above; this is the froth on the surface itself,
     // which has to come from the water shader to move and light with the water.
     if (waterRenderer && camera && cameraController) {
-        glm::vec3 charPos = camera->getPosition();
+        glm::vec3 charPos = camPos;
         const glm::vec3* followTarget = cameraController->getFollowTarget();
         if (cameraController->isThirdPerson() && followTarget) {
             charPos = *followTarget;
@@ -2507,7 +2509,7 @@ void Renderer::update(float deltaTime) {
     bool m2AnimLaunched = false;
     if (m2Renderer && camera) {
         float m2DeltaTime = deltaTime;
-        glm::vec3 m2CamPos = camera->getPosition();
+        glm::vec3 m2CamPos = camPos;
         glm::mat4 m2ViewProj = camera->getProjectionMatrix() * camera->getViewMatrix();
         m2AnimFuture = core::ThreadPool::frameWorkers().submit(
             [this, m2DeltaTime, m2CamPos, m2ViewProj]() {
@@ -5159,6 +5161,20 @@ void Renderer::buildFrameGraph(game::GameHandler* gameHandler) {
     // Left enabled even with shadows off, as long as the image exists. A
     // disabled pass skips the transition performed inside renderShadowPass too.
     renderGraph_->setPassEnabled("shadow_pass", shadowDepthImage[0] != VK_NULL_HANDLE);
+
+#ifdef WOWEE_SWITCH
+    // Switch floor: water reflections are off on the console (the shipped
+    // extWaterReflections default is "0"). renderReflectionPass() gates on that
+    // CVar, and on a local session the key is absent from the in-memory store -
+    // so the lookup falls through to resolving the config path and opening
+    // cvars.cfg on the SD card every frame, which is the measured ~2 ms
+    // reflectionMs (shadowMs reads ~0.001 ms because its quality-0 early-out
+    // returns before its own CVar read). Disable the node outright so the
+    // callback never runs and the per-frame read is gone. Delete this guard to
+    // re-enable reflections on hardware.
+    renderGraph_->setPassEnabled("reflection_pass", false);
+    lastReflectionPassMs = 0.0;
+#endif
 }
 
 } // namespace rendering

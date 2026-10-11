@@ -3660,6 +3660,13 @@ void Application::applyServerMovementState(float deltaTime) {
 // stop.
 void Application::syncRenderInstancesToEntities(float deltaTime) {
     auto creatureSyncStart = std::chrono::steady_clock::now();
+    // Read-only flag lookup. Unlike operator[] it does not insert a false
+    // default, so creatures that never change locomotion state stay out of the
+    // "was" maps instead of being inserted on their first sync frame.
+    auto wasFlag = [](const std::unordered_map<uint64_t, bool>& m, uint64_t g) {
+        auto it = m.find(g);
+        return it != m.end() && it->second;
+    };
     if (renderer && gameHandler && renderer->getCharacterRenderer()) {
         auto* charRenderer = renderer->getCharacterRenderer();
         static float npcWeaponRetryTimer = 0.0f;
@@ -3695,9 +3702,16 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
         const uint64_t currentTargetGuid = gameHandler->hasTarget()
             ? gameHandler->getTargetGuid() : 0;
         const uint64_t autoAttackGuid = gameHandler->getAutoAttackTargetGuid();
+        // Main-thread-only unlocked view (the same pattern
+        // EntitySpawner::syncCreatureStealthVisuals uses): the entity map is
+        // only mutated on this thread, so this avoids the mutex acquire and the
+        // shared_ptr refcount copy that getEntity() pays per creature per frame.
+        const auto& entities = gameHandler->getEntityManager().getEntities();
         for (const auto& [guid, instanceId] : _creatureInstances) {
-            auto entity = gameHandler->getEntityManager().getEntity(guid);
-            if (!entity || entity->getType() != game::ObjectType::UNIT) continue;
+            auto entIt = entities.find(guid);
+            if (entIt == entities.end() || !entIt->second) continue;
+            const game::Entity* entity = entIt->second.get();
+            if (entity->getType() != game::ObjectType::UNIT) continue;
 
             if (npcWeaponRetryTick &&
                 weaponAttachesThisTick < EntitySpawner::MAX_WEAPON_ATTACHES_PER_TICK) {
@@ -3721,6 +3735,15 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                 if (canonDistSq > syncRadiusSq && !activeCombatTarget) continue;
             }
 
+            // Locomotion flags do not change inside this loop; read each guid
+            // once instead of re-hashing it into four maps several times.
+            // Read after the distance cull so culled creatures pay nothing.
+            const bool isFlyingNow = _creatureFlyingState.count(guid) > 0;
+            const bool isSwimmingNow = _creatureSwimmingState.count(guid) > 0;
+            const bool isWalkingNow = _creatureWalkingState.count(guid) > 0;
+            const bool transportAttached =
+                gameHandler->transportAttachmentsRef().count(guid) != 0;
+
             // Use the destination position once the entity has reached its
             // target.  During the dead-reckoning overrun window getX/Y/Z
             // drifts past the destination at the last known velocity;
@@ -3741,10 +3764,9 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
             // Ground-moving entities need client floor projection between server
             // spline points. Use the floor nearest server Z so outdoor terrain
             // above a tunnel cannot move the model into/onto the WMO shell.
-            const bool groundCreature = !_creatureFlyingState.count(guid) &&
-                                        !_creatureSwimmingState.count(guid);
+            const bool groundCreature = !isFlyingNow && !isSwimmingNow;
             if (entity->isActivelyMoving() && groundCreature &&
-                !gameHandler->transportAttachmentsRef().count(guid)) {
+                !transportAttached) {
                 if (auto floorZ = movingEntityFloor(renderer.get(), renderPos,
                                                     previousRenderPos)) {
                     renderPos.z = *floorZ;
@@ -3772,7 +3794,7 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                 float planarDistSq = ddx2 * ddx2 + ddy2 * ddy2;
                 float dz = std::abs(renderPos.z - prevPos.z);
 
-                auto unitPtr = std::static_pointer_cast<game::Unit>(entity);
+                const auto* unitPtr = static_cast<const game::Unit*>(entity);
                 const bool deadOrCorpse = unitPtr->getHealth() == 0 && !gameHandler->isLocalGhostUnit(guid);
                 const bool largeCorrection = (planarDistSq > 36.0f) || (dz > 3.0f);
                 // Use isActivelyMoving() so Run/Walk animation stops when the
@@ -3786,8 +3808,6 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                 const bool entityIsMoving = entity->isActivelyMoving();
                 constexpr float kMoveThreshSq = 0.03f * 0.03f;
                 const bool posChanging = planarDistSq > kMoveThreshSq || dz > 0.08f;
-                const bool transportAttached =
-                    gameHandler->transportAttachmentsRef().count(guid) != 0;
                 // A stationary deck passenger changes world position every
                 // frame because the parent ship moves. That parent motion is
                 // not creature locomotion and must not trigger Run. Real
@@ -3816,13 +3836,10 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                 // WoW M2 animation IDs: 4=Walk, 5=Run, 41=SwimIdle, 42=Swim.
                 // Only switch on transitions to avoid resetting animation time.
                 // Don't override Death (1) animation.
-                const bool isSwimmingNow = _creatureSwimmingState.count(guid) > 0;
-                const bool isWalkingNow  = _creatureWalkingState.count(guid) > 0;
-                const bool isFlyingNow   = _creatureFlyingState.count(guid) > 0;
-                bool prevMoving   = _creatureWasMoving[guid];
-                bool prevSwimming = _creatureWasSwimming[guid];
-                bool prevFlying   = _creatureWasFlying[guid];
-                bool prevWalking  = _creatureWasWalking[guid];
+                bool prevMoving   = wasFlag(_creatureWasMoving, guid);
+                bool prevSwimming = wasFlag(_creatureWasSwimming, guid);
+                bool prevFlying   = wasFlag(_creatureWasFlying, guid);
+                bool prevWalking  = wasFlag(_creatureWasWalking, guid);
                 // Trigger animation update on any locomotion-state transition, not just
                 // moving/idle - e.g. creature lands while still moving → FlyForward→Run,
                 // or server changes WALKING flag while creature is already running → Walk.
@@ -3905,9 +3922,12 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
         const uint64_t playerTargetGuid = gameHandler->hasTarget()
             ? gameHandler->getTargetGuid() : 0;
         const uint64_t playerAutoAttackGuid = gameHandler->getAutoAttackTargetGuid();
+        const auto& entities = gameHandler->getEntityManager().getEntities();
         for (const auto& [guid, instanceId] : _playerInstances) {
-            auto entity = gameHandler->getEntityManager().getEntity(guid);
-            if (!entity || entity->getType() != game::ObjectType::PLAYER) continue;
+            auto entIt = entities.find(guid);
+            if (entIt == entities.end() || !entIt->second) continue;
+            const game::Entity* entity = entIt->second.get();
+            if (entity->getType() != game::ObjectType::PLAYER) continue;
 
             // Distance cull
             if (havePPos) {
@@ -3917,6 +3937,14 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                     guid == playerTargetGuid || guid == playerAutoAttackGuid;
                 if (glm::dot(d, d) > pSyncRadiusSq && !activeCombatTarget) continue;
             }
+
+            // Locomotion flags do not change inside this loop; read each guid
+            // once. Read after the distance cull so culled players pay nothing.
+            const bool isFlyingNow = _pCreatureFlyingState.count(guid) > 0;
+            const bool isSwimmingNow = _pCreatureSwimmingState.count(guid) > 0;
+            const bool isWalkingNow = _pCreatureWalkingState.count(guid) > 0;
+            const bool transportAttached =
+                gameHandler->transportAttachmentsRef().count(guid) != 0;
 
             // Position sync - clamp to destination during dead-reckoning
             // overrun to avoid drift + backward snap (same as creature loop).
@@ -3939,10 +3967,9 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
 
             // Match creature projection: terrain alone is not a valid floor in
             // WMO overlap regions (tunnels, buildings, bridges).
-            const bool groundPlayer = !_pCreatureFlyingState.count(guid) &&
-                                      !_pCreatureSwimmingState.count(guid);
+            const bool groundPlayer = !isFlyingNow && !isSwimmingNow;
             if (entity->isActivelyMoving() && groundPlayer &&
-                !gameHandler->transportAttachmentsRef().count(guid)) {
+                !transportAttached) {
                 if (auto floorZ = movingEntityFloor(renderer.get(), renderPos,
                                                     previousMountPos)) {
                     renderPos.z = *floorZ;
@@ -3965,14 +3992,12 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                 float planarDistSq = ddx2 * ddx2 + ddy2 * ddy2;
                 float dz = std::abs(renderPos.z - prevPos.z);
 
-                auto unitPtr = std::static_pointer_cast<game::Unit>(entity);
+                const auto* unitPtr = static_cast<const game::Unit*>(entity);
                 const bool deadOrCorpse = unitPtr->getHealth() == 0 && !gameHandler->isLocalGhostUnit(guid);
                 const bool largeCorrection = (planarDistSq > 36.0f) || (dz > 3.0f);
                 const bool entityIsMoving = entity->isActivelyMoving();
                 constexpr float kMoveThreshSq2 = 0.03f * 0.03f;
                 const bool posChanging2 = planarDistSq > kMoveThreshSq2 || dz > 0.08f;
-                const bool transportAttached =
-                    gameHandler->transportAttachmentsRef().count(guid) != 0;
                 const bool positionOnlyLocomotion =
                     posChanging2 && !entity->isEntityMoving() && !transportAttached;
                 const bool isMovingNow =
@@ -3994,9 +4019,6 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                 posIt->second = renderPos;
 
                 // Drive movement animation (same logic as creatures)
-                const bool isSwimmingNow = _pCreatureSwimmingState.count(guid) > 0;
-                const bool isWalkingNow  = _pCreatureWalkingState.count(guid) > 0;
-                const bool isFlyingNow   = _pCreatureFlyingState.count(guid) > 0;
                 uint32_t mountedRiderAnim = rendering::anim::MOUNT;
                 if (remoteMount && isFlyingNow) {
                     const uint32_t flightPose = isMovingNow
@@ -4006,10 +4028,10 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
                         mountedRiderAnim = flightPose;
                     }
                 }
-                bool prevMoving   = _pCreatureWasMoving[guid];
-                bool prevSwimming = _pCreatureWasSwimming[guid];
-                bool prevFlying   = _pCreatureWasFlying[guid];
-                bool prevWalking  = _pCreatureWasWalking[guid];
+                bool prevMoving   = wasFlag(_pCreatureWasMoving, guid);
+                bool prevSwimming = wasFlag(_pCreatureWasSwimming, guid);
+                bool prevFlying   = wasFlag(_pCreatureWasFlying, guid);
+                bool prevWalking  = wasFlag(_pCreatureWasWalking, guid);
                 const bool stateChanged = (isMovingNow  != prevMoving)   ||
                                           (isSwimmingNow != prevSwimming) ||
                                           (isFlyingNow   != prevFlying)   ||

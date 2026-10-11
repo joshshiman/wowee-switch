@@ -911,7 +911,12 @@ private:
     // Optional query-space culling for collision/raycast hot paths.
     CollisionFocus collisionFocus;
 
+    // Entry point for the spatialIndexDirty_ flag (set by every model load).
+    // A load only inserts into the node-stable models map, so the incremental
+    // bookkeeping is already current and this does no O(instances) work.
     void rebuildSpatialIndex();
+    // The full sweep, needed only after a bulk erase shifts every stored index.
+    void rebuildSpatialIndexFull();
     void gatherCandidates(const glm::vec3& queryMin, const glm::vec3& queryMax, std::vector<size_t>& outIndices) const;
 
     SpatialGrid spatialGrid;
@@ -1005,7 +1010,7 @@ private:
     std::vector<std::future<void>> animFutures_; // Reused each frame
     bool spatialIndexDirty_ = false;
 
-    // Fast-path instance index lists (rebuilt in rebuildSpatialIndex / on create)
+    // Fast-path instance index lists (maintained on create/remove, rebuilt on bulk removal)
     std::vector<size_t> animatedInstanceIndices_;   // hasAnimation && !disableAnimation
     std::vector<size_t> particleOnlyInstanceIndices_; // !hasAnimation && hasParticleEmitters
     // Model eligibility is immutable; positions, bones and flicker remain live.

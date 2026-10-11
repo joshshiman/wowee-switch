@@ -46,6 +46,7 @@ void M2Renderer::setInstancePosition(uint32_t instanceId, const glm::vec3& posit
     // out of once it has moved.
     const glm::vec3 oldBoundsMin = inst.worldBoundsMin;
     const glm::vec3 oldBoundsMax = inst.worldBoundsMax;
+    const glm::vec3 oldPosition = inst.position;
 
     shadowSnapshotDirty_ = true;
     visibilityClusters_.invalidate(static_cast<uint32_t>(idxIt->second));
@@ -63,6 +64,30 @@ void M2Renderer::setInstancePosition(uint32_t instanceId, const glm::vec3& posit
     // Incrementally update spatial grid
     refileBounds(spatialGrid, oldBoundsMin, oldBoundsMax,
                  inst.worldBoundsMin, inst.worldBoundsMax, instanceId);
+
+    // The dedup map is keyed on position, so it has to move with the instance -
+    // the same maintenance setInstanceTransform does. Without this a moved
+    // instance leaves its old key pointing at it, and a later create at the old
+    // position is handed this id (a missing model). Only the full spatial-index
+    // sweep used to repair it, and the load path no longer runs that.
+    if (inst.participatesInPositionDedup && !inst.cachedIsGroundDetail) {
+        auto keyFor = [&](const glm::vec3& p) {
+            return DedupKey{.modelId = inst.modelId,
+                            .qx = static_cast<int32_t>(std::round(p.x * 10.0f)),
+                            .qy = static_cast<int32_t>(std::round(p.y * 10.0f)),
+                            .qz = static_cast<int32_t>(std::round(p.z * 10.0f))};
+        };
+        const DedupKey oldKey = keyFor(oldPosition);
+        const DedupKey newKey = keyFor(inst.position);
+        if (!(oldKey == newKey)) {
+            auto oldIt = instanceDedupMap_.find(oldKey);
+            // Only drop the entry if it still names this instance.
+            if (oldIt != instanceDedupMap_.end() && oldIt->second == instanceId) {
+                instanceDedupMap_.erase(oldIt);
+            }
+            instanceDedupMap_.emplace(newKey, instanceId);
+        }
+    }
 }
 
 void M2Renderer::setInstanceAnimationFrozen(uint32_t instanceId, bool frozen) {
@@ -177,8 +202,9 @@ void M2Renderer::setInstanceTransform(uint32_t instanceId, const glm::mat4& tran
     inst.position = glm::vec3(transform[3]);
 
     // The dedup map is keyed on position, so it has to move with the instance.
-    // It did not, and only rebuildSpatialIndex ever put it right - which this
-    // path deliberately avoids. A ship's doodads are created at the origin and
+    // It did not, and only the full rebuild (rebuildSpatialIndexFull) ever put
+    // it right - which this path deliberately avoids. A ship's doodads are
+    // created at the origin and
     // moved here a frame later, so the origin key stayed pointing at them and
     // the next ship of the same class was handed the first ship's sails instead
     // of its own. Both hulls then wrote their transform to the one instance, so
@@ -322,7 +348,9 @@ void M2Renderer::removeInstances(const std::vector<uint32_t>& instanceIds) {
                    instances.end());
 
     if (instances.size() != oldSize) {
-        rebuildSpatialIndex();
+        // A bulk erase with remove_if shifts every stored index, so the seven
+        // index lists and instanceIndexById cannot be repaired incrementally.
+        rebuildSpatialIndexFull();
     }
 }
 
@@ -537,6 +565,39 @@ void M2Renderer::resetQueryStats() {
 }
 
 void M2Renderer::rebuildSpatialIndex() {
+    // The only thing that raises spatialIndexDirty_ is a model load
+    // (m2_renderer.cpp: models[modelId] = std::move(gpuModel)). Loading a model
+    // inserts one node into the node-stable `models` map; it does not add,
+    // move, or re-bound a single instance. Instances are filed by
+    // commitInstance(), moved by refileBounds() in setInstancePosition()/
+    // setInstanceTransform(), and unfiled by removeInstance(), each
+    // incrementally, so the grid, instanceIndexById, instanceDedupMap_ and the
+    // seven index lists are already current and there is nothing to re-file.
+    //
+    // The old code did the full sweep here, which re-filed all ~19,000
+    // instances (models.find per instance, dedup rehash, insertBounds into
+    // every touched cell) on every load. Renderer::update submits this to the
+    // frame pool and joins on it, which is the measured 55-244 ms
+    // 'renderer->update' hitch during world streaming. Skipping the sweep when
+    // no instance changed removes that hitch.
+    //
+    // The sweep's other stated job was refreshing every instance's cachedModel
+    // pointer after a possible models-map rehash. std::unordered_map does not
+    // need it: rehashing preserves pointers and references to elements, and
+    // only erasing an element invalidates them - and cleanupUnusedModels()
+    // erases only models no instance references (usedModelIds is built from
+    // instance.modelId). loadModel() also early-returns when the id is already
+    // present, so the assignment above always inserts a fresh node.
+    //
+    // A bulk removal (removeInstances) is the one path that shifts every stored
+    // index; it calls rebuildSpatialIndexFull() directly instead of this.
+    visibilityClusters_.invalidateAll();
+    shadowSnapshotDirty_ = true;
+    localLightInstancesDirty_ = true;
+    spatialIndexDirty_ = false;
+}
+
+void M2Renderer::rebuildSpatialIndexFull() {
     visibilityClusters_.invalidateAll();
     shadowSnapshotDirty_ = true;
     localLightInstancesDirty_ = true;
