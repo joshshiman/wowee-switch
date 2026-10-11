@@ -153,6 +153,7 @@ bool s_uiFocus = false;
 unsigned s_menuOwners = 0;
 uint32_t s_menuSuppressedButtons = 0;
 bool s_cursorMode = false;        // R3: the right stick moves the cursor even in the world
+bool s_consolePortActive = false;
 bool s_keyboardRequest = false;
 
 // The emulated keyboard: what the pad holds, indexed by scancode. Also what
@@ -805,7 +806,7 @@ void pumpInput() {
 
     const PadSnapshot& st = s_padState;
     s_menuSuppressedButtons &= st.buttons;
-    if (s_menuOwners) s_menuSuppressedButtons |= st.buttons;
+    if (s_menuOwners && !s_consolePortActive) s_menuSuppressedButtons |= st.buttons;
     const uint32_t gameplayButtons = st.buttons & ~s_menuSuppressedButtons;
     const Layer layer = activeLayer(gameplayButtons);
 
@@ -813,6 +814,89 @@ void pumpInput() {
     bool left = false;
     bool right = false;
     int wheel = 0;
+    if (s_consolePortActive && !s_textFocus && !s_applicationKeyboardOpen) {
+        // ConsolePort direct controller mode
+        // TEMPORARY calibration round: physical button names beside F-keys,
+        // on press edges only. Proves which finger maps to which letter so
+        // button-identity disputes settle to one log line. Remove after.
+        {
+            struct PadTrace { uint32_t bit; const char* pad; const char* f; };
+            static const PadTrace kPadTrace[] = {
+                {ORBIS_PAD_BUTTON_SQUARE, "SQUARE(X-top)", "F1"},
+                {ORBIS_PAD_BUTTON_CIRCLE, "CIRCLE(B-bottom)", "F2"},
+                {ORBIS_PAD_BUTTON_TRIANGLE, "TRIANGLE(Y-left)", "F3"},
+                {ORBIS_PAD_BUTTON_CROSS, "CROSS(A-right)", "F4"},
+                {ORBIS_PAD_BUTTON_UP, "DUP", "F5"},
+                {ORBIS_PAD_BUTTON_DOWN, "DDOWN", "F6"},
+                {ORBIS_PAD_BUTTON_LEFT, "DLEFT", "F7"},
+                {ORBIS_PAD_BUTTON_RIGHT, "DRIGHT", "F8"},
+                {ORBIS_PAD_BUTTON_L1, "L1(L)", "F9"},
+                {ORBIS_PAD_BUTTON_R1, "R1(R)", "F10"},
+                {ORBIS_PAD_BUTTON_L2, "ZL", "SHIFT"},
+                {ORBIS_PAD_BUTTON_R2, "ZR", "CTRL"},
+                {ORBIS_PAD_BUTTON_TOUCH_PAD, "MINUS", "F11"},
+                {ORBIS_PAD_BUTTON_OPTIONS, "PLUS", "F12"},
+            };
+            for (const auto& t : kPadTrace) {
+                if (st.pressed & gameplayButtons & t.bit) {
+                    LOG_WARNING("[WOWEE_PAD] ", t.pad, " down -> ", t.f);
+                }
+            }
+        }
+        // Face buttons -> F1..F4
+        if (gameplayButtons & ORBIS_PAD_BUTTON_SQUARE) want[static_cast<size_t>(SDL_SCANCODE_F1)] = true;   // X
+        if (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) want[static_cast<size_t>(SDL_SCANCODE_F2)] = true;   // B
+        if (gameplayButtons & ORBIS_PAD_BUTTON_TRIANGLE) want[static_cast<size_t>(SDL_SCANCODE_F3)] = true; // Y
+        if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) want[static_cast<size_t>(SDL_SCANCODE_F4)] = true;    // A
+
+        // D-Pad -> F5..F8
+        if (gameplayButtons & ORBIS_PAD_BUTTON_UP) want[static_cast<size_t>(SDL_SCANCODE_F5)] = true;
+        if (gameplayButtons & ORBIS_PAD_BUTTON_DOWN) want[static_cast<size_t>(SDL_SCANCODE_F6)] = true;
+        if (gameplayButtons & ORBIS_PAD_BUTTON_LEFT) want[static_cast<size_t>(SDL_SCANCODE_F7)] = true;
+        if (gameplayButtons & ORBIS_PAD_BUTTON_RIGHT) want[static_cast<size_t>(SDL_SCANCODE_F8)] = true;
+
+        // Bumpers -> F9..F10
+        if (gameplayButtons & ORBIS_PAD_BUTTON_L1) want[static_cast<size_t>(SDL_SCANCODE_F9)] = true;
+        if (gameplayButtons & ORBIS_PAD_BUTTON_R1) want[static_cast<size_t>(SDL_SCANCODE_F10)] = true;
+
+        // Triggers (Modifiers) -> Shift / Ctrl
+        if (gameplayButtons & ORBIS_PAD_BUTTON_L2) want[static_cast<size_t>(SDL_SCANCODE_LSHIFT)] = true;   // ZL -> Shift
+        if (gameplayButtons & ORBIS_PAD_BUTTON_R2) want[static_cast<size_t>(SDL_SCANCODE_LCTRL)] = true;    // ZR -> Ctrl
+
+        // Center buttons -> Minus (F11) / Plus (F12)
+        if (gameplayButtons & ORBIS_PAD_BUTTON_TOUCH_PAD) want[static_cast<size_t>(SDL_SCANCODE_F11)] = true;
+        if (gameplayButtons & ORBIS_PAD_BUTTON_OPTIONS) want[static_cast<size_t>(SDL_SCANCODE_F12)] = true;
+
+        // Stick clicks
+        if (gameplayButtons & ORBIS_PAD_BUTTON_L3) want[static_cast<size_t>(SDL_SCANCODE_NUMLOCKCLEAR)] = true; // Autorun
+        if (st.pressed & gameplayButtons & ORBIS_PAD_BUTTON_R3) {
+            s_cursorMode = !s_cursorMode;
+            LOG_DEBUG("Right stick: ", s_cursorMode ? "cursor" : "look");
+        }
+
+        if (s_cursorMode) {
+            if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) left = true;
+            if (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) right = true;
+        }
+        // Hold-A is left-click too, in any mode. A tap fires the F4 binding
+        // (interact); holding it past a quarter second also holds the left
+        // mouse button, which is what picks a bag item up and what the drop
+        // answers. Without this the pad has right-click but no left-click
+        // outside cursor mode, so nothing can ever be dragged from a bag to
+        // the bar. The tap still fires first - an extra interact on pickup
+        // is harmless beside a drag that would otherwise be impossible.
+        {
+            static bool s_crossWasHeld = false;
+            static Clock::time_point s_crossDownSince{};
+            const bool crossHeld = (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) != 0;
+            if (crossHeld && !s_crossWasHeld) s_crossDownSince = Clock::now();
+            s_crossWasHeld = crossHeld;
+            if (crossHeld &&
+                std::chrono::duration<float>(Clock::now() - s_crossDownSince).count() > 0.25f) {
+                left = true;
+            }
+        }
+    } else {
     for (const PadBinding& b : kBindings) {
         if (s_applicationKeyboardOpen || s_menuOwners || b.layer != layer) continue;
         if(s_inWorld && s_actionBarNavigation && !s_textFocus &&
@@ -849,16 +933,9 @@ void pumpInput() {
                 }
                 break;
             case Action::WorldMap:
-                // Nothing here, and the row exists anyway. Opening the map
-                // needs the interface's own ToggleWorldMap, which this file
-                // cannot reach, and closing it again needs a press this loop
-                // never sees: the loop is skipped outright while a menu owns
-                // the pad, which is what the open map is. So the bridge reads
-                // the button off padSnapshot() and the table keeps the row, so
-                // that what the middle of the pad does is still written in the
-                // one place the mapping is written.
                 break;
         }
+    }
     }
     // The D-pad belongs to ImGui's navigation while an interface window has
     // the focus: neither turn nor zoom then.
@@ -869,6 +946,14 @@ void pumpInput() {
 
     if (s_menuOwners && !s_applicationKeyboardOpen)
         want[SDL_SCANCODE_ESCAPE] = (st.buttons & ORBIS_PAD_BUTTON_OPTIONS) != 0;
+    // WoWee handheld: B doubles as menu-cancel. While any menu owns the pad,
+    // holding B holds Escape, so the same chain that Plus uses closes the top
+    // menu instead. With no menu open this contributes nothing (and must not:
+    // an unowned Escape would toggle the game menu open). F2 still fires
+    // alongside for cast/attack/target cancel.
+    if (s_menuOwners && !s_applicationKeyboardOpen)
+        want[SDL_SCANCODE_ESCAPE] = want[SDL_SCANCODE_ESCAPE] ||
+            ((gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0);
     // Chat. No row in the table can reach it, because in the world nothing is
     // free: the face buttons are the click, the interact, the target and the
     // action bar, + is the game menu, - the world map, the D-pad zooms and
@@ -902,7 +987,7 @@ void pumpInput() {
         (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0) {
         want[SDL_SCANCODE_PRINTSCREEN] = true;
     }
-    if (!s_applicationKeyboardOpen && !s_menuOwners) applyLeftStick(want);
+    if (!s_applicationKeyboardOpen && (!s_menuOwners || s_consolePortActive)) applyLeftStick(want);
     applyRightStick(dt, right);
     if (!s_applicationKeyboardOpen) applyWheel(wheel);
     applyKeys(want);
@@ -1061,6 +1146,12 @@ void setInputMenuNavigation(MenuOwner owner, bool open) {
     if (open) s_menuOwners |= bit; else s_menuOwners &= ~bit;
 }
 bool inputMenuNavigation() { return s_menuOwners != 0; }
+
+void setConsolePortActive(bool active) {
+    s_consolePortActive = active;
+    LOG_WARNING("Switch HID: ConsolePort mode ", active ? "enabled" : "disabled");
+}
+bool consolePortActive() { return s_consolePortActive; }
 
 bool takeKeyboardRequest() {
     const bool r = s_keyboardRequest;

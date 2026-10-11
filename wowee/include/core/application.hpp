@@ -198,6 +198,11 @@ private:
     void syncLocalRealmTransports(const game::LocalRealmPlayer& self);
     /// Square/keyboard use of the nearest local object; chairs seat locally.
     void useLocalRealmObject(uint32_t objectId);
+    /// Pad/keyboard talk to a local NPC: validate + open the dialogue UI.
+    /// Same tail as the local pad lambda's NPC path (interact, talk-range,
+    /// FrameXML open, greeting, dialogue state) so pad-A and pad-X reach the
+    /// identical conversation. Returns true when a dialogue (or loot) opened.
+    bool openLocalNpcDialogue(uint64_t npcGuid);
     void updateLocalChairSeat(const game::LocalRealmPlayer& self);
     /// Read the taxi network out of the player's own client DBCs. Without it
     /// the local realm has no flight masters and no transports.

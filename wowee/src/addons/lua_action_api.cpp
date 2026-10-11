@@ -287,7 +287,14 @@ static int lua_IsUsableAction(lua_State* L) {
     bool usable = true;
     bool noMana = false;
     if (action.type == game::ActionBarSlot::SPELL) {
-        usable = gh->getKnownSpells().count(action.id) > 0;
+        // Attack is always usable: it is stanceless, resourceless melee, but
+        // it never appears in the known-spells set, which read it as unknown
+        // and greyed the icon (0.4) permanently - the "dark sword" on Y.
+        if (action.id == game::SPELL_ID_ATTACK) {
+            usable = true;
+        } else {
+            usable = gh->getKnownSpells().count(action.id) > 0;
+        }
         // Check power cost
         if (usable && action.id != 0) {
             auto spellData = gh->getSpellData(action.id);
@@ -1719,6 +1726,23 @@ std::map<std::string, std::array<std::string, 2>>& bindingKeys() {
     return keys;
 }
 
+static std::map<uintptr_t, std::map<std::string, std::string>> s_overrideBindingsByOwner;
+static std::map<std::string, std::string> s_activeOverrides;
+
+static std::string normalizeBindingKey(std::string key) {
+    for (char& c : key) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    return key;
+}
+
+static void rebuildActiveOverrides() {
+    s_activeOverrides.clear();
+    for (const auto& [owner, map] : s_overrideBindingsByOwner) {
+        for (const auto& [k, cmd] : map) {
+            s_activeOverrides[k] = cmd;
+        }
+    }
+}
+
 std::string bindingsFilePath() {
     return core::getConfigRoot() + "/bindings.cfg";
 }
@@ -1869,6 +1893,15 @@ std::string bindingAt(lua_State* L, int index) {
 
 }  // namespace
 
+std::string getOverrideBindingAction(const std::string& key) {
+    std::string norm = normalizeBindingKey(key);
+    auto it = s_activeOverrides.find(norm);
+    if (it != s_activeOverrides.end()) {
+        return it->second;
+    }
+    return "";
+}
+
 bool clientActsOnBinding(const std::string& command) {
     // The nine the client really performs, asked of the same list that keeps
     // their keys in step rather than restated - a second copy would be wrong
@@ -1905,6 +1938,13 @@ bool clientActsOnBinding(const std::string& command) {
 static int lua_GetBindingKey(lua_State* L) {
     seedBindingDefaults();
     const std::string command = luaL_checkstring(L, 1);
+    for (const auto& [k, cmd] : s_activeOverrides) {
+        if (cmd == command) {
+            lua_pushstring(L, k.c_str());
+            lua_pushnil(L);
+            return 2;
+        }
+    }
     if (auto live = liveKeyFor(command)) {
         lua_pushstring(L, live->c_str());
         lua_pushnil(L);
@@ -1922,6 +1962,11 @@ static int lua_GetBindingKey(lua_State* L) {
 static int lua_GetBindingAction(lua_State* L) {
     seedBindingDefaults();
     const std::string key = luaL_checkstring(L, 1);
+    std::string ov = getOverrideBindingAction(key);
+    if (!ov.empty()) {
+        lua_pushstring(L, ov.c_str());
+        return 1;
+    }
     for (const auto& [command, keys] : bindingKeys()) {
         if (keys[0] == key || keys[1] == key) {
             lua_pushstring(L, command.c_str());
@@ -2057,17 +2102,76 @@ static int lua_RunBinding(lua_State* L) {
     lua_pop(L, 1);
     return 0;
 }
-// The override-binding family, none of which this client implements - only
-// the Click variant was ever *bound*, and the other four raised. They are
-// reached from restrictedframes.lua, the secure-frame machinery behind action
-// buttons and unit frames, so a raise there breaks the frame rather than the
-// binding. Bound alongside it, doing the same nothing.
-static int lua_SetOverrideBindingClick(lua_State* L) { (void)L; return 0; }
-static int lua_SetOverrideBinding(lua_State* L) { (void)L; return 0; }
+static int lua_SetOverrideBinding(lua_State* L) {
+    uintptr_t owner = lua_isnoneornil(L, 1) ? 0 : reinterpret_cast<uintptr_t>(lua_topointer(L, 1));
+    const char* key = lua_tostring(L, 3);
+    const char* action = lua_isnoneornil(L, 4) ? nullptr : lua_tostring(L, 4);
+    if (!key) return 0;
+    // TEMPORARY debug round: who writes override buckets, with owner pointer
+    // and Lua callers, to find the source of CLICK CPB_* entries that eat the
+    // pad F-keys mid-session. Remove once settled (see FINDINGS handheld).
+    {
+        std::string callers;
+        lua_Debug ar;
+        for (int lvl = 1; lvl <= 3; ++lvl) {
+            if (!lua_getstack(L, lvl, &ar)) break;
+            if (!lua_getinfo(L, "nS", &ar)) break;
+            callers += " | ";
+            callers += ar.name ? ar.name : "?";
+            callers += "@";
+            callers += ar.short_src ? ar.short_src : "?";
+        }
+        LOG_WARNING("[WOWEE_OVR] set owner=", owner, " key=", key,
+                    " action=", (action && *action) ? action : "(clear)",
+                    " from:", callers);
+    }
+    std::string normKey = normalizeBindingKey(key);
+    if (action && *action) {
+        s_overrideBindingsByOwner[owner][normKey] = action;
+    } else {
+        s_overrideBindingsByOwner[owner].erase(normKey);
+    }
+    rebuildActiveOverrides();
+    return 0;
+}
+
+static int lua_SetOverrideBindingClick(lua_State* L) {
+    uintptr_t owner = lua_isnoneornil(L, 1) ? 0 : reinterpret_cast<uintptr_t>(lua_topointer(L, 1));
+    const char* key = lua_tostring(L, 3);
+    const char* btn = lua_tostring(L, 4);
+    const char* mouseBtn = luaL_optstring(L, 5, "LeftButton");
+    if (!key || !btn) return 0;
+    // TEMPORARY debug round: see lua_SetOverrideBinding note.
+    {
+        std::string callers;
+        lua_Debug ar;
+        for (int lvl = 1; lvl <= 3; ++lvl) {
+            if (!lua_getstack(L, lvl, &ar)) break;
+            if (!lua_getinfo(L, "nS", &ar)) break;
+            callers += " | ";
+            callers += ar.name ? ar.name : "?";
+            callers += ar.short_src ? ar.short_src : "?";
+        }
+        LOG_WARNING("[WOWEE_OVR] click owner=", owner, " key=", key,
+                    " btn=", btn, " from:", callers);
+    }
+    std::string normKey = normalizeBindingKey(key);
+    std::string action = std::string("CLICK ") + btn + ":" + (mouseBtn ? mouseBtn : "LeftButton");
+    s_overrideBindingsByOwner[owner][normKey] = action;
+    rebuildActiveOverrides();
+    return 0;
+}
+
+static int lua_ClearOverrideBindings(lua_State* L) {
+    uintptr_t owner = lua_isnoneornil(L, 1) ? 0 : reinterpret_cast<uintptr_t>(lua_topointer(L, 1));
+    s_overrideBindingsByOwner.erase(owner);
+    rebuildActiveOverrides();
+    return 0;
+}
+
 static int lua_SetOverrideBindingSpell(lua_State* L) { (void)L; return 0; }
 static int lua_SetOverrideBindingMacro(lua_State* L) { (void)L; return 0; }
 static int lua_SetOverrideBindingItem(lua_State* L) { (void)L; return 0; }
-static int lua_ClearOverrideBindings(lua_State* L) { (void)L; return 0; }
 
 // Frame methods: SetPoint, SetSize, SetWidth, SetHeight, GetWidth, GetHeight, GetCenter, SetAlpha, GetAlpha
 

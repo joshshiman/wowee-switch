@@ -137,6 +137,10 @@ std::vector<uint8_t> WidgetRenderer::readTextureFile(const std::string& path,
 
     auto data = assets_->readFile(resolved);
     if (data.empty()) {
+        data = assets_->readFile(path);
+        if (!data.empty()) resolved = path;
+    }
+    if (data.empty()) {
         // The interface is WotLK's; the assets are whichever expansion this
         // install carries, and the two do not always agree on a folder. The
         // quest icon is the one that differs here - FrameXML asks for
@@ -1629,6 +1633,55 @@ void WidgetRenderer::reportWidgetDiagnostics(WidgetTree& tree,
                                     " \"", a->text, "\" over ",
                                     b->name.empty() ? "(unnamed)" : b->name.c_str(),
                                     " \"", b->text, "\" at (", a->left, ",", a->bottom, ")");
+                    }
+                }
+            }
+
+            // Anything visible intersecting the center band over the character.
+            //
+            // A stray empty panel sits right over the player (roughly the
+            // middle third of the screen, just above vertical center) and
+            // none of the scans above look there: off-screen looks away,
+            // same-text needs words, unaccounted needs a name. This lists
+            // every visible widget crossing that box - frames and textures,
+            // named or not - with what it shows, so "that thing floating
+            // over my character" becomes one line of log.
+            //
+            // Throttled to ~30s and only re-logged when the set changes: the
+            // floater appears minutes after the load/world passes, long after
+            // both stopped looking.
+            {
+                static int lastCenterScan = -1000000;
+                static std::string lastCenterSig;
+                if (framesSeen - lastCenterScan > 180) {
+                    lastCenterScan = framesSeen;
+                    const float x0 = screenW * 0.30f / s, x1 = screenW * 0.72f / s;
+                    const float y0 = screenH * 0.35f / s, y1 = screenH * 0.62f / s;
+                    std::string sig;
+                    std::vector<std::string> lines;
+                    for (size_t id = 1; id < tree.size() && lines.size() < 14; ++id) {
+                        const Widget* w = tree.get(static_cast<uint32_t>(id));
+                        if (!w || !w->visible) continue;
+                        if (w->name == "UIParent" || w->name == "WorldFrame") continue;
+                        if (w->rectW <= 0.0f || w->rectH <= 0.0f) continue;
+                        if (w->rectW > screenW * 0.6f / s && w->rectH > screenH * 0.5f / s) continue;
+                        if (w->left + w->rectW < x0 || w->left > x1) continue;
+                        if (w->bottom + w->rectH < y0 || w->bottom > y1) continue;
+                        sig += w->name;
+                        sig += ";";
+                        std::string show = !w->text.empty() ? ("text=\"" + w->text + "\"")
+                            : (!w->texturePath.empty() ? ("tex=" + w->texturePath) : "-");
+                        char buf[320];
+                        std::snprintf(buf, sizeof(buf), "  CENTER %s kind=%d %s rect=(%.1f,%.1f %.1fx%.1f)",
+                            w->name.empty() ? "(unnamed)" : w->name.c_str(),
+                            static_cast<int>(w->kind), show.c_str(),
+                            w->left, w->bottom, w->rectW, w->rectH);
+                        lines.emplace_back(buf);
+                    }
+                    if (sig != lastCenterSig) {
+                        lastCenterSig = sig;
+                        LOG_WARNING("FrameXML center band (", lines.size(), " widget(s)): ");
+                        for (const auto& ln : lines) LOG_WARNING(ln);
                     }
                 }
             }

@@ -6,6 +6,7 @@
 #include "core/config_paths.hpp"
 #include "core/logger.hpp"
 #include "game/local_realm.hpp"
+#include "game/local_quest_dialogue.hpp"
 #include "game/local_services.hpp"
 #include "game/local_scripted_portals.hpp"
 #include "rendering/spell_visual_system.hpp"
@@ -1394,6 +1395,44 @@ void Application::useLocalRealmObject(uint32_t objectId) {
     gameHandler->applyLocalStandState(seat.standState);
     localChairMap_=seat.mapId;localChairX_=seat.x;localChairY_=seat.y;localChairStandState_=seat.standState;localChairSeatActive_=true;
     LOG_INFO("[LOCAL_CHAIR] seated object=",seat.objectId," slot=",int(seat.slot)," state=",int(seat.standState));
+}
+
+/// Pad-A talk on the local realm: the same tail as the local pad lambda's
+/// NPC path (validate, talk-range, FrameXML open, greeting, dialogue state)
+/// so pad-A and pad-X reach the identical conversation. Returns true when a
+/// dialogue (or loot) opened.
+bool Application::openLocalNpcDialogue(uint64_t npcGuid) {
+    if (!localRealm_ || !gameHandler || npcGuid == 0) return false;
+    const game::LocalRealmNpc* npc = nullptr;
+    for (const auto& n : localRealm_->npcs()) {
+        if (n.guid == npcGuid) { npc = &n; break; }
+    }
+    if (!npc) {
+        LOG_WARNING("[WOWEE_ACT] talk: npc gone");
+        return false;
+    }
+    const auto* self = localRealm_->localPlayer();
+    if (!self || self->dead) return false;
+    if (npc->dead) {
+        localRealm_->loot(npc->guid);
+        return true;
+    }
+    if (npc->hostile) return false; // caller attacks hostiles
+    if (!localRealm_->interact(npc->guid)) {
+        LOG_WARNING("[WOWEE_ACT] talk: realm refused");
+        return false;
+    }
+    if (!game::localNpcInTalkRange(*self, *npc)) {
+        LOG_WARNING("[WOWEE_ACT] talk: too far");
+        return false;
+    }
+    if (localFrameXml_.open(npc->guid)) return true;
+    gameHandler->greetLocalRealmNpc(*npc);
+    localRealmDialogueNpc_ = npc->guid;
+    localRealmDialogueQuest_ = 0;
+    localRealmDialogueFocus_ = true;
+    localRealmNpcPanelOpen_ = localRealmInventoryOpen_ = localRealmJournalOpen_ = false;
+    return true;
 }
 void Application::updateLocalChairSeat(const game::LocalRealmPlayer& self) {
     if(!localChairSeatActive_ || !gameHandler)return;

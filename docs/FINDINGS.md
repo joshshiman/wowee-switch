@@ -1082,3 +1082,339 @@ flow is INFO-suppressed or unlogged. Nothing to diagnose from.
   revert and gate interiors differently — user asked to watch for it.
 - Expectation: indoor wmoDraws collapse; outdoor mostly unchanged (bounds
   path already culled). Next: character-draw spike indoors (separate).
+
+## Branch/repo state (2026-10-10, read this before touching git)
+- Work happens on `feature/consoleport-native-ui` (all session commits).
+  `main` holds an unrelated unpushed commit (cdf4012, ConsolePortLK native-UI
+  integration) that does NOT compile (input_switch namespace break). Do NOT
+  build from main, do NOT push main anywhere, do NOT revert cdf4012 without
+  asking — it is someone's active work. Merge order TBD with user.
+- `git push origin main` is BANNED from this workflow: with HEAD on the
+  feature branch it pushes the local main ref (the broken ConsolePort line).
+  Push the feature branch explicitly.
+- Verification rule (burned twice): content check (`strings`) + card/staged
+  md5 MATCH. Never trust bare md5s from memory.
+
+## Run 64: NPC radius 90 (build 72744904)
+- Abbey run: 147 ms mean, chars 101 avg/203 max (+60 ms quartile). NPC render
+  radius 130 -> 90 + bird-update radius matched (Switch). Targeting/aggro use
+  gameplay distance — render-only change.
+
+## ConsolePort handheld integration: key learnings (2026-10-10, branch feature/consoleport-native-ui)
+
+How the stack actually works (verified against code + console logs, not docs):
+- Pad button -> F-key (input_switch.cpp, ConsolePort mode) -> WoW key
+  (calibration table, ConsolePortSettings) -> CP_* pad name (SetBinding) ->
+  override per modifier (SetTempBinding -> SetOverrideBinding on the handler)
+  -> GetBindingAction answers the override -> dispatchBindingKey executes.
+- Face buttons do NOT travel the secure-handler click path: dispatch calls
+  UseAction / frame:Click / C++ directly. So "CLICK CPB_* failed: Invalid
+  function body" in the log coexists with working spell casts - the clicks
+  fail, the slots still fire. Do not chase CLICK errors as "buttons broken".
+- `securehandlers.lua:805 "Invalid function body"` is a TYPE check
+  (`type(body) ~= "string"`), not a compile error: the body argument arrived
+  nil. It means `self:GetAttribute(...)` in the restricted env returned nil.
+  UpdateState survives because insecure code fetches its body; the drag/click
+  snippets fetch theirs inside the restricted wrapper. Attribute-vs-script
+  namespaces are separate (SetScript(nil) does NOT wipe attributes) - that
+  theory was checked and is dead.
+- clientActsOnBinding is a trap for pad keys: TOGGLEGAMEMENU/OPENCHAT/etc.
+  are "performed by the client" on ITS keys (Escape/Enter). A pad F-key bound
+  to one yields (`return false`) to a client that never sees F12 - the key
+  reads as dead. Fix is explicit dispatch cases, not rebinding.
+- SavedVariables shadow code defaults twice over: ConsolePortBindingSet (per
+  character) pins the button map, ConsolePortBarSetup pins layout+colors.
+  Every handheld default change needs a one-shot in-place migration
+  (woweeBindRev / woweeRev stamps) or existing characters never see it.
+- Button naming: ORBIS CROSS/A, CIRCLE/B, SQUARE/X, TRIANGLE/Y =
+  HidNpadButton_A/B/X/Y (switch_pad_buttons.h). F1..F4 = X,B,Y,A.
+  Calibration CP_R_UP=F1, CP_R_DOWN=F2, CP_R_LEFT=F3, CP_R_RIGHT=F4.
+- MPQ forensics from the host is fast and reliable: link dump tools against
+  wowee/build-host/lib/libstorm.a (-lz -lbz2), run from a workspace dir
+  (/tmp/opencode is noexec). Paths must be lowercased backslashes
+  (`interface\framexml\securehandlers.lua`); base FrameXML is in the LOCALE
+  archives (locale-enUS.MPQ, overridden by patch-enUS.MPQ), not common.MPQ.
+- Diagnosing UI on hardware: widget dump passes fire at load and world+600
+  frames only - a floater appearing later is invisible to them. The throttled
+  CENTER scan in reportWidgetDiagnostics exists for exactly this; [WOWEE_KEYTRACE]
+  settles "what does this button do" without a debugger. Both are debug-round
+  instruments - remove or gate before calling the branch done.
+
+## ConsolePort override theft + floater (2026-10-10, runs 15:52/16:16, branch feature/consoleport-native-ui)
+
+Comprehensive note per user request - the whole override picture in one place.
+
+### The theft (KEYTRACE ground truth, not theory)
+- Pad F-keys resolve through: calibration SetBinding (F-key -> CP_* name) then
+  SetOverrideBinding per modifier (CP_* -> command) on ConsolePortButtonHandler,
+  read back by GetBindingAction (overrides first). [WOWEE_KEYTRACE] logs
+  key -> command -> outcome per F-key press.
+- 15:52 run: F1->JUMP, F2->OPENALLBAGS/ring, F3->CLICK CPB_R_LEFT (dead),
+  F4->INTERACTTARGET. 16:16 run: F1/F2/F3/F4 ALL -> CLICK CPB_* (dead).
+  Same buttons, working early, dead later: the CLICK bucket spreads
+  mid-session. A (interact) provably worked at 15:52 (6x F4->interact) - later
+  "X interacts / A doesn't" reports are the theft moving, not the map.
+- The CLICK entries are written by lua_SetOverrideBindingClick (only writer of
+  CLICK actions). No Lua caller found yet (bar's method-form SetBindingClick is
+  an engine no-op; config Save, ring, mouse paths ruled out). [WOWEE_OVR]
+  writer trace (owner pointer + Lua callers) added to catch it live.
+- Merge order is pointer-ordered (std::map<uintptr_t> in
+  rebuildActiveOverrides): same-owner rewrites are deterministic, cross-owner
+  collisions are pointer luck. The PEW re-assert (Bar:PLAYER_ENTERING_WORLD,
+  same owner as handler writes) lost to the CLICK bucket - evidence the CLICK
+  owner pointer sorts higher. Do NOT rely on re-registration order across
+  owners; find the writer instead.
+- Base kBindings NEVER fire in-world while ConsolePort mode holds: the pump is
+  if/else on s_consolePortActive (set once at load, cleared only at teardown -
+  verified in code + "ConsolePort mode enabled" once per boot). All "built-in
+  control" feelings are ConsolePort-layer behavior (dead keys, theft), never
+  base leakage. Do not re-investigate base.
+
+### The floater (solved, root-caused)
+- CENTER scan caught: `(unnamed) tex=Interface\AddOns\ConsolePort\Textures\Line
+  rect=(532,223 300x50)` = ConsolePortMouseHandle's Line child (300x50,
+  CENTER -300). Frame is alpha=0 (invisible on retail) with empty Text and
+  empty 32px Button/Portrait (= "empty dialogue modal, can't be hidden" +
+  "empty circle", re-shown on every target change).
+- Engine gap: the renderer uses each widget's OWN alpha (packColor(w->alpha));
+  parent alpha never multiplies down. Visibility DOES cascade (hidden parent =
+  hidden children in dumps), alpha does not. Fix applied: Hide() the handle
+  every login (smart-mouse driver is off anyway - no interactWith in the
+  Switch profile). Proper fix queued: parent-alpha inheritance in the renderer
+  (also affects UIFrameFade children + the Flyout alpha-0 trick relies on it).
+- print() goes to CHAT (+ info log, invisible on release builds pinned to
+  WARNING). Lua diagnostics MUST use __WoweeWarn. An entire diag round was
+  lost to chat spam before this was noticed.
+- MPQ forensics recipe stands (locale-enUS.MPQ holds base FrameXML; workspace
+  dir for binaries since /tmp/opencode is noexec).
+
+## Secure nil-body root cause: surrogate tables (2026-10-10, commit 1fecde0)
+- "Invalid function body" (securehandlers.lua:805) is the TYPE check on the
+  RunFor body arg: restricted `self:GetAttribute(...)` returned nil for keys
+  that insecure reads saw fine, with handles round-tripping to the right
+  table. Not setup, not namespaces, not duplicates.
+- Cause: Blizzard handles are NOT the frame. RestrictedFrames builds
+  `surrogate = {[0]=frame[0], [1]=frame}` with the frame's metatable, so
+  restricted reads land in mt:GetAttribute with self=surrogate, whose own
+  __attributes is empty by construction. Retail frames are C objects where
+  this indirection is invisible; here frames are Lua tables and rawget
+  exposed it. Every wrapped click/drag/ring snippet died on this one line.
+- Fix: mt:GetAttribute falls back to rawget(self,1).__attributes (real
+  frames never use [1]; verified by grep). Writes stay split - restricted
+  writes land on the surrogate only, no taint leak insecurely.
+- Companion finding, same session: the bar's SetBindingClick DOES execute
+  (restricted HANDLE method in Blizzard's restrictedframes.lua, NOT the
+  engine no-op - method lookup differs by environment). It wrote CLICK CPB_*
+  overrides into the bar frame's owner bucket, which outranks the handler's
+  by pointer order in the ordered owner map - F1..F4 eaten mid-session while
+  early-session traces were clean. Bar:RegisterOverride neutralized (revert
+  flag noted in code); the per-login UnregisterOverrides the bar already runs
+  clears stale bucket entries by itself.
+- Rule: when retail Lua does handle-table indirection, check what `self`
+  really is before blaming the data. And method no-op allowlists are
+  environment-specific: verify restricted-path methods separately.
+
+## OPERATOR CORRECTIONS - normative (2026-10-10, user-issued, override code readings on conflict)
+- Traces measure DISPATCH (key->command), never fingers (physical button) or
+  effects (world result). On any conflict, the operator's report wins and the
+  trace is declared incomplete, not the operator wrong. Physical-button names
+  in the trace are pending work to close this gap for good.
+- Button naming is Switch-only everywhere user-facing: A/B/X/Y, L/R/ZL/ZR,
+  +/-, sticks. Any PlayStation naming ("O", "Cross", "Square", "Triangle",
+  "R2 + Cross" style labels) is a bug. Live instance: ring hint renders
+  "Hold O to ..." (ConsolePort `UTILITY_RING_BIND`/hint formatting resolving
+  a non-Switch glyph set - fix the glyph/name resolution to the SWITCH set,
+  not the text).
+- Y is FINE and UNTOUCHED. It toggles attack (press stops - matches
+  SpellHandler toggle verbatim) with undisclosed targeting behavior the
+  operator relies on. No removal, no rebinding, no "simplification" without
+  proof of the targeting source plus explicit sign-off.
+- X is UNTOUCHED (jump + observed attack/interact). Same protection as Y.
+- A MUST ALWAYS DO SOMETHING (operator instruction): A := X-class behavior
+  (interact / autoloot / auto-attack). A-on-a-bar-slot activates that slot
+  (contextual: cursor over action slot -> click it; else target-interact).
+  Silent A with empty hands is the failure mode being removed. Overlap with X
+  is acceptable and intended.
+- Vertical overlap is REAL (operator eyes beat mirrored screenshots): widen
+  row pitch between cluster rows and shrink satellites until daylight shows.
+  Numbers go in the build plan, screenshot verifies.
+- Dimming: operator REJECTS the state-tint theory (bright-with-no-target
+  observed; darkening arrives as an overlay). Do NOT gate tints on target.
+  Suspects, in order: stuck cooldown swipe, bar alpha < 1, Flash/shadow art.
+  Arbiter test (operator runs): untarget (ESC) in world -> brighten or not.
+  Brighten = state-linked (reopen tint review); stay dark = overlay hunt.
+- Ring must SHIP WITH DOORS (spellbook, talents, character, map) and a
+  pad-only select/commit gesture, or it is pointless. Empty default preset is
+  a content gap, not a visibility bug.
+- Plus must show a REAL, visible menu (settings explicit routing vs FrameXML
+  frame - whichever renders; "sound + nothing" is the current failure).
+- Drag-to-bar DEPRIORITIZED by operator. Requirement in its place: A-on-slot
+  activation (above). Secure-drop work pauses; do not delete the diagnostics.
+- Romfs wins for Lua: every round rebuilds + redeploys the .nro, no
+  exceptions. Lua-only FTP rounds are void (proven twice: L/R swap round,
+  repro-probe round). State the build contents explicitly each round.
+- Targeting gap (open design, do not "fix" blindly): nothing pad-side
+  acquires targets except cursor clicks; Y-attack needs a target. The
+  operator's Y-targets experience has no binding-side source (TAB is
+  enemy-only and unbound here) - suspect TargetAI/cursor, prove before use.
+
+## A-friendly gap + Plus routing (2026-10-10, user-tested d5c1760)
+- A-no-target only acquired enemies: near a guard with no enemies around it
+  logged nothing and did nothing. Operator correction: A must also talk.
+  Now: enemy first (attack), else nearest friendly in 5yd interact range
+  (talk), else logged reason (too-far/unusable/nothing-nearby). Range uses
+  the same 5yd INTERACTION_DISTANCE figure as lua_social_api.
+- Plus opened a suppressed frame (WOWEE_MENU owns=1 shown=1, invisible):
+  takeover owns GameMenu and force-hides FrameXML's every frame. Routed Plus
+  to __WoweeOpenClientSettings explicitly (falls back to ToggleGameMenu) -
+  consistent with the engine's GameMenu-ownership decision and the micro-menu
+  button behavior.
+- Calibration proof landed: [WOWEE_PAD] physical names on press edges
+  (temporary). A-presses showed acquire+attack then attack in [WOWEE_ACT];
+  theft dead (zero OVR click writes, all F-keys resolve handler-direct).
+
+## Icon dimming: Attack-usability + mask status (2026-10-10, operator-observed)
+- Operator note (verbatim mechanism): square icons bright at corners, dark
+  inside the circular button frames "as if a translucent dark grey filter".
+  Masks ruled out: NO mask implementation exists anywhere (renderer or
+  engine grep: zero hits) - mask layers cannot draw. Cooldown sweep ruled
+  out for idle (draw returns early on duration<=0/elapsed).
+- Code-proven contributor: IsUsableAction greyed anything not in knownSpells
+  (0.4,0.4,0.4), and Attack (SPELL_ID_ATTACK) is never in that set -> the
+  sword on Y was permanently grey while its ring art (untinted corners)
+  stayed bright. EXACTLY the reported shape. Fixed: Attack always usable.
+  Empty slots show the dark empty-skull art by design (not a dimming bug).
+- Remaining dimming, if any after this: OOR red (0.8,0.1,0.1, target-gated,
+  retail parity) / OOM blue / real cooldown sweeps. Those are correct.
+- X-identity timeline proof (2026-10-10 session): zero SQUARE presses all
+  session; 7x talk events all 0.1-0.3s after CROSS(A-right) presses; Y@18:53:30
+  then A-talk x7 (the "Y then X/Y works" report). Physical calibration
+  ([WOWEE_PAD]) is now the standing arbiter for button disputes.
+- Plus routing: callback-vs-frame branch now logged (via=settings/frame).
+- A-treat: talk re-fires per press by design (retail re-sends hello); left
+  as-is per operator tolerance note.
+
+## OPERATOR OVERRULE: local realm + double-drive (2026-10-10, normative, supersedes prior layer claims)
+- The operator plays LOCAL REALM (offline). Proof: "Choose a living enemy"
+  (local_gameplay.cpp reject strings), "Attack and casting stopped"
+  (local_gameplay.cpp:5215 stopAttack result), local pad UI live in logs.
+- THREE input layers exist, not two. The earlier "base never fires" claim
+  covered only kBindings-base (truly gated off by consolePortActive). The
+  LOCAL-UI layer (application_local_ui.cpp, raw padSnapshot reads) has NO
+  ConsolePort gate and is FULLY LIVE alongside ConsolePort. Prior traces
+  measured only the ConsolePort half; every "impossible" report was the
+  local half. The operator was right throughout; the instruments were blind.
+- Current per-button behavior (BOTH layers, preserve all of it):
+  - X (SQUARE): local primaryAction(contextual) [talk/loot/attack via
+    localRealm, "Choose a living enemy" reject when nothing valid] PLUS CP
+    F1 jump (+tiers). Operator: "X should only be jump" means the CP half;
+    the local half is load-bearing and stays.
+  - Y (TRIANGLE): local toggleTarget [nearest living NPC any faction, or
+    clear + stopAttack] PLUS CP F3 attack-toggle. Operator: Y is fine, keep.
+  - A (CROSS): NO local action in-world; CP INTERACTTARGET only. Operator:
+    "A does nothing" because every gh method it calls is REMOTE-ONLY
+    (interactWithNpc=socket packet, startAutoAttack/targetEnemy/targetFriend
+    =combatHandler_, lootTarget=inventoryHandler_) while castSpell (Y's path)
+    checks localServiceRealm FIRST and works. A-talk "successes" in old logs
+    were packets to nowhere; visible dialogues came from the local half.
+  - B: CP bags/ring; local clears focus when untargeted (harmless).
+  - Minus/Plus: CP only (local has no reads for them); failures are
+    downstream (ring content/secure, suppressed menu).
+  - R3/L3/D-pad: no conflicts found.
+- "Hold O to ...": NOT ConsolePort text (grep negative in src+addons). Reads
+  as a Circle GLYPH + text = inline-texture hint icon resolving the wrong
+  controller set. Fix at glyph/name resolution to SWITCH set (unchanged plan).
+- Y-targets-friendly source: local toggleTarget via nearestLivingLocalTarget
+  (any living NPC). No dedicated friendly-target binding exists; do not
+  invent one. Y-then-Y dialogue micro-cause still open (tolerated, untouched).
+- Design rules going forward: (1) composition, not replacement - both layers
+  stay live; fixes route through the right layer, never silence one blindly;
+  (2) every gh-level handler used from dispatch MUST check localServiceRealm
+  first (castSpell pattern), else it is dead offline; (3) traces stay on
+  until the operator releases them.
+
+## A-local routing + dialogue callback (2026-10-10, approved build)
+- Operator overrule implemented literally: A := local X-class behavior.
+  INTERACTTARGET on local realm now mirrors the pad lambda: cursor slot,
+  target (dead->loot/hostile->attack/friendly->talk-via-callback), else
+  nearby-8yd friendly-or-lootable, else attack(current-or-0) so the realm's
+  own reject surfaces (parity with X, never silent code-side).
+- Remote gh methods (interactWithNpc/startAutoAttack/targetEnemy/Friend,
+  lootTarget) have NO local branch - dead offline. Talk needs UI state only
+  Application owns: new GameHandler::requestLocalDialogue + Application
+  callback wiring (openSettingsCallback pattern) into
+  Application::openLocalNpcDialogue (lambda tail mirror: interact, range,
+  FrameXML open, greeting, dialogue state; hostile->false so caller attacks).
+- A outcomes logged (slot/object/loot/talk/attack/acquire±/too-far/unusable/
+  none/no-target); Plus logs via=settings vs via=frame branch.
+- X/Y/local layers untouched (composition preserved). Traces stay on.
+
+## APPROVED DIRECTION: single ring door, Y->L move, B=cancel, menu-mode A (2026-10-10, operator-approved plan, NOT YET IMPLEMENTED)
+- Single ring door: Minus only. Remove CP_R_DOWN CTRL-SHIFT- ring click ->
+  MULTIACTIONBAR1BUTTON9 (matches sibling tiers 6/7/8). Saved sets need a
+  binding migration rev (per-char sets shadow defaults). ZL+ZR then uniformly
+  shows the third spell pane; no code needed beyond the rebind.
+- Y->L attack move: L('') takes ACTIONBUTTON1 (attack toggle; operator: feels
+  better there); Y('') goes EMPTY (local Triangle target-toggle continues
+  underneath -> Y becomes target-only, the original vision). Orphan question
+  for operator: slots 4 (ex-L) and 5 (ex-R) become pad-unbound - confirm they
+  should stay free for future spells (reads as the intent of "frees a spell
+  slot") vs reassigned somewhere.
+- B bags->R: R('') takes OPENALLBAGS; B('') becomes CANCELALL (new dispatch
+  case: local-aware cancelCast (gh->cancelCast already routes) + local
+  stopAttack + target/focus clear). Y keeps its incidental stopping (untouched
+  rule); B is the ADDITIONAL dedicated cancel. B's modified tiers: proposed
+  kept, flagged for confirmation.
+- Stale-override subtlety (must implement with the rebind): empty-table
+  entries skip SetTempBinding writes, leaving OLDER F-key overrides live in
+  the handler bucket. Migration must ClearOverrideBindings(handler) BEFORE
+  LoadBindingSet, then re-register from the patched set. Bar display for
+  emptied wrappers goes through SetEligbleForRebind (unbound art) - set empty
+  tables {}, never nil.
+- Menu-mode A conflict (operator-reported, believed): A now means interact
+  (F4) AND click (hold-left) on one button; X never had this problem because
+  interact and click lived on different physical buttons. In menus, A-tap to
+  click ALSO fires interact (talks/attacks, panel exclusivity closes the menu
+  under the click). Proposal (awaiting approval): menu mode (cursorMode on OR
+  any of SpellBook/Character/Talent/QuestLog/WorldMap/Container/Bank visible)
+  -> F4-interact suppressed in dispatch (consumed, no-op); A stays pure mouse
+  (tap-left/hold-left via input layer, B stays right). Deviates from the old
+  tap=right sketch deliberately: tap-left is load-bearing for UI buttons.
+- Glyph set (->Switch) and Plus visibility still queued behind this batch.
+- Traces stay on until released.
+
+## Round d5ebcf0+3: X-gate, B-Escape, A-loot, icons, L1, settings (2026-10-10)
+- X is jump-only now: local unmodified-Square primaryAction gated on
+  !consolePortActive (vehicle/modifier Square + keyboard path untouched);
+  matching Square/mailbox hints gated too. CP F1 unchanged.
+- B cancels menus: holding B while any menu owns the pad holds Escape
+  (all MenuOwners covered: FrameXml panels, local, settings). F2 still
+  fires CANCELALL alongside. No-menu case contributes nothing (no toggle).
+- A loots (local, unmodified tap, no panels): target corpse else nearest
+  lootable; realm validates range. Talk/attack stay with Y/L.
+- Bar icons inscribed 0.70 (square art in round frames; no mask impl exists
+  to fix properly - queued engine work).
+- Y->L completed: local Triangle no longer toggles (Tab keeps it); L1 does
+  toggle+act ordered; CP F3 restored, CP F9 quiet (scrub+reassert skip moved
+  CP_R_LEFT to CP_T1). Slots 4/5 pad-unbound (free).
+- Settings FaceRight-dismiss removed (A closed it same-frame it opened).
+- Crash 22:09 triage: abrupt mid-loop death, last line Lua OOM on
+  SecureStateDriverManager OnUpdate with native heaps healthy; report is
+  hbmenu teardown noise (no wowee offsets). New variant, no clean signature
+  match. [WOWEE_MEM] lua_kb breadcrumb added on first Lua error.
+- Portraits: NOT worth static-caching (already change-guarded + 10/20Hz
+  throttled + tiny targets; unmeasurable vs 150ms frames). Declined with data.
+
+## KNOWN ISSUE (benched): Plus opens nothing visible
+- Symptom (all sessions): Plus press -> sound, no visible menu.
+- Proven: F12 dispatches TOGGLEGAMEMENU every press; ToggleGameMenu replaced
+  by the client-settings opener when FrameXML doesn't own the panel; latest
+  build routes explicitly (`via=settings` logged) yet nothing appears.
+- Ruled out: FaceRight self-dismiss (removed - A closed it same-frame);
+  anchorless frame (GameMenuFrame pinned 195x240 center, verified in dump).
+- Next (not started): verify showSettingsWindow actually flips and the
+  settings panel draws in-world (render gating? ImGui focus?); operator to
+  confirm whether ANY panel (vs nothing) appears on Plus.
+- Workaround in place: all panel doors reachable via Minus/Plus modifier
+  tiers (spellbook/talents/character/map/quests/bags) - direct dispatch,
+  no secure path.

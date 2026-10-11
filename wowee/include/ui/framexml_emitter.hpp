@@ -23,6 +23,7 @@ struct XmlNode;
 
 struct EmitResult {
     std::string lua;
+    std::string templatesLua;
     /// Files named by <Script file="..."/> and <Include file="..."/>, in the
     /// order they appeared. The caller loads them; resolving paths is its job,
     /// not the emitter's.

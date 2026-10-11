@@ -345,8 +345,10 @@ ImGui::TextDisabled("Built with Vulkan, SDL2, and ImGui");
 void SettingsPanel::renderSettingsWindow(ChatPanel& chatPanel,
                                              const std::function<void()>& saveCallback) {
 #ifdef WOWEE_SWITCH
-    if (showSettingsWindow && !settingsPopupOpen_ && !settingsEditing_ &&
-            ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) showSettingsWindow = false;
+    // WoWee handheld: NO gamepad-dismiss here. Any face button (A is the
+    // interact button and the most-pressed button in the game) closed the
+    // window the same frame it opened, which read as "Plus does nothing".
+    // Escape closes via the normal chain; Plus re-opens.
     platform::switchport::setInputMenuNavigation(platform::switchport::MenuOwner::Settings, showSettingsWindow);
 #endif
     if (!showSettingsWindow) {

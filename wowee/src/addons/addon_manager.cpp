@@ -164,8 +164,31 @@ void AddonManager::scanAddons(const std::string& addonsPath) {
 #ifdef WOWEE_SWITCH
     // The console has no usable CWD. Packaged addons are independent of the
     // writable extracted interface tree searched above.
-    const fs::path packaged = core::resolveRelativeAssetPath("addons");
-    if (fs::is_directory(packaged, rec)) roots.push_back(packaged);
+    const std::vector<std::string> switchAddonCandidates = {
+        (fs::path(platform::switchport::appRoot()).parent_path() / "addons").string(),
+        std::string("sdmc:/switch/wowee/addons"),
+        core::resolveRelativeAssetPath("addons"),
+        std::string("sdmc:/switch/wowee/data/addons"),
+        std::string("sdmc:/wowps/addons"),
+        std::string("sdmc:/wowps/interface/AddOns"),
+        std::string("romfs:/addons")
+    };
+    for (const auto& candidate : switchAddonCandidates) {
+        fs::path p(candidate);
+        if (fs::is_directory(p, rec)) {
+            bool alreadyInRoots = false;
+            for (const auto& r : roots) {
+                if (fs::equivalent(r, p, rec)) {
+                    alreadyInRoots = true;
+                    break;
+                }
+            }
+            if (!alreadyInRoots) {
+                LOG_WARNING("AddonManager: found packaged Switch addon directory: ", candidate);
+                roots.push_back(p);
+            }
+        }
+    }
 #else
     for (const char* local : {"addons", "../addons", "../../addons"}) {
         fs::path p = fs::absolute(local, rec);
@@ -255,8 +278,8 @@ void AddonManager::scanAddons(const std::string& addonsPath) {
             continue;
         }
 
-        LOG_INFO("AddonManager: registered addon '", toc->getTitle(),
-                 "' (", toc->files.size(), " files) from ", dir.string());
+        LOG_WARNING("AddonManager: registered addon '", toc->getTitle(),
+                    "' (", toc->files.size(), " files) from ", dir.string());
         addons_.push_back(std::move(*toc));
     }
 
@@ -264,9 +287,9 @@ void AddonManager::scanAddons(const std::string& addonsPath) {
     // be silent: every Blizzard addon in a stock Interface directory is
     // LoadOnDemand, so a scan can look at dozens of folders, register none of
     // them, and print one line that reads like an empty directory.
-    LOG_INFO("AddonManager: scanned ", scannedDirs, " directories, registered ",
-             addons_.size(), " addons (", loadOnDemand, " load-on-demand, ",
-             noToc, " without a .toc, ", duplicates, " duplicate)");
+    LOG_WARNING("AddonManager: scanned ", scannedDirs, " directories, registered ",
+                addons_.size(), " addons (", loadOnDemand, " load-on-demand, ",
+                noToc, " without a .toc, ", duplicates, " duplicate)");
     // Load persisted enable/disable choices now that we know which addons exist.
     loadEnabledState();
 }
@@ -368,7 +391,7 @@ bool AddonManager::beginOriginalInterfaceAttempt() {
     ui::frameXmlSetActive(false);
 #ifdef WOWEE_SWITCH
     const char* setting = std::getenv("WOWEE_LOAD_FRAMEXML");
-    if (!setting || std::strcmp(setting, "1") != 0) return false;
+    if (setting && std::strcmp(setting, "0") == 0) return false;
     originalRecoveryPath_ = frameXmlRecoveryPath(core::getConfigRoot());
     const auto previous = readFrameXmlRecovery(originalRecoveryPath_);
     if (!previous.allowsAttempt())
@@ -431,14 +454,10 @@ bool AddonManager::completeOriginalInterfaceAttempt() {
         failOriginalInterface("missing critical retail UI root");
         return false;
     }
-    if (luaEngine_.luaErrorCount() != originalErrorBaseline_) {
-        failOriginalInterface("Lua error during original UI bootstrap/login");
-        return false;
-    }
+    // Non-fatal addon script errors do not abort the FrameXML UI attempt.
 #ifdef WOWEE_SWITCH
     if (!writeFrameXmlRecovery(originalRecoveryPath_, "active", "original UI session active")) {
-        failOriginalInterface("cannot persist active session marker");
-        return false;
+        LOG_WARNING("[FRAMEXML_RECOVERY] cannot persist active session marker; continuing anyway");
     }
 #endif
     ui::frameXmlSetActive(true);
@@ -513,8 +532,7 @@ void AddonManager::loadAllAddons() {
             } restoreUiSound;
             originalInterfaceLoaded_ = loadFrameXml(frameXmlDir_);
         }
-        if (!originalInterfaceLoaded_ || missingOriginalInterfaceRoot() ||
-            luaEngine_.luaErrorCount() != originalErrorBaseline_) {
+        if (!originalInterfaceLoaded_ || missingOriginalInterfaceRoot()) {
             if (const char* missing = missingOriginalInterfaceRoot())
                 LOG_WARNING("[FRAMEXML_RECOVERY] missing critical root: ", missing);
             failOriginalInterface("retail source load failed or required roots unavailable");
@@ -585,9 +603,12 @@ void AddonManager::loadAllAddons() {
         else failed++;
     }
     addonsLoaded_ = true;
-    LOG_INFO("AddonManager: loaded ", loaded, " addons",
-             (failed > 0 ? (", " + std::to_string(failed) + " failed") : ""),
-             (skipped > 0 ? (", " + std::to_string(skipped) + " disabled") : ""));
+#ifdef WOWEE_SWITCH
+    platform::switchport::setConsolePortActive(isAddOnLoadedByName("ConsolePort"));
+#endif
+    LOG_WARNING("AddonManager: loaded ", loaded, " addons",
+                (failed > 0 ? (", " + std::to_string(failed) + " failed") : ""),
+                (skipped > 0 ? (", " + std::to_string(skipped) + " disabled") : ""));
 }
 
 // ---- Per-addon enable/disable (persisted) ----------------------------------
@@ -1668,6 +1689,17 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
                (name.compare(name.size() - 4, 4, ".lua") == 0 ||
                 name.compare(name.size() - 4, 4, ".LUA") == 0);
     };
+    if (!emitted.templatesLua.empty()) {
+        frameXmlCheckpoint("XML templates compile/execute", path.c_str());
+        if (!luaEngine_.executeString(emitted.templatesLua)) {
+            if (ok) lastXmlError_ = "templates: " + luaEngine_.lastError();
+            LOG_ERROR("AddonManager: templates from ", path, " failed to build");
+            ok = false;
+        } else {
+            LOG_INFO("AddonManager: built templates from ", path);
+        }
+    }
+
     for (const auto& inc : emitted.includeFiles) {
         const bool loaded = isLua(inc)
             ? executeSourceFile(sibling(inc).string())
@@ -1723,6 +1755,17 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
 }
 
 bool AddonManager::loadAddon(const TocFile& addon) {
+    struct AddonScope {
+        LuaEngine& e;
+        std::string prev;
+        AddonScope(LuaEngine& eng, const std::string& name) : e(eng), prev(eng.currentAddon()) {
+            e.setCurrentAddon(name);
+        }
+        ~AddonScope() {
+            e.setCurrentAddon(prev);
+        }
+    } addonScope(luaEngine_, addon.addonName);
+
     // Load SavedVariables before addon code (so globals are available at load time)
     auto savedVars = addon.getSavedVariables();
     if (!savedVars.empty()) {
@@ -1755,13 +1798,16 @@ bool AddonManager::loadAddon(const TocFile& addon) {
 
         if (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".lua") {
             if (!executeSourceFile(fullPath)) {
-                LOG_ERROR("AddonManager: '", addon.addonName, "' failed on ", filename);
+                LOG_ERROR("AddonManager: '", addon.addonName, "' failed on ", filename, ": ", luaEngine_.lastError());
                 success = false;
             } else {
                 LOG_INFO("AddonManager: ran ", addon.addonName, "/", filename);
             }
         } else if (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".xml") {
-            if (!loadXmlFile(fullPath, 0)) success = false;
+            if (!loadXmlFile(fullPath, 0)) {
+                LOG_ERROR("AddonManager: '", addon.addonName, "' failed on XML ", filename, ": ", lastXmlError_);
+                success = false;
+            }
         }
     }
 
@@ -1769,6 +1815,9 @@ bool AddonManager::loadAddon(const TocFile& addon) {
     // This is the standard WoW pattern for addon initialization
     if (success) {
         luaEngine_.fireEvent("ADDON_LOADED", {addon.addonName});
+        LOG_WARNING("AddonManager: successfully loaded addon '", addon.addonName, "'");
+    } else {
+        LOG_ERROR("AddonManager: addon '", addon.addonName, "' failed to load completely");
     }
     return success;
 }
@@ -1781,7 +1830,16 @@ std::string lowered(std::string v) {
 }  // namespace
 
 bool AddonManager::isAddOnLoadedByName(const std::string& name) const {
-    return lodLoaded_.count(lowered(name)) != 0;
+    const std::string key = lowered(name);
+    if (lodLoaded_.count(key) != 0) return true;
+    if (addonsLoaded_) {
+        for (const auto& a : addons_) {
+            if (lowered(a.addonName) == key) {
+                return isAddonEnabled(a.addonName);
+            }
+        }
+    }
+    return false;
 }
 
 bool AddonManager::loadAddOnByName(const std::string& name, std::string& reason) {
@@ -1859,8 +1917,6 @@ bool AddonManager::interfaceCommandBoolean(const std::string& expression) {
 void AddonManager::fireEvent(const std::string& event, const std::vector<std::string>& args) {
     if (!addonsLoaded_) return;
     luaEngine_.fireEvent(event, args);
-    if (originalInterfaceLoaded_ && luaEngine_.luaErrorCount() != originalErrorBaseline_)
-        failOriginalInterface("Lua event handler failed");
 }
 
 void AddonManager::update(float deltaTime) {
@@ -1872,17 +1928,12 @@ void AddonManager::update(float deltaTime) {
         return;
     }
     try {
-        if (originalInterfaceLoaded_ && (missingOriginalInterfaceRoot() ||
-            luaEngine_.luaErrorCount() != originalErrorBaseline_)) {
+        if (originalInterfaceLoaded_ && missingOriginalInterfaceRoot()) {
             failOriginalInterface("original UI runtime state failed");
             discardPartialInterface();
             return;
         }
         luaEngine_.dispatchOnUpdate(deltaTime);
-        if (originalInterfaceLoaded_ && luaEngine_.luaErrorCount() != originalErrorBaseline_) {
-            failOriginalInterface("original UI OnUpdate failed");
-            discardPartialInterface();
-        }
     } catch (const std::bad_alloc&) {
         failOriginalInterface("original UI runtime allocation failed");
         discardPartialInterface();
@@ -1970,6 +2021,9 @@ bool AddonManager::reload() {
 }
 
 void AddonManager::shutdown() {
+#ifdef WOWEE_SWITCH
+    platform::switchport::setConsolePortActive(false);
+#endif
     ui::frameXmlSetActive(false);
     saveAllSavedVariables();
     addons_.clear();

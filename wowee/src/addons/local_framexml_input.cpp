@@ -93,6 +93,12 @@ void drawPadFocus(const ui::Widget& w,ui::WidgetTree& tree,float uiScale,float d
 }
 }
 void LocalFrameXml::publishPadCursor() {
+#ifdef WOWEE_SWITCH
+    if (platform::switchport::consolePortActive()) {
+        ui::frameXmlClearPadCursorAnchor();
+        return;
+    }
+#endif
     if(!engine_){ui::frameXmlClearPadCursorAnchor();return;}
     auto& tree=engine_->widgets();
     // The bar lane wins where both have a selection: it is the explicit one -
@@ -400,6 +406,7 @@ bool LocalFrameXml::padMicroMenuLane() {
 
 bool LocalFrameXml::navigateBars() {
 #ifdef WOWEE_SWITCH
+    if (platform::switchport::consolePortActive()) return false;
     // Wherever this leaves the selection, that is where the carried icon is
     // drawn. A guard rather than a line before each of the seven returns.
     struct Anchor{LocalFrameXml* self;~Anchor(){self->publishPadCursor();}}anchor{this};
@@ -600,8 +607,16 @@ bool LocalFrameXml::toggleGameMenu() {
     return engine_->executeString(ui::kToggleLocalGameMenuLua);
 }
 
-bool LocalFrameXml::panelOpen() const {return panelTreeLive() && panel(engine_->widgets());}
+bool LocalFrameXml::panelOpen() const {
+#ifdef WOWEE_SWITCH
+    if (platform::switchport::consolePortActive()) return false;
+#endif
+    return panelTreeLive() && panel(engine_->widgets());
+}
 bool LocalFrameXml::navigate() {
+#ifdef WOWEE_SWITCH
+    if (platform::switchport::consolePortActive()) return false;
+#endif
     // Same guard as the bar lane: every exit leaves the carried icon where the
     // focus ended up, and there are a dozen of them.
     struct Anchor{LocalFrameXml* self;~Anchor(){self->publishPadCursor();}}anchor{this};

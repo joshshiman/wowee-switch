@@ -115,16 +115,25 @@ void Application::renderLocalRealmOverlay() {
         return distanceTo(self, *a) < distanceTo(self, *b);
     });
     bool toggleTarget=pressed(ImGuiKey_Tab);
+    // WoWee handheld: L1 carries Y's old job (target + act, ordered) while Y
+    // itself is now auto-attack only. Triangle no longer toggles here (Tab
+    // still does); the act runs only for a fresh pad selection, never for a
+    // clear and never for Tab.
+    bool padTargetAct = false;
 #ifdef WOWEE_SWITCH
     const auto& targetPad=platform::switchport::padSnapshot();
-    if(keys && localFrameXml_.ready() && targetPad.connected &&
-       !platform::switchport::inputTextFocus() && !platform::switchport::keyboardCapturesInput() && (targetPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE))toggleTarget=true;
+    const bool padShoulderTarget = keys && localFrameXml_.ready() && targetPad.connected &&
+       !platform::switchport::inputTextFocus() && !platform::switchport::keyboardCapturesInput() && (targetPad.pressed&ORBIS_PAD_BUTTON_L1);
+    if (padShoulderTarget) toggleTarget=true;
 #endif
     if(toggleTarget && !self.dead){
         const auto next=ui::toggledLocalTarget(localRealmTarget_,game::nearestLivingLocalTarget(self,npcs));
         if(!next){localRealm_->stopAttack();if(gameHandler)gameHandler->clearFocus();}
         select(next);
         LOG_INFO("[PAD_TARGET] ",next?"selected nearest target":"cleared target");
+#ifdef WOWEE_SWITCH
+        if (padShoulderTarget && next) padTargetAct=true;
+#endif
     }
     auto interactWith = [&](const game::LocalRealmNpc& npc) {
         if (self.dead) return;
@@ -171,11 +180,18 @@ void Application::renderLocalRealmOverlay() {
     const auto* actionTarget = target();
     const bool mailboxOwnsAction = !actionTarget || actionTarget->dead || !actionTarget->hostile;
     const auto* nearbyObject=localRealm_->nearbyGameObject();
-    if(keys && !self.dead && !self.vehicleGuid && mailboxOwnsAction && nearbyObject) {
+    // WoWee handheld: hints follow the action (see Square gate below) - X is
+    // jump-only while ConsolePort owns the pad.
+#ifdef WOWEE_SWITCH
+    const bool squareActs = !platform::switchport::consolePortActive();
+#else
+    const bool squareActs = true;
+#endif
+    if(keys && !self.dead && !self.vehicleGuid && mailboxOwnsAction && nearbyObject && squareActs) {
         const auto prompt="Square / 4: "+nearbyObject->name;
         ImGui::GetForegroundDrawList()->AddText(ImVec2(24.f,io.DisplaySize.y*.58f),IM_COL32(255,220,130,255),prompt.c_str());
     }
-    if(keys && !self.dead && !self.vehicleGuid && !nearbyObject && mailboxOwnsAction && game::nearbyLocalMailbox(content,self))
+    if(keys && !self.dead && !self.vehicleGuid && !nearbyObject && mailboxOwnsAction && game::nearbyLocalMailbox(content,self) && squareActs)
         ImGui::GetForegroundDrawList()->AddText(ImVec2(24.f,io.DisplaySize.y*.58f),IM_COL32(255,220,130,255),"Square: Mailbox");
     const game::LocalRealmNpc* vehicle=nullptr;
     for(const auto& npc:npcs)if(npc.guid==self.vehicleGuid){vehicle=&npc;break;}
@@ -262,6 +278,11 @@ void Application::renderLocalRealmOverlay() {
         if (contextual && npc && (npc->dead || !npc->hostile)) interactWith(*npc);
         else localRealm_->attack(localRealmTarget_);
     };
+#ifdef WOWEE_SWITCH
+    // L-press follow-through, set above: act on the just-selected target so
+    // target + talk/loot/attack land in one press, in order.
+    if (padTargetAct) primaryAction(true);
+#endif
     const auto selectedSpell=[&](bool heal) -> const game::LocalSpellDefinition* {
         const game::LocalSpellDefinition* unavailable=nullptr;
         for(auto id:self.knownSpells) {
@@ -312,8 +333,38 @@ void Application::renderLocalRealmOverlay() {
     if(keys && (localFrameXml_.ready() || self.vehicleGuid) && !localFrameXml_.padBarFocused() && actionPad.connected &&
        !platform::switchport::keyboardCapturesInput() && (actionPad.pressed&ORBIS_PAD_BUTTON_SQUARE) &&
        !platform::switchport::inputTextFocus() &&
+#ifdef WOWEE_SWITCH
+       // WoWee handheld: X is jump-only while ConsolePort owns the pad.
+       // Without this, every X press fires both the local contextual action
+       // (talk/loot/attack) and the CP jump. Vehicle/modifier Square and the
+       // keyboard path below are untouched.
+       !platform::switchport::consolePortActive() &&
+#endif
        (!self.vehicleGuid || !(actionPad.buttons&(ORBIS_PAD_BUTTON_L1|ORBIS_PAD_BUTTON_R1|ORBIS_PAD_BUTTON_L2|ORBIS_PAD_BUTTON_R2))) &&
        !(actionPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE) && !ui::interfaceConsumedKey(ImGuiKey_GamepadFaceLeft))primaryAction(true);
+#endif
+#ifdef WOWEE_SWITCH
+    // WoWee handheld: A (Cross) loots - tap only, never modified, never with
+    // a panel open (menus own A as pure mouse). Target corpse first, else the
+    // nearest lootable corpse; the realm validates range and says so when far.
+    if (keys && !self.dead && !self.vehicleGuid && !panelsOpen && actionPad.connected &&
+        !platform::switchport::keyboardCapturesInput() && !platform::switchport::inputTextFocus() &&
+        (actionPad.pressed&ORBIS_PAD_BUTTON_CROSS) &&
+        !(actionPad.buttons&(ORBIS_PAD_BUTTON_L1|ORBIS_PAD_BUTTON_R1|ORBIS_PAD_BUTTON_L2|ORBIS_PAD_BUTTON_R2))) {
+        const game::LocalRealmNpc* corpse = nullptr;
+        if (const auto* t = target()) {
+            if (t->dead && t->lootable) corpse = t;
+        }
+        if (!corpse) {
+            for (const auto* candidate : nearby) {
+                if (candidate->dead && candidate->lootable) { corpse = candidate; break; }
+            }
+        }
+        if (corpse) {
+            localRealm_->loot(corpse->guid);
+            LOG_WARNING("[WOWEE_ACT] loot (A) guid=", corpse->guid);
+        }
+    }
 #endif
     if (!self.vehicleGuid && pressed(ImGuiKey_1)
 #ifdef WOWEE_SWITCH

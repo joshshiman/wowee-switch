@@ -28,6 +28,7 @@
 #include "addons/lua_api_registrations.hpp"
 #include "addons/toc_parser.hpp"
 #include "core/window.hpp"
+#include "core/input.hpp"
 #include <imgui.h>
 #include <fstream>
 #include "core/app_clock.hpp"
@@ -4104,6 +4105,8 @@ void populateRegionMethods(lua_State* L, bool isTexture, bool isFontString) {
         set("SetTexCoord", lua_Texture_SetTexCoord);
         set("SetBlendMode", lua_Texture_SetBlendMode);
         set("GetBlendMode", lua_Texture_GetBlendMode);
+        set("SetGradientAlpha", [](lua_State*) -> int { return 0; });
+        set("SetGradient", [](lua_State*) -> int { return 0; });
     }
     if (isFontString) {
         set("GetFont", lua_FontString_GetFont);
@@ -5331,6 +5334,8 @@ static int lua_CreateFrame(lua_State* L) {
 
     // Create the frame table
     lua_newtable(L);
+    lua_newuserdata(L, 1);
+    lua_rawseti(L, -2, 0);
 
     // Record the parent table, not only the widget id. GetParent() is
     // everywhere in FrameXML - a nested button's OnLoad opens with
@@ -6363,6 +6368,11 @@ void LuaEngine::registerCoreAPI() {
         "function animMeta:SetSmoothing(s) self.smoothing = s end\n"
         "function animMeta:SetScale(x, y) self.scaleX, self.scaleY = x, y end\n"
         "function animMeta:SetDegrees(d) self.degrees = d end\n"
+        "function animMeta:GetDegrees() return self.degrees or 0 end\n"
+        "function animMeta:SetRadians(r) self.radians = r end\n"
+        "function animMeta:GetRadians() return self.radians or 0 end\n"
+        "function animMeta:SetOrigin(point, x, y) self.originPoint, self.originX, self.originY = point, x, y end\n"
+        "function animMeta:GetOrigin() return self.originPoint or 'CENTER', self.originX or 0, self.originY or 0 end\n"
         "function animMeta:GetProgress() return self.progress or 0 end\n"
         // The same progress with the animation's own easing applied, which is
         // what anything driving a value off an animation actually wants.
@@ -6418,6 +6428,15 @@ void LuaEngine::registerCoreAPI() {
         "function animMeta:GetOrder() return self.order or 1 end\n"
         "function animMeta:SetScript(k, f) self[k] = f end\n"
         "function animMeta:GetScript(k) return self[k] end\n"
+        "function animMeta:HasScript(s)\n"
+        "    if type(s) ~= 'string' then return false end\n"
+        "    local l = s:lower()\n"
+        "    return l == 'onplay' or l == 'onpause' or l == 'onstop' or l == 'onfinished' or l == 'onload' or l == 'onupdate'\n"
+        "end\n"
+        "function animMeta:HookScript(k, f)\n"
+        "    local prev = self[k]\n"
+        "    self[k] = function(...) if prev then prev(...) end f(...) end\n"
+        "end\n"
 
         "local groupMeta = {}\n"
         "groupMeta.__index = groupMeta\n"
@@ -6435,6 +6454,11 @@ void LuaEngine::registerCoreAPI() {
         "function groupMeta:IsDone() return self.isPlaying ~= true end\n"
         "function groupMeta:SetScript(k, f) self[k] = f end\n"
         "function groupMeta:GetScript(k) return self[k] end\n"
+        "function groupMeta:HasScript(s)\n"
+        "    if type(s) ~= 'string' then return false end\n"
+        "    local l = s:lower()\n"
+        "    return l == 'onplay' or l == 'onpause' or l == 'onstop' or l == 'onfinished' or l == 'onload' or l == 'onupdate'\n"
+        "end\n"
         "function groupMeta:HookScript(k, f)\n"
         "    local prev = self[k]\n"
         "    self[k] = function(...) if prev then prev(...) end f(...) end\n"
@@ -6479,6 +6503,15 @@ void LuaEngine::registerCoreAPI() {
         "end\n"
         "function groupMeta:Pause() self.paused = true end\n"
         "function groupMeta:Resume() self.paused = nil end\n"
+        "local function animNoop() end\n"
+        "setmetatable(animMeta, { __index = function(t, k)\n"
+        "    if type(k) == 'string' and k:match('^[A-Z]') then return animNoop end\n"
+        "    return nil\n"
+        "end })\n"
+        "setmetatable(groupMeta, { __index = function(t, k)\n"
+        "    if type(k) == 'string' and k:match('^[A-Z]') then return animNoop end\n"
+        "    return nil\n"
+        "end })\n"
 
         // Stop every group on this frame at once. A frame method rather than a
         // group one, and the only animation call FrameXML makes without
@@ -6699,10 +6732,14 @@ void LuaEngine::registerCoreAPI() {
         "    self:SetText(ok and out or fmt)\n"
         "end\n"
         "function mt:SetAttribute(name, value)\n"
-        "    self.__attributes = self.__attributes or {}\n"
-        "    self.__attributes[name] = value\n"
-        "    local handler = self.__scripts and self.__scripts.OnAttributeChanged\n"
-        "    if handler then handler(self, name, value) end\n"
+        "    if not name then return end\n"
+        "    name = tostring(name)\n"
+        "    local at = rawget(self, '__attributes')\n"
+        "    if not at then at = {}; rawset(self, '__attributes', at) end\n"
+        "    at[name] = value\n"
+        "    local s = rawget(self, '__scripts')\n"
+        "    local handler = s and s.OnAttributeChanged\n"
+        "    if handler then pcall(handler, self, name, value) end\n"
         "end\n"
         // The three-argument form names one attribute in pieces, and falls
         // back to the bare name when no piece-specific value was set - which
@@ -6722,9 +6759,34 @@ void LuaEngine::registerCoreAPI() {
         //
         // The order is the client's: most specific first, the bare name last.
         "function mt:GetAttribute(a, b, c)\n"
-        "    if not self.__attributes then return nil end\n"
-        "    if b == nil then return self.__attributes[a] end\n"
-        "    local at = self.__attributes\n"
+        "    local at = rawget(self, '__attributes')\n"
+        // A secure handle is not the frame but Blizzard's surrogate for it:
+        // RestrictedFrames builds {[0] = frame[0], [1] = frame} with the
+        // frame's metatable, so every restricted self:GetAttribute lands here
+        // with self = the surrogate. Its own __attributes is empty by
+        // construction, and without the step below every restricted read
+        // answers nil - which is exactly what "Invalid function body" was:
+        // RunFor bodies fetched via self:GetAttribute arrived nil, killing
+        // every wrapped click and drag (bar buttons, ring, drops) while the
+        // insecure reads of the same attributes worked all along. Real frames
+        // never use index [1], so the fallback only ever fires on surrogates.
+        "    if not at then\n"
+        "        local inner = rawget(self, 1)\n"
+        "        if type(inner) == 'table' then at = rawget(inner, '__attributes') end\n"
+        // Breadcrumb for the surrogate question: count fallback uses on the
+        // inner frame (plain field reads, no metamethods). An insecure probe
+        // can read w.__woweeFallbackHits straight off the frame, which says
+        // whether this path runs at all, in any environment - restricted code
+        // cannot reach __WoweeWarn (not in its env), so the counter is the
+        // only witness that survives. Temporary; remove with the debug round.
+        "        if type(inner) == 'table' then\n"
+        "            local hits = rawget(inner, '__woweeFallbackHits') or 0\n"
+        "            rawset(inner, '__woweeFallbackHits', hits + 1)\n"
+        "            rawset(inner, '__woweeFallbackInnerAt', at ~= nil)\n"
+        "        end\n"
+        "    end\n"
+        "    if not at then return nil end\n"
+        "    if b == nil then return at[a] end\n"
         "    local p, s = a or '', c or ''\n"
         "    local v = at[p .. b .. s]\n"
         "    if v == nil then v = at['*' .. b .. s] end\n"
@@ -6732,6 +6794,57 @@ void LuaEngine::registerCoreAPI() {
         "    if v == nil then v = at['*' .. b .. '*'] end\n"
         "    if v == nil then v = at[b] end\n"
         "    return v\n"
+        "end\n"
+        "mt[0] = (newproxy and newproxy()) or nil\n"
+        "function mt:IsProtected() return true, true end\n"
+        "local __wowee_valid_scripts = {\n"
+        "    onload=1, onunload=1, onevent=1, onupdate=1, onshow=1, onhide=1,\n"
+        "    onenter=1, onleave=1, onmousedown=1, onmouseup=1, onmousewheel=1,\n"
+        "    onclick=1, ondoubleclick=1, ondragstart=1, ondragstop=1,\n"
+        "    onreceivedrag=1, onchar=1, onkeydown=1, onkeyup=1,\n"
+        "    onvaluechanged=1, onsizechanged=1, onattributechanged=1,\n"
+        "    preclick=1, postclick=1, onenable=1, ondisable=1,\n"
+        "    ontextchanged=1, onspacepressed=1, onenterpressed=1,\n"
+        "    onescapepressed=1, ontabpressed=1, oneditfocusgained=1,\n"
+        "    oneditfocuslost=1, onverticalscroll=1, onhorizontalscroll=1,\n"
+        "    onscrollrangechanged=1, oncursorchanged=1, oninputlanguagechanged=1,\n"
+        "    onhyperlinkclick=1, onhyperlinkenter=1, onhyperlinkleave=1,\n"
+        "    onmessage=1, onmovieunpacking=1, onmoviefinished=1,\n"
+        "    onmoviestarted=1, oncolorselect=1, onmodelshadingchanged=1,\n"
+        "    onanimfinished=1, onplay=1, onpause=1, onstop=1, onfinished=1\n"
+        "}\n"
+        "function mt:HasScript(script)\n"
+        "    if type(script) ~= 'string' then return false end\n"
+        "    return __wowee_valid_scripts[script:lower()] ~= nil\n"
+        "end\n"
+        "function mt:SetFrameRef(label, ref)\n"
+        "    if not label or not ref then return end\n"
+        "    label = tostring(label)\n"
+        "    local store = rawget(self, '__framerefs')\n"
+        "    if not store then store = {}; rawset(self, '__framerefs', store) end\n"
+        "    store[label] = ref\n"
+        "    local handle = (GetFrameHandle and GetFrameHandle(ref, true)) or ref\n"
+        "    if self.SetAttribute then self:SetAttribute('frameref-' .. label, handle) end\n"
+        "    if SecureHandlerSetFrameRef then pcall(SecureHandlerSetFrameRef, self, label, ref) end\n"
+        "end\n"
+        "function mt:GetFrameRef(label)\n"
+        "    local store = rawget(self, '__framerefs')\n"
+        "    if store and store[label] then return store[label] end\n"
+        "    local h = self.GetAttribute and self:GetAttribute('frameref-' .. label)\n"
+        "    if h then\n"
+        "        if GetFrameHandleFrame then local f = GetFrameHandleFrame(h); if f then return f end end\n"
+        "        return h\n"
+        "    end\n"
+        "    return nil\n"
+        "end\n"
+        "function mt:Execute(body)\n"
+        "    if SecureHandlerExecute then return SecureHandlerExecute(self, body) end\n"
+        "end\n"
+        "function mt:WrapScript(frame, script, preBody, postBody)\n"
+        "    if SecureHandlerWrapScript then return SecureHandlerWrapScript(frame, script, self, preBody, postBody) end\n"
+        "end\n"
+        "function mt:UnwrapScript(frame, script)\n"
+        "    if SecureHandlerUnwrapScript then return SecureHandlerUnwrapScript(frame, script) end\n"
         "end\n"
         // A scroll frame's content frame.
         // Nothing to scroll until the tree has been laid out, and zero is the
@@ -6907,6 +7020,7 @@ void LuaEngine::registerCoreAPI() {
         "RemoveMessagesByAccessID=1,ReplaceIconTexture=1,Reset=1,Reuse=1,Run=1,\n"
         "RunAttribute=1,RunFor=1,Save=1,ScrollDown=1,ScrollToBottom=1,ScrollUp=1,\n"
         "SelectWindow=1,SetAction=1,SetAllPoints=1,SetAlpha=1,SetAlphaGradient=1,\n"
+        "SetGradient=1,SetGradientAlpha=1,\n"
         "SetAnchorType=1,SetAttribute=1,SetBackdrop=1,\n"
         "SetBackdropBorderColor=1,SetBackdropColor=1,SetBagItem=1,SetBinding=1,\n"
         "SetBindingClick=1,SetBindingItem=1,SetBindingMacro=1,SetBindingSpell=1,\n"
@@ -8415,12 +8529,65 @@ void LuaEngine::registerCoreAPI() {
         "    frame.offset = math.floor(value / (itemHeight or 1) + 0.5)\n"
         "    if updateFunction then updateFunction() end\n"
         "end\n"
-        // SecureCmdOptionParse - parses conditional macros like [target=focus]
+        // SecureCmdOptionParse - parses conditional macros like [combat][nocombat] show; hide
         "function SecureCmdOptionParse(options)\n"
-        "    if not options then return nil end\n"
-        "    -- Simple: return the unconditional fallback (text after last semicolon or the whole string)\n"
-        "    local result = options:match(';%s*(.-)$') or options:match('^%[.*%]%s*(.-)$') or options\n"
-        "    return result\n"
+        "    if not options or options == '' then return nil end\n"
+        "    for clause in options:gmatch('([^;]+)') do\n"
+        "        clause = clause:match('^%s*(.-)%s*$')\n"
+        "        if clause and clause ~= '' then\n"
+        "            if not clause:find('%[') then\n"
+        "                return clause\n"
+        "            end\n"
+        "            local action = clause:match('^.*%]%s*(.-)$') or ''\n"
+        "            local anyGroupMatched = false\n"
+        "            for group in clause:gmatch('%[([^%]]*)%]') do\n"
+        "                local groupPass = true\n"
+        "                for cond in group:gmatch('([^,]+)') do\n"
+        "                    cond = cond:match('^%s*(.-)%s*$')\n"
+        "                    if cond ~= '' then\n"
+        "                        local pass = false\n"
+        "                        if cond == 'combat' then\n"
+        "                            pass = InCombatLockdown and InCombatLockdown()\n"
+        "                        elseif cond == 'nocombat' then\n"
+        "                            pass = not (InCombatLockdown and InCombatLockdown())\n"
+        "                        elseif cond == 'pet' then\n"
+        "                            pass = (HasPetUI and HasPetUI()) or (UnitExists and UnitExists('pet'))\n"
+        "                        elseif cond == 'nopet' then\n"
+        "                            pass = not ((HasPetUI and HasPetUI()) or (UnitExists and UnitExists('pet')))\n"
+        "                        elseif cond:match('^mod:shift') then\n"
+        "                            pass = IsShiftKeyDown and IsShiftKeyDown()\n"
+        "                        elseif cond:match('^mod:ctrl') then\n"
+        "                            pass = IsControlKeyDown and IsControlKeyDown()\n"
+        "                        elseif cond:match('^mod:alt') then\n"
+        "                            pass = IsAltKeyDown and IsAltKeyDown()\n"
+        "                        elseif cond:match('^nomod') then\n"
+        "                            pass = not (IsModifierKeyDown and IsModifierKeyDown())\n"
+        "                        elseif cond:match('^bonusbar:(%d+)') then\n"
+        "                            local b = tonumber(cond:match('^bonusbar:(%d+)'))\n"
+        "                            pass = (GetBonusBarOffset and GetBonusBarOffset() == b)\n"
+        "                        elseif cond:match('^bar:(%d+)') or cond:match('^actionbar:(%d+)') then\n"
+        "                            local b = tonumber(cond:match('(%d+)'))\n"
+        "                            pass = (GetActionBarPage and GetActionBarPage() == b)\n"
+        "                        else\n"
+        "                            pass = true\n"
+        "                        end\n"
+        "                        if not pass then\n"
+        "                            groupPass = false\n"
+        "                            break\n"
+        "                        end\n"
+        "                    end\n"
+        "                end\n"
+        "                if groupPass then\n"
+        "                    anyGroupMatched = true\n"
+        "                    break\n"
+        "                end\n"
+        "            end\n"
+        "            if anyGroupMatched then\n"
+        "                return action\n"
+        "            end\n"
+        "        end\n"
+        "    end\n"
+        "    return nil\n"
         "end\n"
         // ChatFrame message group stubs
         "function ChatFrame_AddMessageGroup(frame, group) end\n"
@@ -9847,16 +10014,426 @@ std::string LuaEngine::bindingCommandFor(int sdlKeycode, bool shift, bool ctrl,
 bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                                    bool alt, bool down) {
     if (!L_) return false;
-    const std::string command = bindingCommandFor(sdlKeycode, shift, ctrl, alt);
-    if (command.empty()) return false;
+    std::string command = bindingCommandFor(sdlKeycode, shift, ctrl, alt);
+    // F11/F12 with no binding at all still open the handheld panels: without
+    // an override GetBindingAction answers "" (or the raw CP_X_* pad name),
+    // and the key would read as dead. Minus is the utility ring, Plus is the
+    // game menu - the two doors to the spellbook, bags, character and map.
+    if (command.empty() || command == "CP_X_LEFT" || command == "CP_X_RIGHT") {
+        const std::string raw = wowKeyName(sdlKeycode);
+        if (raw == "F11") command = "CP_X_LEFT";
+        else if (raw == "F12") command = "CP_X_RIGHT";
+        else if (command.empty()) return false;
+    }
+
+    // F-key trace: which pad button became which command and what answered.
+    // Gated to F1..F12 - movement and typing never reach this line, so the
+    // volume stays at one line per pad press. Remove once the handheld map
+    // is settled; it exists to answer "what does X do" without a debugger.
+    const std::string traceRaw = wowKeyName(sdlKeycode);
+    const bool traceKey = traceRaw.size() >= 2 && traceRaw[0] == 'F';
+    const char* outcome = "unhandled";
+    // 1. CLICK FrameName:MouseButton commands (e.g. CLICK ConsolePortUtilityToggle:LeftButton)
+    if (command.rfind("CLICK ", 0) == 0) {
+        std::string rest = command.substr(6);
+        std::string frameName = rest;
+        std::string mouseBtn = "LeftButton";
+        size_t colon = rest.find(':');
+        if (colon != std::string::npos) {
+            frameName = rest.substr(0, colon);
+            mouseBtn = rest.substr(colon + 1);
+            if (mouseBtn.empty()) mouseBtn = "LeftButton";
+        }
+        if (!frameName.empty()) {
+            lua_getglobal(L_, frameName.c_str());
+            if (lua_istable(L_, -1)) {
+                lua_getfield(L_, -1, "Click");
+                if (lua_isfunction(L_, -1)) {
+                    lua_pushvalue(L_, -2); // self
+                    lua_pushstring(L_, mouseBtn.c_str());
+                    lua_pushboolean(L_, down ? 1 : 0);
+                    if (lua_pcall(L_, 3, 0, 0) != 0) {
+                        LOG_WARNING("CLICK ", frameName, " failed: ", lua_tostring(L_, -1));
+                        lua_pop(L_, 1);
+                    }
+                } else {
+                    lua_pop(L_, 1);
+                }
+                lua_pop(L_, 1); // frame table
+                outcome = "click";
+                if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+                return true;
+            }
+            lua_pop(L_, 1);
+        }
+    }
+
+    // 2. Explicit JUMP binding (e.g. X button in ConsolePort handheld map)
+    if (command == "JUMP") {
+        outcome = "jump";
+        core::Input::getInstance().setVirtualKey(SDL_SCANCODE_SPACE, down);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+
+    // 2b. Bag toggle (e.g. B button in ConsolePort handheld map).
+    // OpenAllBags is 3.3.5's own toggle-all name.
+    if (command == "OPENALLBAGS") {
+        outcome = "bags";
+        if (down) {
+            lua_getglobal(L_, "OpenAllBags");
+            if (lua_isfunction(L_, -1)) {
+                if (lua_pcall(L_, 0, 0, 0) != 0) {
+                    LOG_WARNING("OPENALLBAGS failed: ", lua_tostring(L_, -1));
+                    lua_pop(L_, 1);
+                }
+            } else {
+                lua_pop(L_, 1);
+            }
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+
+    // 2c. Interact (A button, handheld map). Operator directive: A always
+    // does something. Order: cursor on a bar slot -> that slot; live target
+    // -> right-click semantics on it; no target -> acquire nearest enemy and
+    // attack it; nothing found -> logged, never silent.
+    if (command == "INTERACTTARGET") {
+        outcome = "interact";
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                std::string how = "none";
+                // 1. Cursor over a bar action slot: activate that slot. This
+                // is "A on a button slot" - tap, no hold/drag needed.
+                if (lastMouseHit_ != 0) {
+                    if (const ui::Widget* w = widgets_.get(lastMouseHit_)) {
+                        if (w->name.rfind("CPB_", 0) == 0) {
+                            lua_getglobal(L_, w->name.c_str());
+                            if (lua_istable(L_, -1)) {
+                                lua_getfield(L_, -1, "GetAttribute");
+                                if (lua_isfunction(L_, -1)) {
+                                    lua_pushvalue(L_, -2);
+                                    lua_pushstring(L_, "type");
+                                    if (lua_pcall(L_, 2, 1, 0) == 0) {
+                                        const char* t = lua_tostring(L_, -1);
+                                        lua_pop(L_, 1);
+                                        if (t && std::string(t) == "action") {
+                                            lua_getfield(L_, -1, "GetAttribute");
+                                            if (lua_isfunction(L_, -1)) {
+                                                lua_pushvalue(L_, -2);
+                                                lua_pushstring(L_, "action");
+                                                if (lua_pcall(L_, 2, 1, 0) == 0 &&
+                                                    lua_isnumber(L_, -1)) {
+                                                    const int slot = static_cast<int>(lua_tonumber(L_, -1));
+                                                    lua_pop(L_, 1);
+                                                    if (slot >= 1 && slot <= 120) {
+                                                        lua_getglobal(L_, "UseAction");
+                                                        if (lua_isfunction(L_, -1)) {
+                                                            lua_pushinteger(L_, slot);
+                                                            lua_pcall(L_, 1, 0, 0);
+                                                        } else {
+                                                            lua_pop(L_, 1);
+                                                        }
+                                                        how = std::string("slot ") + std::to_string(slot);
+                                                    }
+                                                } else {
+                                                    lua_pop(L_, 1);
+                                                }
+                                            } else {
+                                                lua_pop(L_, 1);
+                                            }
+                                        }
+                                    } else {
+                                        lua_pop(L_, 1);
+                                    }
+                                } else {
+                                    lua_pop(L_, 1);
+                                }
+                                lua_pop(L_, 1); // frame table
+                            }
+                        }
+                    }
+                }
+                // 2-3. Local realm: mirror the local pad lambda (X behavior).
+                // The remote gh methods below are packets/handlers for a
+                // server; locally the realm sim + UI own talk/loot/attack.
+                if (how == "none") {
+                    if (auto* realm = gh->localServiceRealm()) {
+                        uint64_t guid = gh->hasTarget() ? gh->getTargetGuid() : 0;
+                        const game::LocalRealmNpc* npc = nullptr;
+                        if (guid) {
+                            for (const auto& n : realm->npcs()) {
+                                if (n.guid == guid) { npc = &n; break; }
+                            }
+                        }
+                        if (!npc) {
+                            // No (valid) target: nearest talkable-or-lootable
+                            // within talk range, exactly like the pad lambda.
+                            const auto* self = realm->localPlayer();
+                            if (self && !self->dead) {
+                                double best = 64.0;
+                                for (const auto& n : realm->npcs()) {
+                                    if (n.mapId != self->mapId || n.instanceId != self->instanceId) continue;
+                                    if (!((!n.hostile && !n.dead) || n.lootable)) continue;
+                                    const double dx = self->x - n.x;
+                                    const double dy = self->y - n.y;
+                                    const double dz = self->z - n.z;
+                                    const double d2 = dx * dx + dy * dy + dz * dz;
+                                    if (d2 <= best) { best = d2; npc = &n; }
+                                }
+                            }
+                        }
+                        if (npc) {
+                            if (npc->dead) {
+                                realm->loot(npc->guid);
+                                how = "loot";
+                            } else if (!npc->hostile) {
+                                how = gh->requestLocalDialogue(npc->guid) ? "talk" : "talk-failed";
+                            } else {
+                                realm->attack(npc->guid);
+                                how = "attack";
+                            }
+                        } else {
+                            // Parity with X-local: attack current (maybe 0) so
+                            // the realm's own reject ("Choose a living enemy")
+                            // surfaces instead of silence.
+                            realm->attack(guid);
+                            how = guid ? "attack" : "attack-no-target";
+                        }
+                    }
+                }
+                // 2. Live target: right-click semantics (remote realm).
+                if (how == "none" && gh->hasTarget() && !gh->localServiceRealm()) {
+                    auto target = gh->getTarget();
+                    if (target) {
+                        if (target->getType() == game::ObjectType::GAMEOBJECT) {
+                            gh->interactWithGameObject(target->getGuid());
+                            how = "object";
+                        } else if (target->getType() == game::ObjectType::UNIT ||
+                                   target->getType() == game::ObjectType::PLAYER) {
+                            auto unit = std::static_pointer_cast<game::Unit>(target);
+                            if (unit->getHealth() == 0 && unit->getMaxHealth() > 0) {
+                                gh->lootTarget(target->getGuid());
+                                how = "loot";
+                            } else if (!unit->isHostile() && unit->isInteractable()) {
+                                gh->interactWithNpc(target->getGuid());
+                                how = "talk";
+                            } else if (unit->isHostile() || !unit->isInteractable()) {
+                                gh->startAutoAttack(target->getGuid());
+                                how = "attack";
+                            }
+                        }
+                    }
+                }
+                // 3. No target acquire (remote realm only; local is covered
+                // above - these handlers have no local branch).
+                if (how == "none" && !gh->localServiceRealm()) {
+                    gh->targetEnemy(false);
+                    if (gh->hasTarget()) {
+                        auto target = gh->getTarget();
+                        if (target) {
+                            gh->startAutoAttack(target->getGuid());
+                            how = "acquire+attack";
+                        }
+                    }
+                }
+                if (how == "none" && !gh->localServiceRealm()) {
+                    gh->targetFriend(false);
+                    if (gh->hasTarget()) {
+                        auto target = gh->getTarget();
+                        if (target && (target->getType() == game::ObjectType::UNIT ||
+                                       target->getType() == game::ObjectType::PLAYER)) {
+                            auto unit = std::static_pointer_cast<game::Unit>(target);
+                            if (!unit->isHostile() && unit->isInteractable()) {
+                                // Five yards is the server's INTERACTION_DISTANCE;
+                                // beyond it the hello fails silently, so say so.
+                                bool inRange = true;
+                                auto npc = gh->getEntityManager().getEntity(target->getGuid());
+                                auto player = gh->getEntityManager().getEntity(gh->getPlayerGuid());
+                                if (npc && player) {
+                                    const float dx = player->getX() - npc->getX();
+                                    const float dy = player->getY() - npc->getY();
+                                    const float dz = player->getZ() - npc->getZ();
+                                    inRange = (dx * dx + dy * dy + dz * dz) <= 25.0f;
+                                }
+                                if (inRange) {
+                                    gh->interactWithNpc(target->getGuid());
+                                    how = "acquire+talk";
+                                } else {
+                                    how = "friendly-too-far";
+                                }
+                            } else {
+                                how = "acquire-unusable";
+                            }
+                        }
+                    }
+                }
+                if (how == "none") how = "nothing-nearby";
+                LOG_WARNING("[WOWEE_ACT] interact -> ", how);
+            }
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+
+    // 2d. Panel toggles the client would otherwise swallow. These sit in
+    // clientActsOnBinding (the client answers them on ITS keys - Escape,
+    // Enter, Numlock), so without explicit cases a pad key bound to one of
+    // them yields to a client that never sees it and the key reads as dead.
+    // That is exactly what Minus/Plus did: TOGGLEGAMEMENU and OPENCHAT fell
+    // through to `return false` while the client waited on Escape and Enter.
+    if (command == "TOGGLESPELLBOOK") {
+        outcome = "panel:spellbook";
+        if (down) executeString("ToggleSpellBook(BOOKTYPE_SPELL)");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLETALENTS") {
+        outcome = "panel:talents";
+        if (down) executeString("ToggleTalentFrame()");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLEGAMEMENU" || command == "CP_X_RIGHT") {
+        outcome = "panel:gamemenu";
+        if (down) {
+            // Route to the client settings explicitly. ToggleGameMenu is
+            // replaced with the settings opener only when FrameXML does NOT
+            // own the panel; when it does, the original shows a frame the
+            // takeover suppresses (sound + nothing visible, thrice confirmed).
+            // The engine owns GameMenu -> settings IS the menu.
+            lua_getglobal(L_, "__WoweeOpenClientSettings");
+            const bool hasSettings = lua_isfunction(L_, -1);
+            lua_pop(L_, 1);
+            if (hasSettings) {
+                executeString("if __WoweeOpenClientSettings then __WoweeOpenClientSettings() end");
+                LOG_WARNING("[WOWEE_MENU] via=settings");
+            } else {
+                executeString("ToggleGameMenu()");
+                LOG_WARNING("[WOWEE_MENU] via=frame");
+            }
+            // Which menu answered: the engine replaces ToggleGameMenu with the
+            // client settings opener unless FrameXML owns the panel - and the
+            // takeover suppresses FrameXML's frame when it owns it. Log both
+            // the flag and the outcome so "sound but nothing visible" resolves
+            // to a branch instead of another round of guessing.
+            lua_getglobal(L_, "__WoweeOwnsGameMenu");
+            const bool owns = lua_toboolean(L_, -1) != 0;
+            lua_pop(L_, 1);
+            bool shown = false;
+            if (auto* gh = getGameHandler(L_)) {
+                shown = gh->askInterface(
+                    "type(rawget(_G, 'GameMenuFrame')) == 'table' and GameMenuFrame:IsShown()");
+            }
+            LOG_WARNING("[WOWEE_MENU] ownsGameMenu=", owns ? 1 : 0,
+                        " frameShown=", shown ? 1 : 0);
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLEAUTORUN") {
+        // The camera toggles on the Numlock edge; mirror the press there.
+        outcome = "panel:autorun";
+        core::Input::getInstance().setVirtualKey(SDL_SCANCODE_NUMLOCKCLEAR, down);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "OPENCHAT" || command == "OPENCHATSLASH") {
+        outcome = "panel:chat";
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                gh->runInterfaceCommand(command == "OPENCHATSLASH"
+                    ? "ChatFrame_OpenChat(\"/\")" : "ChatFrame_OpenChat(\"\")");
+            }
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    // Dedicated cancel (B button, handheld map): stop casting, stop
+    // attacking, drop the target. Local-aware throughout; the remote calls
+    // below are inert offline and the local ones inert online.
+    if (command == "CANCELALL") {
+        outcome = "cancel";
+        if (down) {
+            if (auto* gh = getGameHandler(L_)) {
+                gh->cancelCast();
+                if (auto* realm = gh->localServiceRealm()) {
+                    realm->stopAttack();
+                } else {
+                    gh->stopAutoAttack();
+                }
+                gh->setTargetGuidRaw(0);
+                gh->clearFocus();
+                LOG_WARNING("[WOWEE_ACT] cancel -> cleared");
+            }
+        }
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    // Raw pad names with no override (Minus/Plus before LoadBindingSet or
+    // after ClearOverrideBindings): Minus opens the utility ring.
+    if (command == "CP_X_LEFT") command = "CLICK ConsolePortUtilityToggle:LeftButton";
+
+    // Panel doors for the Plus tiers. Same trap as 2d: none of these are in
+    // kLiveBindings, so without cases they fall to noscript and read as dead.
+    if (command == "TOGGLEWORLDMAP") {
+        outcome = "panel:map";
+        if (down) executeString("ToggleFrame(WorldMapFrame)");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLECHARACTER0") {
+        outcome = "panel:character";
+        if (down) executeString("ToggleCharacter(\"PaperDollFrame\")");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+    if (command == "TOGGLEQUESTLOG") {
+        outcome = "panel:quests";
+        if (down) executeString("ToggleFrame(QuestLogFrame)");
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+        return true;
+    }
+
+    // 3. Action bar slots (e.g. ACTIONBUTTON1..12)
+    if (command.rfind("ACTIONBUTTON", 0) == 0) {
+        try {
+            int slot = std::stoi(command.substr(12));
+            if (slot >= 1 && slot <= 120 && down) {
+                outcome = "action";
+                lua_getglobal(L_, "UseAction");
+                if (lua_isfunction(L_, -1)) {
+                    lua_pushinteger(L_, slot);
+                    lua_pcall(L_, 1, 0, 0);
+                } else {
+                    lua_pop(L_, 1);
+                }
+                if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
+                return true;
+            }
+        } catch (...) {}
+    }
+
     // Left alone if the client performs it. Not "already handled, so skip the
     // work" - running it as well would undo it.
-    if (clientActsOnBinding(command)) return false;
+    if (clientActsOnBinding(command)) {
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> client");
+        return false;
+    }
 
     lua_getglobal(L_, "__WoweeBindingScripts");
-    if (!lua_istable(L_, -1)) { lua_pop(L_, 1); return false; }
+    if (!lua_istable(L_, -1)) {
+        lua_pop(L_, 1);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> noscript");
+        return false;
+    }
     lua_getfield(L_, -1, command.c_str());
-    if (!lua_isfunction(L_, -1)) { lua_pop(L_, 2); return false; }
+    if (!lua_isfunction(L_, -1)) {
+        lua_pop(L_, 2);
+        if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> noscript");
+        return false;
+    }
     lua_pushstring(L_, down ? "down" : "up");
     if (lua_pcall(L_, 1, 0, 0) != 0) {
         LOG_WARNING("Binding ", command, " failed: ",
@@ -9866,6 +10443,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         return false;
     }
     lua_pop(L_, 1);
+    if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> script");
     return true;
 }
 
@@ -11531,6 +12109,10 @@ void LuaEngine::dispatchOnUpdate(float elapsed) {
                     } else if (failures == 1) {
                         LOG_ERROR("LuaEngine: OnUpdate error on '", fname,
                                   "': ", uerrStr);
+                        // Crash-hunt breadcrumb: Lua heap size at first error.
+                        // The 2026-10-10 fatal showed "not enough memory" with
+                        // native heaps healthy, i.e. Lua/newlib-heap pressure.
+                        LOG_WARNING("[WOWEE_MEM] lua_kb=", lua_gc(L_, LUA_GCCOUNT, 0));
                         noteLuaError(uerrStr);
         if (luaErrorCallback_) luaErrorCallback_(uerrStr);
                     }
@@ -11775,7 +12357,7 @@ int luaTracebackHandler(lua_State* L) {
 
 /// Loads and runs a chunk with the traceback handler in place. Returns the
 /// same non-zero-on-error convention as luaL_dostring.
-int runChunk(lua_State* L, const char* chunk, size_t len, const char* name) {
+int runChunk(lua_State* L, const char* chunk, size_t len, const char* name, const std::string& addonName = "") {
     const int base = lua_gettop(L);
     lua_pushcfunction(L, luaTracebackHandler);
     if (luaL_loadbuffer(L, chunk, len, name) != 0) {
@@ -11784,7 +12366,27 @@ int runChunk(lua_State* L, const char* chunk, size_t len, const char* name) {
         lua_remove(L, base + 1);
         return 1;
     }
-    const int rc = lua_pcall(L, 0, 0, base + 1);
+    int nargs = 0;
+    if (!addonName.empty()) {
+        lua_pushstring(L, addonName.c_str());
+        lua_getfield(L, LUA_REGISTRYINDEX, "wowee_addon_tables");
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            lua_newtable(L);
+            lua_pushvalue(L, -1);
+            lua_setfield(L, LUA_REGISTRYINDEX, "wowee_addon_tables");
+        }
+        lua_getfield(L, -1, addonName.c_str());
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            lua_newtable(L);
+            lua_pushvalue(L, -1);
+            lua_setfield(L, -3, addonName.c_str());
+        }
+        lua_remove(L, -2); // remove registry table from stack; addon table is arg 2
+        nargs = 2;
+    }
+    const int rc = lua_pcall(L, nargs, 0, base + 1);
     lua_remove(L, base + 1);
     return rc;
 }
@@ -11891,7 +12493,7 @@ bool LuaEngine::executeFile(const std::string& path) {
         source.erase(0, 3);
     }
     const std::string chunkName = "@" + path;
-    int err = runChunk(L_, source.c_str(), source.size(), chunkName.c_str());
+    int err = runChunk(L_, source.c_str(), source.size(), chunkName.c_str(), currentAddon_);
     if (err != 0) {
         const char* errMsg = lua_tostring(L_, -1);
         std::string msg = errMsg ? errMsg : "(unknown error)";
@@ -11949,7 +12551,7 @@ bool LuaEngine::executeSource(const std::string& code, const std::string& source
     if (!L_) return false;
 
     BudgetGuard guard(L_, chunkTimeoutMs_);
-    int err = runChunk(L_, code.c_str(), code.size(), sourceName.c_str());
+    int err = runChunk(L_, code.c_str(), code.size(), sourceName.c_str(), currentAddon_);
     if (err != 0) {
         const char* errMsg = lua_tostring(L_, -1);
         std::string msg = errMsg ? errMsg : "(unknown error)";

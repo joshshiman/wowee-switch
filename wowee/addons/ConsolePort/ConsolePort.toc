@@ -1,0 +1,83 @@
+## Interface: 30300
+## Title: Console Port |cff739BD0LK|r
+## Notes: Game controller addon, ported to 3.3.5a
+## Version: 1.5.0
+
+## Author: Sebastian Lindfors
+## Ported-By: Leandro Araujo
+
+## SavedVariables: ConsolePortSettings, ConsolePortCharacterSettings, ConsolePortUIFrames, ConsolePortUIConfig
+## SavedVariablesPerCharacter: ConsolePortBindingSet, ConsolePortMouse, ConsolePortUtility
+
+
+Init\Wrapper.lua
+
+Libs\Manifest.xml
+
+XML\Manifest.xml
+Locale\Locale.xml
+Controllers\Controllers.xml
+
+Init\Init.lua
+Init\Slash.lua
+Init\Table.lua
+Init\Theme.lua
+
+UI\Alpha.lua
+
+Frames\Atlas.lua
+Frames\About.lua
+Frames\Config.lua
+
+Config\Lookup.lua
+Config\Splash.lua
+Config\Binds.lua
+Config\Controls.lua
+Config\Help.lua
+Config\UICtrl.lua
+Config\Ring.lua
+Config\Hotkey.lua
+
+Core\Camera.lua
+Core\Mouse.lua
+Core\Cvar.lua
+Core\Events.lua
+Core\UICore.lua
+Core\Callback.lua
+
+Drivers\Button.lua
+Drivers\Pager.lua
+Drivers\Radial.lua
+Drivers\FocusHold.lua
+Drivers\EasyMotion.lua
+Drivers\TargetAI.lua
+Drivers\OverrideBarExit.lua
+
+Drivers\UINode.lua
+Drivers\UIStack.lua
+Drivers\UITracker.lua
+Drivers\UIProbe.lua
+Drivers\UIControl.lua
+
+Cursors\Interface.lua
+Cursors\UnitFrames.lua
+
+UI\Utils.lua
+UI\Media.lua
+UI\Mixins.lua
+UI\Tooltip.lua
+
+Frames\Item.lua
+Frames\Unit.lua
+Frames\Hooks.lua
+Frames\Hints.lua
+Frames\Popup.lua
+Frames\Stacksplit.lua
+Frames\Utility.lua
+Frames\Flyout.lua
+Frames\Totem.lua
+Frames\Helper.lua
+Frames\Nameplate.lua
+Frames\PixelBridge.lua
+
+Plugins\Plugins.xml
