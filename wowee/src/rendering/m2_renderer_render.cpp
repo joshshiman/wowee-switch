@@ -321,6 +321,35 @@ static bool skyBatchAllowed(bool skyMode, std::size_t index) {
     return maxBatch < 0 || static_cast<int>(index) < maxBatch;
 }
 
+#ifdef WOWEE_SWITCH
+// Indoor render budget for M2 doodads.
+//
+// Inside an interior WMO the portal cull does not engage (see
+// [WMO_INTERIOR_CULL]) and there is no occlusion, so doodads behind the walls
+// still reach the draw list - the measured 155-190 m2Draws / 100-160 ms frames
+// in Northshire Abbey. Shrinking the doodad distance while the camera is indoors
+// drops the far, hidden ones. The player's own room is at distance ~0, so it is
+// never cut; only the distance to the cut changes, never what is in the room.
+//
+// Outdoors the scale is exactly 1.0, so nothing about the outdoor scene moves.
+// WOWEE_M2_INTERIOR_DISTANCE_SCALE overrides the 0.4 default (1.0 disables).
+//
+// The scale multiplies the base distance, and m2InstanceMaxDistSq then applies
+// the per-instance factor and clamps at the *unscaled* viewDistanceAbsolute_.
+// So an ordinary doodad (factor 1) draws to 0.4x, an animation-disabled one
+// (factor 2.6) to ~0.65x, but an instance whose factor reaches 1/0.4^2 = 6.25
+// - a very large model, or a disabled-animation one with a visual radius above
+// ~29 yards - is still clamped at the full distance and does not shrink.
+static float m2InteriorDistanceScale() {
+    static const float scale = [] {
+        const char* set = std::getenv("WOWEE_M2_INTERIOR_DISTANCE_SCALE");
+        if (!set || !*set) return 0.4f;
+        return std::clamp(static_cast<float>(std::atof(set)), 0.05f, 1.0f);
+    }();
+    return scale;
+}
+#endif
+
 void M2Renderer::update(float deltaTime, const glm::vec3& cameraPos, const glm::mat4& viewProjection) {
     ZoneScopedN("M2Renderer::update");
     if (spatialIndexDirty_) {
@@ -337,7 +366,8 @@ void M2Renderer::update(float deltaTime, const glm::vec3& cameraPos, const glm::
     // beyond it is a tree standing on nothing.
 #ifdef WOWEE_SWITCH
     const float maxRenderDistance = rendering::m2StableRenderDistance(
-        viewDistanceAbsolute_, environmentDetail_);
+        viewDistanceAbsolute_, environmentDetail_) *
+        (insideInterior ? m2InteriorDistanceScale() : 1.0f);
 #else
     const float maxRenderDistance = std::min(
         viewDistanceAbsolute_,
@@ -1138,7 +1168,8 @@ void M2Renderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, const 
 
     // If GPU culling was not dispatched, fallback: compute distances on CPU
 #ifdef WOWEE_SWITCH
-    smoothedRenderDist_ = rendering::m2StableRenderDistance(viewDistanceAbsolute_, environmentDetail_);
+    smoothedRenderDist_ = rendering::m2StableRenderDistance(viewDistanceAbsolute_, environmentDetail_) *
+        (insideInterior ? m2InteriorDistanceScale() : 1.0f);
     const float maxRenderDistanceSq = smoothedRenderDist_ * smoothedRenderDist_;
 #else
     float maxRenderDistanceSq;

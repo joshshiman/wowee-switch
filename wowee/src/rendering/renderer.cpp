@@ -3279,10 +3279,15 @@ void Renderer::renderWorld(game::World* world, game::GameHandler* gameHandler) {
     // to handle thread-unsafe GPU allocations (descriptor pools, bone SSBOs).
     if (parallelRecordingEnabled_) {
         // --- Pre-compute state + GPU allocations on main thread (not thread-safe) ---
-        if (m2Renderer && cameraController) {
+        if (cameraController) {
             // Use isInsideInteriorWMO (flag 0x2000) - not isInsideWMO which includes
             // outdoor WMO groups like archways/bridges that should receive shadows.
-            m2Renderer->setInsideInterior(cameraController->isInsideInteriorWMO());
+            // Both buckets get it: indoors there is no portal cull and no
+            // occlusion, so M2 doodads and characters behind the walls still
+            // draw. Set before either records so this frame's radii use it.
+            const bool insideInterior = cameraController->isInsideInteriorWMO();
+            if (m2Renderer) m2Renderer->setInsideInterior(insideInterior);
+            if (characterRenderer) characterRenderer->setInsideInterior(insideInterior);
         }
         auto prepStart = std::chrono::steady_clock::now();
         if (wmoRenderer) wmoRenderer->prepareRender();
@@ -3564,6 +3569,17 @@ void Renderer::renderWorld(game::World* world, game::GameHandler* gameHandler) {
                 m2Renderer ? OverlaySystem::HeightQuery3D([&](float x, float y, float z) { return m2Renderer->getFloorHeight(x, y, z); }) : OverlaySystem::HeightQuery3D{});
         }
 
+        if (cameraController) {
+            // Same indoor detection as the parallel path, and set before either
+            // bucket records so this frame's character/M2 draw radii use it.
+            // The animation/bird update radius still lags one frame: update()
+            // runs earlier in the frame, before this point. One frame is the
+            // accepted cost of reusing the existing plumbing.
+            const bool insideInterior = cameraController->isInsideInteriorWMO();
+            if (characterRenderer) characterRenderer->setInsideInterior(insideInterior);
+            if (m2Renderer) m2Renderer->setInsideInterior(insideInterior);
+        }
+
         if (characterRenderer && camera && !skipChars) {
             characterRenderer->prepareRender(frameIdx);
             characterRenderer->render(currentCmd, perFrameSet, *camera);
@@ -3571,10 +3587,6 @@ void Renderer::renderWorld(game::World* world, game::GameHandler* gameHandler) {
         }
 
         if (m2Renderer && camera && !skipM2) {
-            if (cameraController) {
-                // Use isInsideInteriorWMO (flag 0x2000) for correct indoor detection
-                m2Renderer->setInsideInterior(cameraController->isInsideInteriorWMO());
-            }
             m2Renderer->prepareRender(frameIdx, *camera);
             auto m2Start = std::chrono::steady_clock::now();
             m2Renderer->render(currentCmd, perFrameSet, *camera);
@@ -3608,6 +3620,34 @@ void Renderer::renderWorld(game::World* world, game::GameHandler* gameHandler) {
         renderUnderwaterOverlay(currentCmd);
         renderPostSceneOverlays(currentCmd, gameHandler);
     }
+
+#ifdef WOWEE_SWITCH
+    // Throttled confirmation that the indoor render budget engaged. Release
+    // pins WARNING, so this is the only channel that can show the next run's
+    // log the indoor flag and the shrunken distances - without it there is no
+    // way to tell a lever that did nothing from one that never fired. Once a
+    // second, or on a state flip but never more than once per 250 ms (the
+    // logger also dedupes identical lines in a 250 ms window).
+    if (cameraController && (m2Renderer || characterRenderer)) {
+        static std::chrono::steady_clock::time_point lastIndoorLog{};
+        static int lastIndoorState = -1;
+        // Report the flag the renderers actually hold this frame, not a fresh
+        // camera query, so the line proves the plumbing reached them.
+        const bool inside = m2Renderer ? m2Renderer->isInsideInterior()
+                                       : characterRenderer->isInsideInterior();
+        const int state = inside ? 1 : 0;
+        const auto now = std::chrono::steady_clock::now();
+        const long msSinceLog = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - lastIndoorLog).count();
+        if (msSinceLog >= 1000 || (state != lastIndoorState && msSinceLog >= 250)) {
+            lastIndoorState = state;
+            lastIndoorLog = now;
+            LOG_WARNING("[INDOOR_BUDGET] inside=", inside ? 1 : 0,
+                        " m2Dist=", m2Renderer ? m2Renderer->currentRenderDistance() : 0.0f,
+                        " charRadius=", characterRenderer ? characterRenderer->currentRenderRadius() : 0.0f);
+        }
+    }
+#endif
 
     // Water is drawn last, in a continuation of the scene pass, so that the
     // refraction copy taken just before it holds the scene WITHOUT water. Taking

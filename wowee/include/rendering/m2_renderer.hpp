@@ -590,6 +590,11 @@ public:
 
     void setSuppressBakedStars(bool suppress) { suppressBakedStars_ = suppress; }
     void setInsideInterior(bool inside) { insideInterior = inside; }
+    [[nodiscard]] bool isInsideInterior() const { return insideInterior; }
+    /// The distance M2 drew to this frame, after the indoor scale. Set by
+    /// render(); read by the Renderer's indoor-budget log so the next run's
+    /// log shows whether the shrunken doodad distance actually engaged.
+    [[nodiscard]] float currentRenderDistance() const { return smoothedRenderDist_; }
     void setViewDistance(float distance) {
 #ifdef WOWEE_SWITCH
         // The renderer forwards an already object-scaled value on Switch

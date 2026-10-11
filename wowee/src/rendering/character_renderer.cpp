@@ -67,6 +67,27 @@
 namespace wowee {
 namespace rendering {
 
+#ifdef WOWEE_SWITCH
+// Indoor render budget for characters. Same reasoning as the M2 doodad scale in
+// m2_renderer_render.cpp: inside an interior WMO the portal cull does not engage
+// and there is no occlusion, so NPCs behind the walls are still bone-computed
+// and drawn - the measured 121-137 characterDraws / 100-160 ms frames in
+// Northshire Abbey. Scaling the draw and animation/bird radii while indoors
+// drops the hidden ones. The player's own room is at distance ~0, so it is never
+// cut; only the cut distance changes, never what is in the room.
+//
+// Outdoors the scale is exactly 1.0. WOWEE_CHAR_INTERIOR_DISTANCE_SCALE
+// overrides the 0.55 default (1.0 disables).
+static float charInteriorDistanceScale() {
+    static const float scale = [] {
+        const char* set = std::getenv("WOWEE_CHAR_INTERIOR_DISTANCE_SCALE");
+        if (!set || !*set) return 0.55f;
+        return std::clamp(static_cast<float>(std::atof(set)), 0.05f, 1.0f);
+    }();
+    return scale;
+}
+#endif
+
 namespace {
 size_t approxTextureBytesWithMips(int w, int h) {
     if (w <= 0 || h <= 0) return 0;
@@ -2415,7 +2436,8 @@ void CharacterRenderer::update(float deltaTime, const glm::vec3& cameraPos,
     // draw radius (90) so NPCs in the 90-120 band are not bones-recomputed and
     // uploaded only to be culled at draw.
 #ifdef WOWEE_SWITCH
-    const float animUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_ANIM_RADIUS", 90));
+    const float animUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_ANIM_RADIUS", 90)) *
+        (insideInterior_ ? charInteriorDistanceScale() : 1.0f);
 #else
     const float animUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_ANIM_RADIUS", 120));
 #endif
@@ -2426,7 +2448,8 @@ void CharacterRenderer::update(float deltaTime, const glm::vec3& cameraPos,
     // as rendering so a visible bird never holds its last bone pose.
     // Switch: 90 to match the render cut below (run 64).
 #ifdef WOWEE_SWITCH
-    const float birdUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 90));
+    const float birdUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 90)) *
+        (insideInterior_ ? charInteriorDistanceScale() : 1.0f);
 #else
     const float birdUpdateRadius = static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 130));
 #endif
@@ -2903,10 +2926,14 @@ void CharacterRenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet,
         // NPC-heavy views carry ~100-200 character draws at +60 ms across
         // quartiles (run 64). 130 -> 90 on Switch; targeting/aggro use
         // gameplay distance, not this, so nothing mechanical changes.
-        static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 90));
+        // Indoors the 90 shrinks further (0.55x by default) so NPCs behind
+        // the walls are not drawn; the player's room is at distance ~0.
+        static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 90)) *
+            (insideInterior_ ? charInteriorDistanceScale() : 1.0f);
 #else
         static_cast<float>(envSizeOrDefault("WOWEE_CHAR_RENDER_RADIUS", 130));
 #endif
+    lastRenderRadius_ = renderRadius;
     const float renderRadiusSq = renderRadius * renderRadius;
     const glm::vec3 camPos = camera.getPosition();
     const float frameTimeSeconds = std::chrono::duration<float>(

@@ -254,8 +254,21 @@ public:
     // Pre-decoded BLP cache: set before calling loadModel() to skip main-thread BLP decode
     void setPredecodedBLPCache(std::unordered_map<std::string, pipeline::BLPImage>* cache) { predecodedBLPCache_ = cache; }
 
+    /// Indoor render budget: while the camera is inside an interior WMO the
+    /// character draw and animation/bird update radii shrink, so NPCs behind
+    /// the walls are neither bone-computed nor drawn. Outdoors the scale is
+    /// 1.0, so nothing changes. Set by Renderer alongside
+    /// M2Renderer::setInsideInterior.
+    void setInsideInterior(bool inside) { insideInterior_ = inside; }
+    [[nodiscard]] bool isInsideInterior() const { return insideInterior_; }
+    /// The radius render() last culled characters to, after the indoor scale.
+    /// Read by the Renderer's indoor-budget log.
+    [[nodiscard]] float currentRenderRadius() const { return lastRenderRadius_; }
+
 private:
     std::unordered_map<std::string, pipeline::BLPImage>* predecodedBLPCache_ = nullptr;
+    bool insideInterior_ = false;
+    float lastRenderRadius_ = 0.0f;
     // GPU representation of M2 model
     struct M2ModelGPU {
         VkBuffer vertexBuffer = VK_NULL_HANDLE;
