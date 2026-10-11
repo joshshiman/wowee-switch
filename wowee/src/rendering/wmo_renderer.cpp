@@ -27,6 +27,7 @@
 #include "pipeline/asset_manager.hpp"
 #include "core/logger.hpp"
 #include "core/config_paths.hpp"
+#include "core/env_flag.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
@@ -309,6 +310,13 @@ bool WMORenderer::initialize(VkContext* ctx, VkDescriptorSetLayout perFrameLayou
     }
 #ifdef WOWEE_SWITCH
     cullingEnabled_ = true;
+    // Inside a building the portal walk from the camera and viewer groups alone
+    // should decide what draws, instead of pre-showing and seeding every
+    // exterior group (which draws the whole complex around a small interior).
+    // WOWEE_WMO_INTERIOR_CULL=0 restores the conservative path without a
+    // rebuild. Desktop never sets this, so it keeps the conservative path.
+    interiorCullEnabled_ = core::envFlagEnabled("WOWEE_WMO_INTERIOR_CULL", true);
+    core::Logger::getInstance().info("WMO interior cull: ", interiorCullEnabled_);
 #endif
 
     VkDevice device = vkCtx_->getDevice();
@@ -1963,7 +1971,16 @@ void WMORenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, const
     const float groupViewDistance = doDistanceCull
         ? std::min(viewDistance_, maxGroupDistance)
         : viewDistance_;
-    const float groupViewDistanceSq = groupViewDistance * groupViewDistance;
+    const float fullGroupViewDistanceSq = groupViewDistance * groupViewDistance;
+
+    // Interior horizon is NOT tightened. A 0.6x cut was tried and reverted
+    // before deploy: it can hole a large interior (a long hall, Ironforge) and
+    // Switch fog starts far later (~0.95 x world distance), so it does not hide
+    // the pop. The portal walk alone does the interior reduction. Kept as a
+    // named scale so a future, hardware-validated tuning pass can re-enable it.
+    constexpr float kInteriorGroupDistanceScale = 1.0f;
+    constexpr uint32_t kWmoGroupFlagOutdoor = 0x8;
+    constexpr uint32_t kWmoGroupFlagIndoor = 0x2000;
 
     auto cullInstance = [&](size_t instIdx, InstanceDrawList& result) {
         // A slot may have belonged to a different streamed instance last frame.
@@ -1992,6 +2009,7 @@ void WMORenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, const
 
         // Portal-based visibility - reuse member scratch buffer (avoid per-frame alloc)
         bool usePortalCulling = doPortalCull && !model.portals.empty() && !model.portalRefs.empty();
+        bool interiorRestricted = false;
         if (usePortalCulling) {
             portalScratch_.reset(model.groups.size());
             const glm::vec3 localRealCam =
@@ -2004,15 +2022,31 @@ void WMORenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, const
             // own, so take both.
             //
             // Ironforge shows this worst because of what rescues everywhere
-            // else: exterior groups are seeded unconditionally below, which in a
-            // city WMO means the streets and facades stay drawn however the walk
-            // goes. Ironforge is interior throughout, that seed contributes
-            // almost nothing, and the entire result rests on the traversal.
+            // else: in the conservative path exterior groups are seeded
+            // unconditionally, which in a city WMO means the streets and facades
+            // stay drawn however the walk goes. Ironforge is interior throughout,
+            // that seed contributes almost nothing, and the entire result rests
+            // on the traversal. The confidently-indoor path drops that seed and
+            // leans on the two viewpoints plus the walk - which is why the walk
+            // now reports (and falls back) when it reaches too little.
             const glm::vec3 localViewer =
                 glm::vec3(instance.invModelMatrix * glm::vec4(portalViewerPos, 1.0f));
             getVisibleGroupsViaPortals(model, localRealCam, localViewer, frustum,
                                        instance.modelMatrix, portalScratch_);
+#ifdef WOWEE_SWITCH
+            // Set by the walk itself when the confidently-indoor restriction
+            // ran and held for this instance (false on every fallback).
+            interiorRestricted = interiorCullActive_;
+#endif
         }
+
+        // Only a confidently-indoor walk tightens the horizon, and only for
+        // interior-only groups; every fallback and every exterior group keeps
+        // the full group view distance.
+        const float interiorGroupViewDistance =
+            groupViewDistance * kInteriorGroupDistanceScale;
+        const float interiorGroupViewDistanceSq =
+            interiorGroupViewDistance * interiorGroupViewDistance;
 
         for (size_t gi = 0; gi < model.groups.size(); ++gi) {
             // These cached world AABBs contain all uploaded vertices (not the
@@ -2046,6 +2080,12 @@ void WMORenderer::render(VkCommandBuffer cmd, VkDescriptorSet perFrameSet, const
 
                 glm::vec3 closestPoint = glm::clamp(camPos, gMin, gMax);
                 float distSq = glm::dot(closestPoint - camPos, closestPoint - camPos);
+                float groupViewDistanceSq = fullGroupViewDistanceSq;
+                if (interiorRestricted) {
+                    const uint32_t gf = model.groups[gi].groupFlags;
+                    if ((gf & kWmoGroupFlagIndoor) && !(gf & kWmoGroupFlagOutdoor))
+                        groupViewDistanceSq = interiorGroupViewDistanceSq;
+                }
                 if (distSq > groupViewDistanceSq) {
                     result.distanceCulled++;
                     continue;
@@ -2832,6 +2872,12 @@ void WMORenderer::getVisibleGroupsViaPortals(const ModelData& model,
     constexpr uint32_t WMO_GROUP_FLAG_OUTDOOR = 0x8;
     constexpr uint32_t WMO_GROUP_FLAG_INDOOR = 0x2000;
 
+#ifdef WOWEE_SWITCH
+    // Cleared before every early fallback return, so a conservative instance
+    // can never inherit the previous instance's restriction.
+    interiorCullActive_ = false;
+#endif
+
     // Find camera's containing group
     int cameraGroup = findContainingGroup(model, cameraLocalPos);
 
@@ -2889,40 +2935,76 @@ void WMORenderer::getVisibleGroupsViaPortals(const ModelData& model,
         }
     }
 
-    // Exterior groups are never portal-culled. AABB containment misclassifies
-    // doorway/awning thresholds as indoors (interior boxes spill past the
-    // door and outdoor boxes don't always overlap them), and a wrong BFS
-    // start then hides the whole city. Portal traversal below only decides
-    // interior-only groups; streets and facades always draw (distance culling
-    // still bounds them).
-    for (size_t gi = 0; gi < model.groups.size(); ++gi) {
-        const uint32_t f = model.groups[gi].groupFlags;
-        if (!(f & WMO_GROUP_FLAG_INDOOR) || (f & WMO_GROUP_FLAG_OUTDOOR))
-            visibility.show(static_cast<uint32_t>(gi));
-    }
-
-    // BFS through portals from both viewpoints' groups plus every always-visible
-    // exterior group, so interiors seen through open doors still draw even when
-    // one viewpoint's containing group was misclassified.
-    //
-    // The character's group is seeded alongside the camera's because in a
-    // doorway or a hallway the two are in different rooms. Walking from only one
-    // of them, while judging every door against the camera's frustum, is what
-    // emptied Ironforge. A second seed can only add groups, never remove any,
-    // and drawing a room too many is the failure this should have.
+    // Past every fallback above the camera is confidently indoors: its
+    // containing group is interior-only, no outdoor group's AABB contains the
+    // camera, and that group has portal refs. This is the only place the visible
+    // set may be narrowed.
     auto& queue = visibility.queue;
 
     auto seed = [&](int gi) {
         if (gi < 0 || gi >= static_cast<int>(model.groups.size())) return;
         visibility.enqueue(static_cast<uint32_t>(gi));
     };
-    seed(cameraGroup);
-    seed(findContainingGroup(model, viewerLocalPos));
 
-    // Exterior groups were inserted above without being queued; they are portals
-    // into the interior too.
-    for (uint32_t gi = 0; gi < model.groups.size(); ++gi) {
-        if (visibility.visible(gi)) visibility.enqueue(gi);
+#ifdef WOWEE_SWITCH
+    // Confidently indoors on Switch: the walk alone decides visibility, and the
+    // flag can turn it off without a rebuild. Every other build keeps the
+    // conservative path, which is also what the derived CPU traversal test
+    // compiles against.
+    const bool interiorCull = interiorCullEnabled_;
+#else
+    const bool interiorCull = false;
+#endif
+
+    if (interiorCull) {
+        // The reduction is in the *seeding*, not the drawing. Exterior groups
+        // are still shown, so a doorway or street view cannot vanish; they are
+        // simply not queued into the portal walk. Historically every
+        // street/facade group was both shown AND seeded, so inside a building
+        // the walk started from all of them and flooded every connected
+        // interior - drawing the whole complex around a small room (Northshire
+        // Abbey: ~95-119 wmoDraws against ~14-33 outdoors). The walk now starts
+        // from the camera and viewer groups only; rooms reached through the
+        // camera's own portals still draw.
+        for (size_t gi = 0; gi < model.groups.size(); ++gi) {
+            const uint32_t f = model.groups[gi].groupFlags;
+            if (!(f & WMO_GROUP_FLAG_INDOOR) || (f & WMO_GROUP_FLAG_OUTDOOR))
+                visibility.show(static_cast<uint32_t>(gi));
+        }
+        seed(cameraGroup);
+        seed(findContainingGroup(model, viewerLocalPos));
+    } else {
+        // Exterior groups are never portal-culled. AABB containment
+        // misclassifies doorway/awning thresholds as indoors (interior boxes
+        // spill past the door and outdoor boxes don't always overlap them), and
+        // a wrong BFS start then hides the whole city. Portal traversal below
+        // only decides interior-only groups; streets and facades always draw
+        // (distance culling still bounds them).
+        for (size_t gi = 0; gi < model.groups.size(); ++gi) {
+            const uint32_t f = model.groups[gi].groupFlags;
+            if (!(f & WMO_GROUP_FLAG_INDOOR) || (f & WMO_GROUP_FLAG_OUTDOOR))
+                visibility.show(static_cast<uint32_t>(gi));
+        }
+
+        // BFS through portals from both viewpoints' groups plus every
+        // always-visible exterior group, so interiors seen through open doors
+        // still draw even when one viewpoint's containing group was
+        // misclassified.
+        //
+        // The character's group is seeded alongside the camera's because in a
+        // doorway or a hallway the two are in different rooms. Walking from only
+        // one of them, while judging every door against the camera's frustum, is
+        // what emptied Ironforge. A second seed can only add groups, never
+        // remove any, and drawing a room too many is the failure this should
+        // have.
+        seed(cameraGroup);
+        seed(findContainingGroup(model, viewerLocalPos));
+
+        // Exterior groups were inserted above without being queued; they are
+        // portals into the interior too.
+        for (uint32_t gi = 0; gi < model.groups.size(); ++gi) {
+            if (visibility.visible(gi)) visibility.enqueue(gi);
+        }
     }
 
     size_t queueIdx = 0;
@@ -2949,6 +3031,57 @@ void WMORenderer::getVisibleGroupsViaPortals(const ModelData& model,
             }
         }
     }
+
+#ifdef WOWEE_SWITCH
+    // A disabled flag already showed everything it means to show.
+    if (!interiorCull) return;
+
+    // Never let a room go empty. A confidently-indoor walk that reached almost
+    // nothing has gone wrong, so restore the conservative show-all set. The
+    // camera group is always seeded and therefore visible, so a correct
+    // single-room view legitimately yields one or two groups; two is the floor
+    // that catches "seed only, no portal target", not a threshold that would
+    // fall back on the small buildings this exists to fix.
+    constexpr uint32_t kInteriorCullMinVisibleGroups = 2;
+    uint32_t visibleCount = 0;
+    for (uint32_t gi = 0; gi < static_cast<uint32_t>(model.groups.size()); ++gi) {
+        if (visibility.visible(gi)) ++visibleCount;
+    }
+
+    const bool implausiblySmall = visibleCount < kInteriorCullMinVisibleGroups;
+    if (implausiblySmall) {
+        for (size_t gi = 0; gi < model.groups.size(); ++gi) {
+            visibility.show(static_cast<uint32_t>(gi));
+        }
+    }
+
+    // Throttled confirmation for the next run's log: once a second, or whenever
+    // the decision flips. The logger also dedupes identical lines inside its
+    // 250 ms window. Release pins WARNING, so this is the only channel that can
+    // report whether the interior restriction engaged and what it kept.
+    static std::chrono::steady_clock::time_point lastCullLog{};
+    static int lastCullState = -1;
+    const int cullState = implausiblySmall ? 1 : 2;
+    const auto now = std::chrono::steady_clock::now();
+    const long msSinceLog =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - lastCullLog).count();
+    // At most once a second, or on a state flip but never more than once per
+    // 250 ms: a threshold flicker or two overlapping indoor instances must not
+    // spam the WARNING channel.
+    if (msSinceLog >= 1000 || (cullState != lastCullState && msSinceLog >= 250)) {
+        lastCullState = cullState;
+        lastCullLog = now;
+        LOG_WARNING("[WMO_INTERIOR_CULL] path=",
+                    implausiblySmall ? "fallback-showall" : "aggressive",
+                    " visibleGroups=", visibleCount,
+                    " totalGroups=", model.groups.size(),
+                    " cameraGroup=", cameraGroup);
+    }
+
+    // Tell cullInstance the restriction held, so it may tighten the interior
+    // horizon. A fallback leaves this false and keeps the full view distance.
+    interiorCullActive_ = !implausiblySmall;
+#endif
 }
 
 void WMORenderer::WMOInstance::updateModelMatrix() {

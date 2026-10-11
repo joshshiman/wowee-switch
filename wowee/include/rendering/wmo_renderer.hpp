@@ -789,6 +789,11 @@ private:
     /// Seeds from both the camera's group and the character's: at a doorway the
     /// two are in different rooms, and walking from only one while judging every
     /// door against the camera's frustum empties the interior.
+    ///
+    /// On Switch a confidently-indoor camera restricts visibility to this walk
+    /// and records it in interiorCullActive_; every other build (and the flag's
+    /// off state) keeps the conservative show-everything path, so the derived
+    /// CPU traversal test still matches its oracle.
     void getVisibleGroupsViaPortals(const ModelData& model,
                                      const glm::vec3& cameraLocalPos,
                                      const glm::vec3& viewerLocalPos,
@@ -945,6 +950,17 @@ private:
     // visual AABB; desktop retains optional distance rejection. Culled groups
     // stay loaded with collision data and contribute no graphics commands.
     bool cullingEnabled_ = false;
+    // When the camera is confidently inside an interior-only group (see
+    // getVisibleGroupsViaPortals), do not show or seed exterior groups: the
+    // portal walk from the camera and viewer groups alone decides what draws.
+    // Switch default on, WOWEE_WMO_INTERIOR_CULL=0 disables it without a
+    // rebuild; desktop keeps the conservative path (stays false).
+    bool interiorCullEnabled_ = false;
+    // Set by getVisibleGroupsViaPortals when the confidently-indoor restriction
+    // actually ran and held for the instance just walked (Switch only; false on
+    // every fallback and on desktop). Read immediately by cullInstance to
+    // tighten the interior horizon. Mutable because the walk is const.
+    mutable bool interiorCullActive_ = false;
     float maxGroupDistance = 500.0f;
     float maxGroupDistanceSq = 250000.0f;  // maxGroupDistance^2
     float viewDistance_ = 1200.0f;
