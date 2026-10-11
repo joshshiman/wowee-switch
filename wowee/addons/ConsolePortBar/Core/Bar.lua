@@ -863,16 +863,16 @@ Bar.CallMethodFromFrame = CPAPI.CallMethodFromFrame
 
 ---
 
--- WoWee handheld: scrub the F3 base override. CP_R_LEFT keeps ACTIONBUTTON1
--- in the set for honest bar display, but the local layer owns unmodified Y
--- (target + act, ordered) - a live F3->ACTIONBUTTON1 override would resurrect
+-- WoWee handheld: scrub the F9 base override. CP_T1 keeps ACTIONBUTTON1
+-- in the set for honest bar display, but the local layer owns unmodified L
+-- (target + act, ordered) - a live F9->ACTIONBUTTON1 override would resurrect
 -- the double attack-toggle. Called after every binding rebuild (migration,
 -- OnNewBindings); the PEW reassert below skips writing it in the first place.
 function Bar:WoWeeScrubPadOverrides()
 	if InCombatLockdown() then return end
 	local handler = _G.ConsolePortButtonHandler
 	if not handler then return end
-	local k1, k2 = GetBindingKey('CP_R_LEFT')
+	local k1, k2 = GetBindingKey('CP_T1')
 	if k1 then SetOverrideBinding(handler, false, k1, nil) end
 	if k2 then SetOverrideBinding(handler, false, k2, nil) end
 end
@@ -887,12 +887,13 @@ function Bar:PLAYER_ENTERING_WORLD()
 		if type(key) == 'table' and name:match('^CP_') then
 			local base = key['']
 			for modifier in ConsolePort:GetModifiers() do
-				-- WoWee handheld: the local layer owns unmodified Y (target +
-				-- act, ordered). Writing F3->ACTIONBUTTON1 here would resurrect
-				-- the double attack-toggle the neutralize killed. Tiers still
-				-- register; only the bare base is skipped.
+				-- WoWee handheld: the local layer owns unmodified L (target +
+				-- act, ordered). Writing F9->ACTIONBUTTON1 here would resurrect
+				-- the double attack-toggle. Tiers still register; only the
+				-- bare base is skipped. (Unmodified Y is CP-owned now, so F3
+				-- writes normally again.)
 				local override = nil
-				if not (name == 'CP_R_LEFT' and modifier == '') then
+				if not (name == 'CP_T1' and modifier == '') then
 					override = key[modifier] or base
 				end
 				if override then

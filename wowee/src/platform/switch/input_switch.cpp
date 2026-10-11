@@ -946,6 +946,14 @@ void pumpInput() {
 
     if (s_menuOwners && !s_applicationKeyboardOpen)
         want[SDL_SCANCODE_ESCAPE] = (st.buttons & ORBIS_PAD_BUTTON_OPTIONS) != 0;
+    // WoWee handheld: B doubles as menu-cancel. While any menu owns the pad,
+    // holding B holds Escape, so the same chain that Plus uses closes the top
+    // menu instead. With no menu open this contributes nothing (and must not:
+    // an unowned Escape would toggle the game menu open). F2 still fires
+    // alongside for cast/attack/target cancel.
+    if (s_menuOwners && !s_applicationKeyboardOpen)
+        want[SDL_SCANCODE_ESCAPE] = want[SDL_SCANCODE_ESCAPE] ||
+            ((gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0);
     // Chat. No row in the table can reach it, because in the world nothing is
     // free: the face buttons are the click, the interact, the target and the
     // action bar, + is the game menu, - the world map, the D-pad zooms and

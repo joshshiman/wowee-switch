@@ -491,7 +491,11 @@ function WrapperMixin:SetClassicBorders(enabled)
             ct:ClearAllPoints()
             ct:SetPoint("CENTER", button, "CENTER", 0, 0)
 
-            local iconSize = bw
+            -- WoWee handheld: icons are square art in round frames and this
+            -- client implements no texture masking, so full-bleed icons peek
+            -- out past the dome as bright corners. Inscribed square (0.70)
+            -- tucks them under the opaque art until masking lands.
+            local iconSize = bw * 0.70
             button.icon:ClearAllPoints()
             button.icon:SetSize(iconSize, iconSize)
             button.icon:SetPoint("CENTER", button, "CENTER", 0, 0)
