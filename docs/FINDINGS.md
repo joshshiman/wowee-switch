@@ -1084,14 +1084,15 @@ flow is INFO-suppressed or unlogged. Nothing to diagnose from.
   path already culled). Next: character-draw spike indoors (separate).
 
 ## Branch/repo state (2026-10-10, read this before touching git)
-- Work happens on `feature/consoleport-native-ui` (all session commits).
-  `main` holds an unrelated unpushed commit (cdf4012, ConsolePortLK native-UI
-  integration) that does NOT compile (input_switch namespace break). Do NOT
-  build from main, do NOT push main anywhere, do NOT revert cdf4012 without
-  asking — it is someone's active work. Merge order TBD with user.
-- `git push origin main` is BANNED from this workflow: with HEAD on the
-  feature branch it pushes the local main ref (the broken ConsolePort line).
-  Push the feature branch explicitly.
+- `feature/consoleport-native-ui` MERGED to `main` (b03313e, --no-ff) per
+  operator instruction; the old cdf4012 warning below is RESOLVED (no such
+  commit exists locally or on origin; main == origin/main at merge time).
+  Feature branch left in place, not deleted.
+- Pre-merge note (kept for history): work happened on the feature branch
+  because main was believed to hold an unrelated unpushed broken commit
+  (cdf4012). Verified absent at merge time - the warning was stale.
+- `git push origin main` still needs an explicit operator go-ahead (not yet
+  pushed post-merge); feature branch is pushed through fce868a.
 - Verification rule (burned twice): content check (`strings`) + card/staged
   md5 MATCH. Never trust bare md5s from memory.
 
