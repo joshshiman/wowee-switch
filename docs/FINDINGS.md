@@ -1382,3 +1382,25 @@ Comprehensive note per user request - the whole override picture in one place.
   tap=right sketch deliberately: tap-left is load-bearing for UI buttons.
 - Glyph set (->Switch) and Plus visibility still queued behind this batch.
 - Traces stay on until released.
+
+## Round d5ebcf0+3: X-gate, B-Escape, A-loot, icons, L1, settings (2026-10-10)
+- X is jump-only now: local unmodified-Square primaryAction gated on
+  !consolePortActive (vehicle/modifier Square + keyboard path untouched);
+  matching Square/mailbox hints gated too. CP F1 unchanged.
+- B cancels menus: holding B while any menu owns the pad holds Escape
+  (all MenuOwners covered: FrameXml panels, local, settings). F2 still
+  fires CANCELALL alongside. No-menu case contributes nothing (no toggle).
+- A loots (local, unmodified tap, no panels): target corpse else nearest
+  lootable; realm validates range. Talk/attack stay with Y/L.
+- Bar icons inscribed 0.70 (square art in round frames; no mask impl exists
+  to fix properly - queued engine work).
+- Y->L completed: local Triangle no longer toggles (Tab keeps it); L1 does
+  toggle+act ordered; CP F3 restored, CP F9 quiet (scrub+reassert skip moved
+  CP_R_LEFT to CP_T1). Slots 4/5 pad-unbound (free).
+- Settings FaceRight-dismiss removed (A closed it same-frame it opened).
+- Crash 22:09 triage: abrupt mid-loop death, last line Lua OOM on
+  SecureStateDriverManager OnUpdate with native heaps healthy; report is
+  hbmenu teardown noise (no wowee offsets). New variant, no clean signature
+  match. [WOWEE_MEM] lua_kb breadcrumb added on first Lua error.
+- Portraits: NOT worth static-caching (already change-guarded + 10/20Hz
+  throttled + tiny targets; unmeasurable vs 150ms frames). Declined with data.

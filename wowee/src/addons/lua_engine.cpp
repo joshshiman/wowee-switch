@@ -12109,6 +12109,10 @@ void LuaEngine::dispatchOnUpdate(float elapsed) {
                     } else if (failures == 1) {
                         LOG_ERROR("LuaEngine: OnUpdate error on '", fname,
                                   "': ", uerrStr);
+                        // Crash-hunt breadcrumb: Lua heap size at first error.
+                        // The 2026-10-10 fatal showed "not enough memory" with
+                        // native heaps healthy, i.e. Lua/newlib-heap pressure.
+                        LOG_WARNING("[WOWEE_MEM] lua_kb=", lua_gc(L_, LUA_GCCOUNT, 0));
                         noteLuaError(uerrStr);
         if (luaErrorCallback_) luaErrorCallback_(uerrStr);
                     }

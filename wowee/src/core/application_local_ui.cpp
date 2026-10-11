@@ -180,11 +180,18 @@ void Application::renderLocalRealmOverlay() {
     const auto* actionTarget = target();
     const bool mailboxOwnsAction = !actionTarget || actionTarget->dead || !actionTarget->hostile;
     const auto* nearbyObject=localRealm_->nearbyGameObject();
-    if(keys && !self.dead && !self.vehicleGuid && mailboxOwnsAction && nearbyObject) {
+    // WoWee handheld: hints follow the action (see Square gate below) - X is
+    // jump-only while ConsolePort owns the pad.
+#ifdef WOWEE_SWITCH
+    const bool squareActs = !platform::switchport::consolePortActive();
+#else
+    const bool squareActs = true;
+#endif
+    if(keys && !self.dead && !self.vehicleGuid && mailboxOwnsAction && nearbyObject && squareActs) {
         const auto prompt="Square / 4: "+nearbyObject->name;
         ImGui::GetForegroundDrawList()->AddText(ImVec2(24.f,io.DisplaySize.y*.58f),IM_COL32(255,220,130,255),prompt.c_str());
     }
-    if(keys && !self.dead && !self.vehicleGuid && !nearbyObject && mailboxOwnsAction && game::nearbyLocalMailbox(content,self))
+    if(keys && !self.dead && !self.vehicleGuid && !nearbyObject && mailboxOwnsAction && game::nearbyLocalMailbox(content,self) && squareActs)
         ImGui::GetForegroundDrawList()->AddText(ImVec2(24.f,io.DisplaySize.y*.58f),IM_COL32(255,220,130,255),"Square: Mailbox");
     const game::LocalRealmNpc* vehicle=nullptr;
     for(const auto& npc:npcs)if(npc.guid==self.vehicleGuid){vehicle=&npc;break;}
@@ -326,6 +333,13 @@ void Application::renderLocalRealmOverlay() {
     if(keys && (localFrameXml_.ready() || self.vehicleGuid) && !localFrameXml_.padBarFocused() && actionPad.connected &&
        !platform::switchport::keyboardCapturesInput() && (actionPad.pressed&ORBIS_PAD_BUTTON_SQUARE) &&
        !platform::switchport::inputTextFocus() &&
+#ifdef WOWEE_SWITCH
+       // WoWee handheld: X is jump-only while ConsolePort owns the pad.
+       // Without this, every X press fires both the local contextual action
+       // (talk/loot/attack) and the CP jump. Vehicle/modifier Square and the
+       // keyboard path below are untouched.
+       !platform::switchport::consolePortActive() &&
+#endif
        (!self.vehicleGuid || !(actionPad.buttons&(ORBIS_PAD_BUTTON_L1|ORBIS_PAD_BUTTON_R1|ORBIS_PAD_BUTTON_L2|ORBIS_PAD_BUTTON_R2))) &&
        !(actionPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE) && !ui::interfaceConsumedKey(ImGuiKey_GamepadFaceLeft))primaryAction(true);
 #endif
