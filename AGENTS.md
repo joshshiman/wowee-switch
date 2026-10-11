@@ -24,6 +24,7 @@ Read these before changing anything:
 | [PORTING.md](docs/PORTING.md) | How the port is put together, licensing |
 | [wowee/docs/BUILD_SWITCH.md](wowee/docs/BUILD_SWITCH.md) | Toolchain, resource-root resolution, diagnosing a launch |
 | [AUDIT_FIRST_RUN.md](docs/AUDIT_FIRST_RUN.md) | Known first-run blockers — the to-do list |
+| [docs/audit/00-MASTER-REPORT.md](docs/audit/00-MASTER-REPORT.md) | Handheld performance audit: ranked levers for rendering/graphics/memory (branch `perf/switch-audit`) |
 | [WORKSPACE.md](WORKSPACE.md) | Local-only notes on this checkout (git-ignored) |
 
 ## The console loop
