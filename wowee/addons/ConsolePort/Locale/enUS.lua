@@ -211,6 +211,7 @@ TUTORIAL = {
 		UTILITY_RING_NEWBIND	= '%s was bound to your Utility Ring%s',
 		UTILITY_RING_NEWBIND_P  = '%s was bound to your %s Ring%s',
 		HELPER_ACTIONBAR 		= 'Press a button combination on your\ncontroller to place this on your action bar.',
+		HELPER_ACTIONBAR_ITEM 	= 'Press an empty action button to place this.\nY (on a bag slot) equips it. B drops it.',
 		HELPER_EQUIP_BAG 		= 'Click on a slot below to equip this bag.',
 		HELPER_INVALID_OCCUA 	= '%s is occupied by %s.\nYou need to bind this combination to your action bar first.',
 		HELPER_INVALID_OCCUB 	= '%s is occupied.\nYou need to bind this combination to your action bar first.',

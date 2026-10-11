@@ -10157,25 +10157,19 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                                                     if (slot >= 1 && slot <= 120) {
                                                         // Place when the cursor is
                                                         // carrying something, use
-                                                        // otherwise - the mouse's
-                                                        // own contract on a slot.
-                                                        lua_getglobal(L_, "GetCursorInfo");
-                                                        bool holding = false;
-                                                        if (lua_isfunction(L_, -1)) {
-                                                            if (lua_pcall(L_, 0, 1, 0) == 0) { holding = !lua_isnil(L_, -1); lua_pop(L_, 1); }
-                                                            else lua_pop(L_, 1);
-                                                        } else {
-                                                            lua_pop(L_, 1);
-                                                        }
-                                                        lua_getglobal(L_, holding ? "PlaceAction" : "UseAction");
-                                                        if (lua_isfunction(L_, -1)) {
-                                                            lua_pushinteger(L_, slot);
-                                                            lua_pcall(L_, 1, 0, 0);
-                                                        } else {
-                                                            lua_pop(L_, 1);
-                                                        }
-                                                        how = std::string("slot ") + std::to_string(slot) +
-                                                              (holding ? " (place)" : "");
+                                                        // otherwise - and only into
+                                                        // an empty slot, so a bound
+                                                        // button is never replaced.
+                                                        executeString(
+                                                            "local s=" + std::to_string(slot) + " "
+                                                            "if GetCursorInfo and GetCursorInfo() then "
+                                                              "if HasAction and HasAction(s) then "
+                                                                "if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then "
+                                                                  "DEFAULT_CHAT_FRAME:AddMessage('|cffffd100Slot '..s..' is in use - pick an empty slot. B drops what you are carrying.|r') "
+                                                                "end "
+                                                              "elseif PlaceAction then PlaceAction(s) end "
+                                                            "elseif UseAction then UseAction(s) end");
+                                                        how = std::string("slot ") + std::to_string(slot);
                                                     }
                                                 } else {
                                                     lua_pop(L_, 1);
@@ -10375,15 +10369,31 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         outcome = "cancel";
         if (down) {
             if (auto* gh = getGameHandler(L_)) {
-                gh->cancelCast();
-                if (auto* realm = gh->localServiceRealm()) {
-                    realm->stopAttack();
+                // With something on the cursor, B is the drop the player
+                // expects: let it go and do nothing else. Cancelling the cast
+                // and the target as well would be two answers to one press.
+                lua_getglobal(L_, "GetCursorInfo");
+                bool carrying = false;
+                if (lua_isfunction(L_, -1)) {
+                    if (lua_pcall(L_, 0, 1, 0) == 0) { carrying = !lua_isnil(L_, -1); lua_pop(L_, 1); }
+                    else lua_pop(L_, 1);
                 } else {
-                    gh->stopAutoAttack();
+                    lua_pop(L_, 1);
                 }
-                gh->setTargetGuidRaw(0);
-                gh->clearFocus();
-                LOG_WARNING("[WOWEE_ACT] cancel -> cleared");
+                if (carrying) {
+                    executeString("if ClearCursor then ClearCursor() end");
+                    LOG_WARNING("[WOWEE_ACT] cancel -> cursor dropped");
+                } else {
+                    gh->cancelCast();
+                    if (auto* realm = gh->localServiceRealm()) {
+                        realm->stopAttack();
+                    } else {
+                        gh->stopAutoAttack();
+                    }
+                    gh->setTargetGuidRaw(0);
+                    gh->clearFocus();
+                    LOG_WARNING("[WOWEE_ACT] cancel -> cleared");
+                }
             }
         }
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
@@ -10427,27 +10437,22 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         try {
             int slot = std::stoi(command.substr(12));
             if (slot >= 1 && slot <= 120 && down) {
-                // A slot press with something on the cursor places it there
-                // rather than trying to use it - the same thing a mouse click
-                // on the slot does. Without this, carrying a spell picked up
-                // from the spellbook and pressing the slot it should go on
-                // tried to cast from an empty slot and nothing happened.
-                lua_getglobal(L_, "GetCursorInfo");
-                bool carrying = false;
-                if (lua_isfunction(L_, -1)) {
-                    if (lua_pcall(L_, 0, 1, 0) == 0) { carrying = !lua_isnil(L_, -1); lua_pop(L_, 1); }
-                    else lua_pop(L_, 1);
-                } else {
-                    lua_pop(L_, 1);
-                }
-                outcome = carrying ? "place" : "action";
-                lua_getglobal(L_, carrying ? "PlaceAction" : "UseAction");
-                if (lua_isfunction(L_, -1)) {
-                    lua_pushinteger(L_, slot);
-                    lua_pcall(L_, 1, 0, 0);
-                } else {
-                    lua_pop(L_, 1);
-                }
+                outcome = "action";
+                // With something on the cursor a slot press PLACES it there -
+                // the same thing a mouse click on the slot does - but only into
+                // an EMPTY slot. Overwriting silently replaced the operator's Y
+                // (attack) the first time they tried this, and there is no
+                // reorder UI yet, so an occupied slot is left alone and says so.
+                // With nothing carried the slot is used exactly as before.
+                executeString(
+                    "local s=" + std::to_string(slot) + " "
+                    "if GetCursorInfo and GetCursorInfo() then "
+                      "if HasAction and HasAction(s) then "
+                        "if DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.AddMessage then "
+                          "DEFAULT_CHAT_FRAME:AddMessage('|cffffd100Slot '..s..' is in use - pick an empty slot. B drops what you are carrying.|r') "
+                        "end "
+                      "elseif PlaceAction then PlaceAction(s) end "
+                    "elseif UseAction then UseAction(s) end");
                 if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
                 return true;
             }

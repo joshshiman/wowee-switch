@@ -49,9 +49,13 @@ function Helper:OnShow()
 				self:ShowBags()
 				self.blockInput = true
 				customDesc = db.TUTORIAL.HINTS.HELPER_EQUIP_BAG
-			elseif link and not (IsUsableItem(link) and not IsEquippableItem(link)) then
-				self:Hide()
-				return
+			else
+				-- WoWee: always show the hint for an item. The retail guard
+				-- here depended on IsUsableItem, which this client does not
+				-- implement, so it hid the hint for every item and the operator
+				-- never saw how to put one on the bar.
+				customDesc = db.TUTORIAL.HINTS.HELPER_ACTIONBAR_ITEM
+				texture = texture or 'Interface\\Icons\\INV_Misc_QuestionMark'
 			end
 		elseif ( _type == 'macro' ) then
 			pcallOK, name, texture = pcall(GetMacroInfo, data)
@@ -199,13 +203,20 @@ function Helper:OnKeyDown(key)
 		-- if the pressed binding has a corresp. action ID, place the item there and pop any existing item
 		if actionID and actionID ~= 169 then -- ignore actionID 169, because it's the extra action button.
 			local realActionID = Core:GetOffsetActionID(actionID) 
-			PlaceAction(realActionID)
-			if 	( not GetCursorInfo() ) and
-				( not db('disableSmartMouse') ) and
-				( GetMouseFocus() == WorldFrame ) then
-				ConsolePortCamera:Start()
+			if GetActionInfo and GetActionInfo(realActionID) then
+				-- WoWee: an occupied slot is protected. Silently replacing the
+				-- button (the operator's Y among them) is not what a press
+				-- means, and there is no reorder UI yet.
+				self.Desc:SetText('That slot is in use. Pick an empty one, or clear it first.')
+			else
+				PlaceAction(realActionID)
+				if 	( not GetCursorInfo() ) and
+					( not db('disableSmartMouse') ) and
+					( GetMouseFocus() == WorldFrame ) then
+					ConsolePortCamera:Start()
+				end
+				self:OnActionPlaced(actionID)
 			end
-			self:OnActionPlaced(actionID)
 
 		-- clear the helper frame if the binding that was pressed is eqv. to Esc
 		elseif binding == 'TOGGLEGAMEMENU' then

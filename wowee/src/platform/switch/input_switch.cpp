@@ -823,6 +823,11 @@ void pumpInput() {
     // B - stays suppressed so it drives the hub instead of the world.
     if (s_menuOwners & static_cast<unsigned>(MenuOwner::Hub))
         s_menuSuppressedButtons &= ~ORBIS_PAD_BUTTON_OPTIONS;
+    // Minus stays live whenever a menu owns the pad, so it always toggles the
+    // world map open and closed. Suppressed, it could open the map and then
+    // never close it - the button read as dead the second time.
+    if (s_menuOwners != 0)
+        s_menuSuppressedButtons &= ~ORBIS_PAD_BUTTON_TOUCH_PAD;
     const uint32_t gameplayButtons = st.buttons & ~s_menuSuppressedButtons;
     const Layer layer = activeLayer(gameplayButtons);
 
