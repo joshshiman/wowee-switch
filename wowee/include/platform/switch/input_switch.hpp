@@ -194,7 +194,10 @@ void setInputUiFocus(bool focused);
 enum class MenuOwner : unsigned { LocalRealm = 1, Settings = 2, FrameXml = 4, Hub = 8 };
 void setInputMenuNavigation(MenuOwner owner, bool open);
 bool inputMenuNavigation();
-
+/// Whether the cursor is holding a spell/item (set by the panel lane each
+/// frame). While true, the face buttons and shoulders place into their slot
+/// rather than being suppressed by an open panel.
+void setInputCarrying(bool carrying);
 /// ConsolePort integration: when enabled, bypass the legacy 4-tier shoulder
 /// layers and send direct ConsolePort scancodes (F1..F12, Shift, Ctrl).
 void setConsolePortActive(bool active);

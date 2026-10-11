@@ -7,6 +7,7 @@
 #include "ui/ui_raid_icons.hpp"
 #include "ui/ui_colors.hpp"
 #include "ui/ui_helpers.hpp"
+#include "ui/ui_texture_load.hpp"
 #include "ui/minimap_projection.hpp"
 #include "rendering/vk_context.hpp"
 #include "core/application.hpp"
@@ -1255,14 +1256,43 @@ void GameScreen::renderMinimapPlayerArrow(const MinimapFrame& frame) {
         // Screen direction the arrow tip points toward
         float nx =  std::sin(arrowAngle); // screen +X = east
         float ny = -std::cos(arrowAngle); // screen -Y = north
+        // Perpendicular direction (rotated 90°)
+        float px =  ny; // perpendicular x
+        float py = -nx; // perpendicular y
+
+        // The player marker is the world map's own icon (MinimapArrow.blp), so
+        // both maps agree on what "you" looks like. Loaded once; a failed load
+        // is remembered, and the drawn chevron below is the fallback.
+        if (!minimapArrowTried_) {
+            minimapArrowTried_ = true;
+            if (services_.assetManager && services_.window) {
+                minimapArrowTex_ = ui::uploadUiTextureFromBlp(
+                    services_.assetManager, "Interface\\Minimap\\MinimapArrow.blp",
+                    services_.window);
+            }
+        }
+        if (minimapArrowTex_) {
+            const float H = 12.0f; // half-size, screen pixels
+            const ImVec2 c(frame.centerX, frame.centerY);
+            // The texture points up (north) at 0 rotation, so its top edge is
+            // the tip: v=0 is the tip, v=1 the tail; u runs across.
+            auto pt = [&](float u, float v) {
+                const float a = 1.0f - 2.0f * v; // +1 tip .. -1 tail
+                const float b = 2.0f * u - 1.0f; // -1 left .. +1 right
+                return ImVec2(c.x + nx * H * a + px * H * b,
+                              c.y + ny * H * a + py * H * b);
+            };
+            frame.drawList->AddImageQuad((ImTextureID)(uintptr_t)minimapArrowTex_,
+                pt(0, 0), pt(1, 0), pt(1, 1), pt(0, 1),
+                ImVec2(0, 0), ImVec2(1, 0), ImVec2(1, 1), ImVec2(0, 1),
+                IM_COL32(255, 255, 255, 255));
+            return;
+        }
 
         // Draw a chevron-style arrow: tip, two base corners, and a notch at the back
         const float tipLen  = 8.0f;  // tip forward distance
         const float baseW   = 5.0f;  // half-width at base
         const float notchIn = 3.0f;  // how far back the center notch sits
-        // Perpendicular direction (rotated 90°)
-        float px =  ny; // perpendicular x
-        float py = -nx; // perpendicular y
 
         ImVec2 tip  (frame.centerX + nx * tipLen,  frame.centerY + ny * tipLen);
         ImVec2 baseL(frame.centerX - nx * baseW + px * baseW,  frame.centerY - ny * baseW + py * baseW);

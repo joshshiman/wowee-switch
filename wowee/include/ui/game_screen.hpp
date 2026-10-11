@@ -181,6 +181,12 @@ private:
     // Settings panel (extracted from GameScreen - owns all settings UI and config state)
     SettingsPanel settingsPanel_;
 
+    // The world map's own player marker (MinimapArrow.blp), reused as the
+    // minimap's so both maps agree on what "you" looks like. Uploaded once; a
+    // failed load is remembered rather than retried every frame.
+    VkDescriptorSet minimapArrowTex_ = VK_NULL_HANDLE;
+    bool minimapArrowTried_ = false;
+
     // Combat UI (extracted from GameScreen - owns all combat overlay rendering)
     CombatUI combatUI_;
 

@@ -151,6 +151,10 @@ bool s_actionBarNavigation = false;
 bool s_textFocus = false;
 bool s_uiFocus = false;
 unsigned s_menuOwners = 0;
+// Whether the cursor is holding a spell/item right now. Told by the panel lane
+// each frame; while it is true the face buttons and shoulders stay live so a
+// carried spell can be placed on the bar without leaving the panel.
+bool s_carrying = false;
 uint32_t s_menuSuppressedButtons = 0;
 bool s_cursorMode = false;        // R3: the right stick moves the cursor even in the world
 bool s_consolePortActive = false;
@@ -828,6 +832,13 @@ void pumpInput() {
     // never close it - the button read as dead the second time.
     if (s_menuOwners != 0)
         s_menuSuppressedButtons &= ~ORBIS_PAD_BUTTON_TOUCH_PAD;
+    // While the cursor holds a spell/item and a panel is open, the face buttons
+    // and shoulders stay live so "press the button you want it on" places it
+    // into that button's slot. The D-pad, A and B keep driving the open panel,
+    // and placement into an occupied slot is refused by the dispatch.
+    if (s_carrying && (s_menuOwners & static_cast<unsigned>(MenuOwner::FrameXml)))
+        s_menuSuppressedButtons &= ~(ORBIS_PAD_BUTTON_SQUARE | ORBIS_PAD_BUTTON_TRIANGLE |
+                                     ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1);
     const uint32_t gameplayButtons = st.buttons & ~s_menuSuppressedButtons;
     const Layer layer = activeLayer(gameplayButtons);
 
@@ -1002,19 +1013,10 @@ void pumpInput() {
             (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1)) {
         want[SDL_SCANCODE_RETURN] = true;
     }
-    // Screenshot chord: any shoulder + B, held. Synthesized here into `want`
-    // rather than read off padSnapshot() downstream, for two measured reasons:
-    // at world frame rates a tap falls between pumps so press edges never
-    // exist, and the layer system only ever delivers B as interact (the L1
-    // layer is bypassed entirely with action bars up). Held-state through
-    // `want` spans whatever pumps it spans, and the just-pressed edge downstream
-    // makes it once per press. Chat confirmation + log line say when it fired.
-    if (!s_applicationKeyboardOpen &&
-        (gameplayButtons & (ORBIS_PAD_BUTTON_L1 | ORBIS_PAD_BUTTON_R1 |
-                            ORBIS_PAD_BUTTON_L2 | ORBIS_PAD_BUTTON_R2)) != 0 &&
-        (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0) {
-        want[SDL_SCANCODE_PRINTSCREEN] = true;
-    }
+    // Screenshot chord removed: the capture never produced a usable file on
+    // the console, and the gesture (any shoulder + B) was stealing a press from
+    // the cancel button. PrintScreen from a keyboard is still honoured by the
+    // game screen.
     if (!s_applicationKeyboardOpen && (!s_menuOwners || s_consolePortActive)) applyLeftStick(want);
     applyRightStick(dt, right);
     if (!s_applicationKeyboardOpen) applyWheel(wheel);
@@ -1174,6 +1176,7 @@ void setInputMenuNavigation(MenuOwner owner, bool open) {
     if (open) s_menuOwners |= bit; else s_menuOwners &= ~bit;
 }
 bool inputMenuNavigation() { return s_menuOwners != 0; }
+void setInputCarrying(bool carrying) { s_carrying = carrying; }
 
 void setConsolePortActive(bool active) {
     s_consolePortActive = active;

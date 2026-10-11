@@ -458,6 +458,16 @@ function Bar:OnLoad(cfg, benign)
     -- Core Layout Processing
     cfg.layout = cfg.layout or ab:GetDefaultButtonLayout()
     local layout = cfg.layout
+    -- One line at load naming the active layout, so "the spacing looks wrong"
+    -- can be answered from the log instead of a photo of the console.
+    if __WoweeWarn then
+        local function pt(k) local d=layout and layout[k]; if d and d.point then return d.point[2]..','..d.point[3] end return 'nil' end
+        __WoweeWarn('BARLAYOUT isTriple='..tostring(cfg.isTriple)..
+            ' R_LEFT='..pt('CP_R_LEFT')..' R_RIGHT='..pt('CP_R_RIGHT')..
+            ' R_UP='..pt('CP_R_UP')..' R_DOWN='..pt('CP_R_DOWN')..
+            ' L_LEFT='..pt('CP_L_LEFT')..' L_RIGHT='..pt('CP_L_RIGHT')..
+            ' size='..tostring(layout and layout.CP_R_LEFT and layout.CP_R_LEFT.size))
+    end
     local hideIcons = cfg.hideIcons
     local hideModifiers = cfg.hideModifiers
     local classicBorders = cfg.classicBorders

@@ -619,6 +619,12 @@ bool LocalFrameXml::navigate() {
     // Same guard as the bar lane: every exit leaves the carried icon where the
     // focus ended up, and there are a dozen of them.
     struct Anchor{LocalFrameXml* self;~Anchor(){self->publishPadCursor();}}anchor{this};
+#ifdef WOWEE_SWITCH
+    // Tell the pad layer whether the cursor holds something, before any early
+    // return, so that while a panel is open and the cursor is carrying, the
+    // face buttons stay live to place it ("press the button you want it on").
+    platform::switchport::setInputCarrying(carrying(engine_));
+#endif
     // Unconditionally, and before any early return: a press spent on a pickup
     // stays claimed only for as long as the button is held, and the frame that
     // released it may well be one where nothing is focused at all.
@@ -736,7 +742,7 @@ bool LocalFrameXml::navigate() {
     }
 #ifdef WOWEE_SWITCH
     const auto& rawPad=platform::switchport::padSnapshot();
-    if(focused && !rootChanged && !platform::switchport::keyboardCapturesInput() &&
+    if(focused && !rootChanged && !holding && !platform::switchport::keyboardCapturesInput() &&
        (rawPad.pressed&ORBIS_PAD_BUTTON_SQUARE) && !(rawPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE) &&
        !ui::interfaceConsumedKey(ImGuiKey_GamepadFaceLeft)){
         const auto id=focused->id;
@@ -748,7 +754,7 @@ bool LocalFrameXml::navigate() {
     // what UseContainerItem answers. A stays the left click (pick up) it always
     // was, so the two buttons mean on the pad what they mean on a mouse. Held
     // off the Square path deliberately - that one is the durable activate.
-    if(focused && !rootChanged && !platform::switchport::keyboardCapturesInput() &&
+    if(focused && !rootChanged && !holding && !platform::switchport::keyboardCapturesInput() &&
        (rawPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE) && !(rawPad.pressed&ORBIS_PAD_BUTTON_SQUARE) &&
        padPickupTargetForName(focused->name).kind==PadPickupTarget::Kind::Container){
         const auto* control=tree.get(focused->id);
