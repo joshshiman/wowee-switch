@@ -20,7 +20,7 @@ Vulkan headers by `tools/switch/gen_nxvk_loader.py`.
 
 ## Prerequisites
 
-> **On Linux, start with [GETTING_STARTED.md](../../GETTING_STARTED.md).** It is
+> **On Linux, start with [GETTING_STARTED.md](../../docs/GETTING_STARTED.md).** It is
 > the verified end-to-end path, including the devkitPro keyring/repo setup and
 > the `vk_video` headers the prebuilt driver archive leaves out. What follows
 > here is the prerequisite list, not the walkthrough.

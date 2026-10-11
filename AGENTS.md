@@ -21,9 +21,9 @@ Read these before changing anything:
 | Doc | For |
 |-----|-----|
 | [README.md](README.md) | Installing, SD layout, controls, troubleshooting |
-| [PORTING.md](PORTING.md) | How the port is put together, licensing |
+| [PORTING.md](docs/PORTING.md) | How the port is put together, licensing |
 | [wowee/docs/BUILD_SWITCH.md](wowee/docs/BUILD_SWITCH.md) | Toolchain, resource-root resolution, diagnosing a launch |
-| [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md) | Known first-run blockers — the to-do list |
+| [AUDIT_FIRST_RUN.md](docs/AUDIT_FIRST_RUN.md) | Known first-run blockers — the to-do list |
 | [WORKSPACE.md](WORKSPACE.md) | Local-only notes on this checkout (git-ignored) |
 
 ## The console loop

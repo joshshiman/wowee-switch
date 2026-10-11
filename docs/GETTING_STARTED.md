@@ -1,6 +1,6 @@
 # Getting started
 
-**[README.md](README.md) is for playing the thing.** This file is for building it.
+**[README.md](../README.md) is for playing the thing.** This file is for building it.
 It is the **Linux** path, verified end to end on CachyOS (Arch family, glibc,
 pacman) on 2026-10-08: from a bare machine to a packaged `wowee.nro`.
 
@@ -17,10 +17,10 @@ things that silently break a naive attempt.
   data is not included and cannot be. You need the `.MPQ` archives with their
   locale subdirectories intact — roughly 15 GB of them.
 - A server to connect to. Retail realms will not work; see
-  [README.md](README.md#servers).
+  [README.md](../README.md#servers).
 - About 120 MB of downloads for the toolchain, plus a few GB of disk.
 
-**Read [README.md](README.md#status-read-this-before-you-try-it) first.** Six
+**Read [README.md](../README.md#status-read-this-before-you-try-it) first.** Six
 audited defects will stop a first run, and the most useful thing you can do with
 a first successful build is work through that list. Building proves the code
 compiles and links. It does not prove the title boots.
@@ -283,7 +283,7 @@ wowee/out/switch/switch/wowee/addons/
 
 Copy that `wowee` folder to `sdmc:/switch/`, then put your game data at
 `sdmc:/wowps/Data`. Launch **WoWee** from the homebrew menu. Full install and
-troubleshooting detail is in [README.md](README.md#installing).
+troubleshooting detail is in [README.md](../README.md#installing).
 
 ---
 
@@ -329,7 +329,7 @@ boots, builds its Vulkan pipelines, and tells you exactly what it could not find
   [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md).
 - **`elf2nro` cannot embed a romfs directory** here, so assets are read from the
   SD card beside the `.nro` rather than from the title. See
-  [BUILD_SWITCH.md](wowee/docs/BUILD_SWITCH.md#runtime-layout).
+  [BUILD_SWITCH.md](../wowee/docs/BUILD_SWITCH.md#runtime-layout).
 
 ---
 

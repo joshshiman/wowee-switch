@@ -25,9 +25,9 @@ game data in this repository — the `.MPQ` archives stay yours, on your SD
 card.
 
 - **Players:** this file. Install below, play, report back with logs.
-- **Builders:** [GETTING_STARTED.md](GETTING_STARTED.md) — the verified Linux
+- **Builders:** [GETTING_STARTED.md](docs/GETTING_STARTED.md) — the verified Linux
   path, end to end.
-- **Porting approach & licensing:** [PORTING.md](PORTING.md).
+- **Porting approach & licensing:** [PORTING.md](docs/PORTING.md).
 - **Live project state:** [AGENTS.md](AGENTS.md) — the hardware loop, the
   console on the LAN, and how a run gets diagnosed.
 
@@ -48,7 +48,7 @@ The remaining work is console memory tuning and polish, not boot blockers. See
 
 A static audit of the code found six defects that stopped the first run. They are
 listed in full, with file and line references, in
-[AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md). **The short version:**
+[AUDIT_FIRST_RUN.md](docs/AUDIT_FIRST_RUN.md). **The short version:**
 
 | # | What happens | Status |
 |---|--------------|--------|
@@ -75,7 +75,7 @@ the above are fixed:
 
 So: **installing this today gets you a working login screen, and a support
 channel that is actively being used.** The
-[audit](AUDIT_FIRST_RUN.md) is the to-do list, in priority order.
+[audit](docs/AUDIT_FIRST_RUN.md) is the to-do list, in priority order.
 
 ### Servers
 
@@ -96,7 +96,7 @@ configuration this port was aimed at.
   subdirectories intact.
 - A server to connect to. See above.
 - A built `wowee.nro` and its `data/` directory — either build it yourself
-  ([GETTING_STARTED.md](GETTING_STARTED.md)) or get them from someone who has.
+  ([GETTING_STARTED.md](docs/GETTING_STARTED.md)) or get them from someone who has.
 
 ## Installing
 
@@ -255,4 +255,4 @@ endorsed by Blizzard Entertainment.
 Distributing a binary requires shipping the corresponding source: the client
 statically links the Mesa NVK driver, which makes the result a combined work
 under the GPL. See `wowee/switch/third_party/nxvk/NOTICE.md` and
-[PORTING.md](PORTING.md#licensing).
+[PORTING.md](docs/PORTING.md#licensing).

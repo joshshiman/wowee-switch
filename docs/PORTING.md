@@ -1,6 +1,6 @@
 # Porting wowee to the Nintendo Switch
 
-For **installing and playing**, see [README.md](README.md). For **what is broken**,
+For **installing and playing**, see [README.md](../README.md). For **what is broken**,
 see [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md).
 
 ```
@@ -39,7 +39,7 @@ instead of "rewrite it in GLES2":
 
 ## Build
 
-See [wowee/docs/BUILD_SWITCH.md](wowee/docs/BUILD_SWITCH.md). Short version:
+See [wowee/docs/BUILD_SWITCH.md](../wowee/docs/BUILD_SWITCH.md). Short version:
 
 ```sh
 export DEVKITPRO=/opt/devkitpro
