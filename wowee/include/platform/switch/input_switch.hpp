@@ -191,7 +191,7 @@ bool inputTextFocus();
 /// An ImGui window has keyboard focus: the D-pad belongs to ImGui's gamepad
 /// navigation rather than to zoom and turn.
 void setInputUiFocus(bool focused);
-enum class MenuOwner : unsigned { LocalRealm = 1, Settings = 2, FrameXml = 4 };
+enum class MenuOwner : unsigned { LocalRealm = 1, Settings = 2, FrameXml = 4, Hub = 8 };
 void setInputMenuNavigation(MenuOwner owner, bool open);
 bool inputMenuNavigation();
 

@@ -857,6 +857,9 @@ bool Application::initialize() {
             addonManager_->getLuaEngine()->setOpenSettingsCallback([this] {
                 if (auto* uim = uiManager.get()) uim->getGameScreen().openSettings();
             });
+            // And this client's own front door, for the bar's show/hide button
+            // and anything else in Lua that wants every panel at once.
+            addonManager_->getLuaEngine()->setMenuHubCallback([this] { toggleMenuHub(); });
             if (auto* gh = gameHandler.get()) {
                 gh->setLocalDialogueCallback([this](uint64_t guid) {
                     return openLocalNpcDialogue(guid);
@@ -5632,6 +5635,9 @@ void Application::render() {
             uiManager->render(state, authHandler.get(), gameHandler.get());
             if (characterIntroOwnsView()) renderCharacterIntroOverlay();
             else renderLocalRealmOverlay();
+            // On every realm: the panel doors draw where the client's own
+            // in-game screen does not, which is exactly the local realm.
+            renderMenuHub();
         });
 
         // The interface, over the world and everything the world drew on top

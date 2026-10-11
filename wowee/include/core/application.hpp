@@ -209,6 +209,12 @@ private:
     void loadLocalTravelNetwork();
     void stopLocalRealm();
     void renderLocalRealmOverlay();
+    /// The all-panels front door. Not local-realm-only: it draws on every
+    /// realm, because the panels it opens (character, spellbook, talents,
+    /// map, quest log, bags, system) exist on every realm and the pad has no
+    /// other way in. Bound to Plus and to the bar's show/hide button.
+    void renderMenuHub();
+    void toggleMenuHub() { menuHubOpen_ = !menuHubOpen_; }
     /// The service windows a player opens by talking to the character who runs
     /// them: the auction house, a merchant's stock, and a trainer's list. They
     /// live in their own translation unit because the overlay above is already
@@ -378,6 +384,7 @@ private:
     std::unordered_map<std::string, VkDescriptorSet> localRealmUiArt_;
     bool localRealmMenuOpen_ = false;
     bool localRealmPopupOpen_ = false; // Nested popup state before ImGui handles Circle.
+    bool menuHubOpen_ = false;
     bool localRealmJournalOpen_ = false;
     bool localRealmInventoryOpen_ = false;
     bool localRealmNpcPanelOpen_ = false;

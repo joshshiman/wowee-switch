@@ -1289,4 +1289,69 @@ void Application::renderLocalRealmOverlay() {
 #endif
 }
 
+// The all-panels front door.
+//
+// Drawn on every realm rather than from the local overlay, because the panels
+// it opens are FrameXML's own and exist on a remote realm too - and on the
+// local realm the client's in-game screen is not drawn at all, which is why the
+// old Plus route (the settings window) came up empty. One ImGui window, walked
+// with the D-pad; ImGui's gamepad navigation is already enabled and the pad
+// layer is told a menu owns the pad while it is up, so the same press does not
+// also fire the action slot behind it.
+//
+// A door closes the hub and runs the interface's own command, so whatever it
+// opens is then reachable by the D-pad through LocalFrameXml::navigate.
+void Application::renderMenuHub() {
+#ifdef WOWEE_SWITCH
+    platform::switchport::setInputMenuNavigation(platform::switchport::MenuOwner::Hub, menuHubOpen_);
+#endif
+    if (!menuHubOpen_ || state != AppState::IN_GAME || !gameHandler) return;
+    const auto& io = ImGui::GetIO();
+    const float scale = std::clamp(io.DisplaySize.y / 900.0f, 0.8f, 1.35f);
+    const float width = 460 * scale;
+    ImGui::SetNextWindowPos(ImVec2((io.DisplaySize.x - width) * .5f, io.DisplaySize.y * .22f),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(width, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    bool open = menuHubOpen_;
+    if (ImGui::Begin("Menus", &open,
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoFocusOnAppearing)) {
+        if (ImGui::IsWindowAppearing()) ImGui::SetWindowFocus();
+        ImGui::SetWindowFontScale(scale);
+        // B closes it, the same button that closes any other panel. Plus cannot
+        // be the toggle-out: while the hub owns the pad its F-key is suppressed
+        // so the D-pad never leaks through to the world behind it.
+        if (ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
+            menuHubOpen_ = false;
+            ImGui::End();
+            return;
+        }
+        // The same commands the Minus/Plus doors and the ConsolePort tiers
+        // dispatch, so the two routes cannot drift apart.
+        auto door = [&](const char* label, const char* command) {
+            if (ImGui::Button(label, ImVec2(-1, 30 * scale))) {
+                menuHubOpen_ = false;
+                if (gameHandler) gameHandler->runInterfaceCommand(command);
+            }
+        };
+        door("Character",       "ToggleCharacter(\"PaperDollFrame\")");
+        door("Spellbook",       "ToggleSpellBook(BOOKTYPE_SPELL)");
+        door("Talents",         "ToggleTalentFrame()");
+        door("World Map",
+             "if SetMapToCurrentZone then SetMapToCurrentZone() end "
+             "if ToggleWorldMap then ToggleWorldMap() elseif WorldMapFrame then "
+             "if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
+        door("Quest Log",       "ToggleFrame(QuestLogFrame)");
+        door("Bags",            "if ToggleAllBags then ToggleAllBags() elseif OpenAllBags then OpenAllBags() end");
+        ImGui::Separator();
+        door("System / Settings", "if __WoweeOpenClientSettings then __WoweeOpenClientSettings() end");
+        ImGui::Separator();
+        if (ImGui::Button("Close", ImVec2(-1, 30 * scale))) menuHubOpen_ = false;
+    }
+    ImGui::End();
+    if (!open) menuHubOpen_ = false;
+}
+
 } // namespace wowee::core

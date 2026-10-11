@@ -806,7 +806,17 @@ void pumpInput() {
 
     const PadSnapshot& st = s_padState;
     s_menuSuppressedButtons &= st.buttons;
-    if (s_menuOwners && !s_consolePortActive) s_menuSuppressedButtons |= st.buttons;
+    // A menu owning the pad stops the pad acting on the world. That used to be
+    // the non-ConsolePort paths only, because ConsolePort carried its own UI
+    // and drove it through the F-keys. The client's own menus draw under
+    // ConsolePort now - the hub, and the FrameXML panel lane it opens - and
+    // while one is up the F-keys must stand down: the D-pad is walking the
+    // menu, not firing the action slot behind it.
+    const bool padMenuOwns = s_menuOwners != 0 &&
+        (!s_consolePortActive ||
+         (s_menuOwners & (static_cast<unsigned>(MenuOwner::Hub) |
+                          static_cast<unsigned>(MenuOwner::FrameXml))) != 0);
+    if (padMenuOwns) s_menuSuppressedButtons |= st.buttons;
     const uint32_t gameplayButtons = st.buttons & ~s_menuSuppressedButtons;
     const Layer layer = activeLayer(gameplayButtons);
 

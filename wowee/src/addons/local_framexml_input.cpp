@@ -608,15 +608,14 @@ bool LocalFrameXml::toggleGameMenu() {
 }
 
 bool LocalFrameXml::panelOpen() const {
-#ifdef WOWEE_SWITCH
-    if (platform::switchport::consolePortActive()) return false;
-#endif
+    // Under ConsolePort this used to answer false unconditionally, because the
+    // F-key layer was assumed to carry its own panels. The client's own menus
+    // draw there too now - the hub opens the plain FrameXML panels - and the
+    // pad has to know a panel is up so it walks the panel instead of firing
+    // the action slot behind it.
     return panelTreeLive() && panel(engine_->widgets());
 }
 bool LocalFrameXml::navigate() {
-#ifdef WOWEE_SWITCH
-    if (platform::switchport::consolePortActive()) return false;
-#endif
     // Same guard as the bar lane: every exit leaves the carried icon where the
     // focus ended up, and there are a dozen of them.
     struct Anchor{LocalFrameXml* self;~Anchor(){self->publishPadCursor();}}anchor{this};
@@ -744,6 +743,26 @@ bool LocalFrameXml::navigate() {
         activatePadControl(id);
         ui::noteInterfaceConsumedKey(ImGuiKey_GamepadFaceLeft);
         LOG_INFO("[PAD_UI] Square panel control=",id);return true;
+    }
+    // Y on a bag slot is use/equip: the interface's own right click, which is
+    // what UseContainerItem answers. A stays the left click (pick up) it always
+    // was, so the two buttons mean on the pad what they mean on a mouse. Held
+    // off the Square path deliberately - that one is the durable activate.
+    if(focused && !rootChanged && !platform::switchport::keyboardCapturesInput() &&
+       (rawPad.pressed&ORBIS_PAD_BUTTON_TRIANGLE) && !(rawPad.pressed&ORBIS_PAD_BUTTON_SQUARE) &&
+       padPickupTargetForName(focused->name).kind==PadPickupTarget::Kind::Container){
+        const auto* control=tree.get(focused->id);
+        if(control){
+            const float screenH=io.DisplaySize.y;
+            const auto point=ui::padControlPoint(tree,control,io.DisplaySize.x/tree.uiScale(),screenH/tree.uiScale());
+            if(point){
+                const float x=point->x*tree.uiScale(),y=screenH-point->y*tree.uiScale();
+                engine_->dispatchMouse(x,y,screenH,{false,true,false});
+                if(panelTreeLive())engine_->dispatchMouse(x,y,screenH,{false,false,false});
+                LOG_INFO("[PAD_UI] Y used bag slot=",focused->name);
+                return true;
+            }
+        }
     }
 #endif
     // Cross is the pad's own pick up / put down, ahead of the synthetic mouse

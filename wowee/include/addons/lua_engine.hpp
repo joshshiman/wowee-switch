@@ -336,6 +336,21 @@ public:
         return openSettingsCallback_;
     }
 
+    /// Toggle this client's own menu hub, the front door that lists every
+    /// panel (character, spellbook, talents, map, quests, bags, system).
+    ///
+    /// Its own surface rather than a FrameXML frame because the panel doors
+    /// have to open on every realm and be walked with the D-pad, and the
+    /// interface's own menu frame draws nothing here. Bound to Plus and to the
+    /// bar's show/hide button.
+    using MenuHubCallback = std::function<void()>;
+    void setMenuHubCallback(MenuHubCallback cb) {
+        menuHubCallback_ = std::move(cb);
+    }
+    [[nodiscard]] const MenuHubCallback& menuHubCallbackRef() const {
+        return menuHubCallback_;
+    }
+
     using LuaErrorCallback = std::function<void(const std::string&)>;
     void setLuaErrorCallback(LuaErrorCallback cb) { luaErrorCallback_ = std::move(cb); }
 
@@ -367,6 +382,7 @@ private:
     /// that raises on every frame is one entry, not forty thousand.
     std::map<std::string, uint64_t> luaErrors_;
     OpenSettingsCallback openSettingsCallback_;
+    MenuHubCallback menuHubCallback_;
     /// How many events are being dispatched inside one another right now.
     /// Guards against two handlers triggering each other without end.
     int eventDepth_ = 0;

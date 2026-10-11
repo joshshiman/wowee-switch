@@ -5788,6 +5788,16 @@ void LuaEngine::registerCoreAPI() {
     }, 1);
     lua_setglobal(L_, "__WoweeOpenClientSettings");
 
+    // The all-panels hub, for the bar's own show/hide button and for anything
+    // else in Lua that wants the front door rather than one panel.
+    lua_pushlightuserdata(L_, this);
+    lua_pushcclosure(L_, [](lua_State* L) -> int {
+        auto* self = static_cast<LuaEngine*>(lua_touserdata(L, lua_upvalueindex(1)));
+        if (self && self->menuHubCallbackRef()) self->menuHubCallbackRef()();
+        return 0;
+    }, 1);
+    lua_setglobal(L_, "__WoweeToggleMenus");
+
     // Run the deferred OnTextChanged queue now rather than at the next frame.
     //
     // The frame loop drains this; the headless runner has no frame loop, and
@@ -10296,38 +10306,16 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         return true;
     }
     if (command == "TOGGLEGAMEMENU" || command == "CP_X_RIGHT") {
-        outcome = "panel:gamemenu";
+        outcome = "panel:menus";
+        // The front door is this client's own hub, not the settings window and
+        // not FrameXML's GameMenuFrame. Plus opened "sound and nothing"
+        // because it routed to a settings surface the local realm never draws,
+        // and the FrameXML menu under it is a 0x0 anchorless shell (FrameXML's
+        // own takeover zeroes it). The hub lists every panel and the system
+        // entry, and draws on every realm.
         if (down) {
-            // Route to the client settings explicitly. ToggleGameMenu is
-            // replaced with the settings opener only when FrameXML does NOT
-            // own the panel; when it does, the original shows a frame the
-            // takeover suppresses (sound + nothing visible, thrice confirmed).
-            // The engine owns GameMenu -> settings IS the menu.
-            lua_getglobal(L_, "__WoweeOpenClientSettings");
-            const bool hasSettings = lua_isfunction(L_, -1);
-            lua_pop(L_, 1);
-            if (hasSettings) {
-                executeString("if __WoweeOpenClientSettings then __WoweeOpenClientSettings() end");
-                LOG_WARNING("[WOWEE_MENU] via=settings");
-            } else {
-                executeString("ToggleGameMenu()");
-                LOG_WARNING("[WOWEE_MENU] via=frame");
-            }
-            // Which menu answered: the engine replaces ToggleGameMenu with the
-            // client settings opener unless FrameXML owns the panel - and the
-            // takeover suppresses FrameXML's frame when it owns it. Log both
-            // the flag and the outcome so "sound but nothing visible" resolves
-            // to a branch instead of another round of guessing.
-            lua_getglobal(L_, "__WoweeOwnsGameMenu");
-            const bool owns = lua_toboolean(L_, -1) != 0;
-            lua_pop(L_, 1);
-            bool shown = false;
-            if (auto* gh = getGameHandler(L_)) {
-                shown = gh->askInterface(
-                    "type(rawget(_G, 'GameMenuFrame')) == 'table' and GameMenuFrame:IsShown()");
-            }
-            LOG_WARNING("[WOWEE_MENU] ownsGameMenu=", owns ? 1 : 0,
-                        " frameShown=", shown ? 1 : 0);
+            executeString("if __WoweeToggleMenus then __WoweeToggleMenus() end");
+            LOG_WARNING("[WOWEE_MENU] via=hub");
         }
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
@@ -10372,14 +10360,22 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         return true;
     }
     // Raw pad names with no override (Minus/Plus before LoadBindingSet or
-    // after ClearOverrideBindings): Minus opens the utility ring.
-    if (command == "CP_X_LEFT") command = "CLICK ConsolePortUtilityToggle:LeftButton";
+    // after ClearOverrideBindings). Minus is the world map; the utility ring
+    // it used to open is retired.
+    if (command == "CP_X_LEFT") command = "TOGGLEWORLDMAP";
 
     // Panel doors for the Plus tiers. Same trap as 2d: none of these are in
     // kLiveBindings, so without cases they fall to noscript and read as dead.
     if (command == "TOGGLEWORLDMAP") {
         outcome = "panel:map";
-        if (down) executeString("ToggleFrame(WorldMapFrame)");
+        // Where the player is, and then the map. The interface's own minimap
+        // button does this pair: without SetMapToCurrentZone the map opens on
+        // wherever it was last left - which reads as an empty map - instead of
+        // the zone the player is standing in.
+        if (down) executeString(
+            "if SetMapToCurrentZone then SetMapToCurrentZone() end "
+            "if ToggleWorldMap then ToggleWorldMap() elseif WorldMapFrame then "
+            "if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
         if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
         return true;
     }

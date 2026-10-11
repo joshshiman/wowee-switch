@@ -431,6 +431,16 @@ void openBagsForTrading(game::GameHandler& gameHandler) {
 
 }  // namespace
 
+void GameScreen::renderInGameOverlays(game::GameHandler& gameHandler) {
+    // The two surfaces render() draws that the local realm's overlay does not
+    // replace with something of its own. On a remote realm render() still
+    // draws them; the local realm skips render() (its overlay is the heads-up
+    // display), so without this the world map and this client's settings
+    // window had nothing to draw them and came up empty.
+    settingsPanel_.renderSettingsWindow(chatPanel_, [this]() { saveSettings(); });
+    renderWorldMap(gameHandler);
+}
+
 void GameScreen::render(game::GameHandler& gameHandler) {
     // Apply before any Begin() calls so a scale change cannot alter style
     // metrics halfway through an ImGui frame.

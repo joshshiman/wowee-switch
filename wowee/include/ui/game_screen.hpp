@@ -129,6 +129,12 @@ public:
      * Render the UI
      * @param gameHandler Reference to game handler
      */
+    /// The two panels the client draws over the world that the local realm's
+    /// overlay does not replace: this client's own settings window and the
+    /// world map. See renderInGameOverlays in the .cpp for why they need a
+    /// separate call on the local realm.
+    void renderInGameOverlays(game::GameHandler& gameHandler);
+
     void render(game::GameHandler& gameHandler);
 
     /**

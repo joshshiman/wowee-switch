@@ -530,8 +530,16 @@ void UIManager::render(core::AppState appState, auth::AuthHandler* authHandler, 
 
         case core::AppState::IN_GAME:
             authScreen->stopLoginMusic();
-            if (gameHandler && !gameHandler->isLocalExploration()) {
-                gameScreen->render(*gameHandler);
+            if (gameHandler) {
+                if (gameHandler->isLocalExploration()) {
+                    // The local realm's own overlay is its heads-up display,
+                    // so the client's in-game screen is not drawn - but the
+                    // world map and the settings window are not part of that
+                    // overlay and have to be drawn here, or they are empty.
+                    gameScreen->renderInGameOverlays(*gameHandler);
+                } else {
+                    gameScreen->render(*gameHandler);
+                }
             }
             break;
 

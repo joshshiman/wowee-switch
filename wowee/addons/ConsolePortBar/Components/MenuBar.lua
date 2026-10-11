@@ -60,6 +60,12 @@ function Eye:OnClick(button)
 		elseif IsControlKeyDown() and not InCombatLockdown() then
 			Bar:ClearAllPoints()
 			Bar:SetPoint('BOTTOM', UIParent, 0, 0)
+		else
+			-- The plain show/hide click used to live only in the secure
+			-- wrapper below, which this client never runs, so the button did
+			-- nothing here. It opens the all-panels hub now: the "menu with
+			-- all the menus" the eye sits beside the bag for.
+			if __WoweeToggleMenus then __WoweeToggleMenus() end
 		end
 	end
 end

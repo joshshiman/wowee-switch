@@ -11,6 +11,10 @@ namespace wowee::ui {
 inline constexpr std::string_view kPadPanels[] = {
     "CharacterFrame", "SpellBookFrame", "QuestLogFrame", "WorldMapFrame",
     "ContainerFrame1", "ContainerFrame2", "ContainerFrame3", "ContainerFrame4", "ContainerFrame5",
+    // The bundled all-bags window is the bag UI the handheld actually shows
+    // (it replaces the per-bag ContainerFrames), so the pad lane has to know
+    // it is a panel or its slots are unreachable from the D-pad.
+    "WoweeAllBagsFrame",
     "GossipFrame", "QuestFrame", "MerchantFrame", "BankFrame", "ClassTrainerFrame", "AuctionFrame",
     "TalentFrame", "PlayerTalentFrame", "TradeSkillFrame", "MailFrame", "TradeFrame",
     "GameMenuFrame", "InterfaceOptionsFrame", "VideoOptionsFrame", "AudioOptionsFrame",

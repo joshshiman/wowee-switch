@@ -75,6 +75,16 @@ inline PadPickupTarget padPickupTargetForName(std::string_view name) {
         // cooldown - and none of those is the button.
         return at == name.size() ? target : PadPickupTarget{};
     }
+    // The bundled all-bags window. Its slot buttons carry the bag and the slot
+    // as fields (b.bag / b.slot), which is what the pick-up call reads, so this
+    // only has to classify the button - the number in the name is its position
+    // in the grid, not a bag.
+    if (name.starts_with("WoweeAllBagsItem")) {
+        std::size_t at = sizeof("WoweeAllBagsItem") - 1;
+        PadPickupTarget target{Kind::Container, 0, 0};
+        if (!detail::padPickupIndex(name, at, target.primary)) return {};
+        return at == name.size() ? target : PadPickupTarget{};
+    }
     if (name.starts_with("SpellButton")) {
         std::size_t at = sizeof("SpellButton") - 1;
         PadPickupTarget target{Kind::Spellbook, 0, 0};
