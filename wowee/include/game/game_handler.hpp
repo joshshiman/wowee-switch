@@ -1839,6 +1839,9 @@ public:
 
     /** True when ghost is within 40 yards of corpse position (same map). */
     bool canReclaimCorpse() const;
+    /// Realm-aware corpse-reclaim predicate: the local authority offline, the
+    /// combat handler's proximity result online.
+    bool canReclaimCorpseAny() const;
     /** Seconds remaining on the PvP corpse-reclaim delay, or 0 if the reclaim is available now. */
     float getCorpseReclaimDelaySec() const;
     /** Distance (yards) from ghost to corpse, or -1 if no corpse data. */

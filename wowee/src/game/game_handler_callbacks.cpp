@@ -1926,6 +1926,11 @@ bool GameHandler::canReclaimCorpse() const {
     return combatHandler_ ? combatHandler_->canReclaimCorpse() : false;
 }
 
+bool GameHandler::canReclaimCorpseAny() const {
+    if (auto* realm = localServiceRealm()) return realm->canReclaimCorpse();
+    return combatHandler_ ? combatHandler_->canReclaimCorpse() : false;
+}
+
 float GameHandler::getCorpseReclaimDelaySec() const {
     return combatHandler_ ? combatHandler_->getCorpseReclaimDelaySec() : 0.0f;
 }

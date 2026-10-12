@@ -10112,22 +10112,34 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     // attack it; nothing found -> logged, never silent.
     if (command == "INTERACTTARGET") {
         outcome = "interact";
-#ifdef WOWEE_SWITCH
-        // On the local realm the native overlay already owns unmodified A (it
-        // loots the corpse under or nearest the player). This command is the
-        // REMOTE-realm path - interact, talk, attack, loot through the server
-        // - so defer to the overlay offline rather than loot twice. A is bound
-        // to this so the same button means the same thing on an external
-        // realm, where there is no overlay.
         if (down) {
             if (auto* gh = getGameHandler(L_)) {
+                // As a released spirit, A is the reclaim: A is the interact
+                // button and the corpse is what there is to interact with.
+                // Realm-aware (reclaimCorpseAny) and asked BEFORE the
+                // local-realm defer below, so it works on both realms - the
+                // native lane's ghost-Square never runs under ConsolePort.
+                if (gh->isPlayerGhost() && gh->canReclaimCorpseAny()) {
+                    gh->reclaimCorpseAny();
+                    outcome = "reclaim";
+                    if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> reclaim");
+                    return true;
+                }
+#ifdef WOWEE_SWITCH
+                // On the local realm the native overlay already owns unmodified
+                // A (it loots the corpse under or nearest the player). This
+                // command is the REMOTE-realm path - interact, talk, attack,
+                // loot through the server - so defer to the overlay offline
+                // rather than loot twice. A is bound to this so the same button
+                // means the same thing on an external realm, where there is no
+                // overlay.
                 if (gh->localServiceRealm()) {
                     if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> local-overlay");
                     return true;
                 }
+#endif
             }
         }
-#endif
         if (down) {
             if (auto* gh = getGameHandler(L_)) {
                 std::string how = "none";
