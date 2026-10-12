@@ -1790,8 +1790,18 @@ void Application::run() {
                     // pickup. The key is only swallowed when one of them
                     // actually takes it, so with nothing up the movement
                     // keys and every binding carry on exactly as before.
+                    // Pad-synthesized F-keys must reach the binding dispatch,
+                    // not the frame keyboard lane. A visible frame that listens
+                    // for keys - the world map declares OnKeyDown, and the XML
+                    // emitter auto-enables keyboard for any frame that does -
+                    // otherwise swallows the F-key and the bound command never
+                    // runs. That is why Minus could open the map but not close
+                    // it, and why Plus sometimes needed two presses. The same
+                    // F-key exemption the ImGui skip below already uses.
+                    const bool padFKey = event.key.keysym.scancode >= SDL_SCANCODE_F1 &&
+                                         event.key.keysym.scancode <= SDL_SCANCODE_F12;
                     if (auto* engine = addonManager_->getLuaEngine()) {
-                        if (engine->dispatchFrameKey(event.key.keysym.sym, true)) {
+                        if (!padFKey && engine->dispatchFrameKey(event.key.keysym.sym, true)) {
                             // Escape says so, because "Escape does nothing"
                             // is a live report and this is one of the three
                             // ways the press can end before the chain that
@@ -5572,7 +5582,12 @@ void Application::render() {
                 }
             }
 
-            if (!characterIntroOwnsView() && !localRealmMenuOpen_ && !localRealmDialogueNpc_ &&
+            if (!characterIntroOwnsView() && localFrameXml_.mapLane()) {
+                // The world map's own cursor lane owns the press: its controls
+                // are map-shaped, so the generic panel walker rejects them, and
+                // without this the map's buttons and Close are unreachable from
+                // the pad. Runs on every realm and under ConsolePort.
+            } else if (!characterIntroOwnsView() && !localRealmMenuOpen_ && !localRealmDialogueNpc_ &&
                     !localRealmInventoryOpen_ && !localRealmJournalOpen_ && localFrameXml_.navigateBars()) {
                 // Raw shoulder/Square icon selection owns this press exclusively.
             } else if (!overClientUi && !localRealmMenuOpen_ && !localRealmDialogueNpc_ && !localRealmInventoryOpen_ && !localRealmJournalOpen_ && localFrameXml_.navigate()) {

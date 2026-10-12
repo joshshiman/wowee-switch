@@ -981,15 +981,12 @@ void pumpInput() {
     // owns Plus and B itself (Plus toggles it, B closes it), so mirroring them
     // to Escape would toggle it a second time on the same press and it would not
     // stay open. Exclude the hub from the mirror.
+    // Escape is mirrored from B (menu cancel), but NOT from Plus: Plus opens
+    // this client's own hub through the TOGGLEGAMEMENU binding, and Escape
+    // resolves to the same command, so mirroring Plus to Escape toggled the hub
+    // a second time on one press.
     const bool escapeMenu = s_menuOwners != 0 &&
         (s_menuOwners & static_cast<unsigned>(MenuOwner::Hub)) == 0;
-    if (escapeMenu && !s_applicationKeyboardOpen)
-        want[SDL_SCANCODE_ESCAPE] = (st.buttons & ORBIS_PAD_BUTTON_OPTIONS) != 0;
-    // WoWee handheld: B doubles as menu-cancel. While any menu owns the pad,
-    // holding B holds Escape, so the same chain that Plus uses closes the top
-    // menu instead. With no menu open this contributes nothing (and must not:
-    // an unowned Escape would toggle the game menu open). F2 still fires
-    // alongside for cast/attack/target cancel.
     if (escapeMenu && !s_applicationKeyboardOpen)
         want[SDL_SCANCODE_ESCAPE] = want[SDL_SCANCODE_ESCAPE] ||
             ((gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) != 0);

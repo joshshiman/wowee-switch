@@ -12471,6 +12471,29 @@ int runChunk(lua_State* L, const char* chunk, size_t len, const char* name, cons
     return rc;
 }
 
+/// Like runChunk, but keeps the chunk's single return value on the stack.
+///
+/// evaluateBoolean reads that value; runChunk's `lua_pcall(..., 0, ...)` threw
+/// it away, so every askInterface answer was whatever slot happened to sit
+/// below the chunk - meaningless. This is the variant that actually returns
+/// what the expression evaluated to.
+int runChunkReturning(lua_State* L, const char* chunk, size_t len, const char* name) {
+    const int base = lua_gettop(L);
+    lua_pushcfunction(L, luaTracebackHandler);
+    if (luaL_loadbuffer(L, chunk, len, name) != 0) {
+        lua_remove(L, base + 1);
+        return 1;
+    }
+    const int rc = lua_pcall(L, 0, 1, base + 1);
+    if (rc == 0) {
+        lua_replace(L, base + 1);  // move the result below the handler
+        lua_settop(L, base + 1);
+    } else {
+        lua_remove(L, base + 1);   // drop the handler, keep the error
+    }
+    return rc;
+}
+
 /// When the running chunk must give up. Wall clock rather than a count of VM
 /// instructions: the runaway this was written for spends nearly all its time
 /// inside one C binding - a table rehash that grows with every call - so it
@@ -12604,7 +12627,7 @@ bool LuaEngine::evaluateBoolean(const std::string& expression) {
     const std::string chunk = "return (" + expression + ")";
     const int base = lua_gettop(L_);
     BudgetGuard guard(L_, chunkTimeoutMs_);
-    if (runChunk(L_, chunk.c_str(), chunk.size(), chunk.c_str()) != 0) {
+    if (runChunkReturning(L_, chunk.c_str(), chunk.size(), chunk.c_str()) != 0) {
         const char* err = lua_tostring(L_, -1);
         LOG_WARNING("LuaEngine: ", expression, " - ", err ? err : "(unknown)");
         // Recorded, not only logged. This answers questions the client asks

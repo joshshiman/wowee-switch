@@ -856,6 +856,11 @@ const game::TalentEntry* talentAt(game::GameHandler* gh, int tabIndex, int talen
 /// it can say which paperdoll slot should light up.
 uint32_t cursorItemId();
 
+/// Whether the cursor is holding anything at all - a spell, an item, an
+/// action, money. The client-side "is a placement in progress" test; the Lua
+/// GetCursorInfo() cannot be asked this cheaply from C++.
+bool cursorHolding();
+
 /// Money picked up onto the cursor, in copper, and zero when there is none.
 ///
 /// A drag of money is routed entirely by the interface: the frame it is

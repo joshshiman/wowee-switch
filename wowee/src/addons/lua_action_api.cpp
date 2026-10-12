@@ -91,6 +91,10 @@ uint32_t cursorItemId() {
     return s_cursorType == CursorType::ITEM ? s_cursorId : 0;
 }
 
+bool cursorHolding() {
+    return s_cursorType != CursorType::NONE;
+}
+
 int cursorEquipSlot() {
     // s_cursorBag is -1 only for a pickup off the paperdoll, where s_cursorSlot
     // is the one-based slot the item came out of.

@@ -3,6 +3,7 @@
 #include "ui/local_nameplate_policy.hpp"
 #include "ui/local_pad_focus.hpp"
 #include "addons/addon_manager.hpp"
+#include "addons/lua_api_helpers.hpp"
 #include "addons/lua_engine.hpp"
 #include "addons/local_vehicle_api.hpp"
 #include "core/coordinates.hpp"
@@ -1373,8 +1374,16 @@ void Application::renderMenuHub() {
 
 void Application::renderPlaceHint() {
     if (state != AppState::IN_GAME) return;
-    bool carrying = false;
-    if (gameHandler) carrying = gameHandler->askInterface("GetCursorInfo() ~= nil");
+    const bool carrying = addons::cursorHolding();
+    // Placement mode: while the cursor holds a spell/item the open panel is
+    // stepped out of the way so the action bar is the clear target, and put
+    // back when the placement ends (a place, or B).
+    if (carrying && placeHiddenPanel_.empty() && localFrameXml_.panelOpen())
+        placeHiddenPanel_ = localFrameXml_.hideActivePanel();
+    else if (!carrying && !placeHiddenPanel_.empty()) {
+        localFrameXml_.showPanel(placeHiddenPanel_);
+        placeHiddenPanel_.clear();
+    }
     if (!carrying) return;
     const auto& io = ImGui::GetIO();
     const float scale = std::clamp(io.DisplaySize.y / 900.0f, 0.8f, 1.35f);

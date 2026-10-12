@@ -225,6 +225,18 @@ public:
     bool panelOpen() const;
     bool navigate();
     bool navigateBars();
+    /// One frame of the world map's own controls (the right stick's cursor over
+    /// the map, and Cross where that cursor is). Runs on every realm and under
+    /// ConsolePort: the map's controls are excluded from the generic panel
+    /// walker, so without this lane the map's buttons and Close are unreachable
+    /// from the pad.
+    bool mapLane();
+    /// Hide the active panel and return its name ("" if none); restore it by
+    /// name. The placement mode steps the panel out of the way while the cursor
+    /// holds a spell/item so the action bar is the clear target, then puts it
+    /// back when the placement ends.
+    std::string hideActivePanel();
+    void showPanel(const std::string& name);
     /// Whether the original interface's world map is the panel on top.
     ///
     /// While it is, it owns the pad the way a modal does: the bar lane stands

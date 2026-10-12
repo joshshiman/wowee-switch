@@ -212,6 +212,30 @@ bool LocalFrameXml::worldMapOwnsPad() const {
 /// entirely, so a table row could open the map and could never close it again.
 /// The table still carries the button, as the one place the mapping is written
 /// down - Action::WorldMap, doing nothing on its own and saying who does.
+bool LocalFrameXml::mapLane() {
+    // The map's own controls lane, on every realm and under ConsolePort. The
+    // generic panel walker rejects WorldMapFrame's children (they are
+    // map-shaped), so this is the only pad route to the map's buttons, Close,
+    // and the pointer the map's own OnUpdate reads.
+    return padWorldMapFrame();
+}
+
+std::string LocalFrameXml::hideActivePanel() {
+    if (!panelTreeLive()) return {};
+    const ui::Widget* top = panel(engine_->widgets());
+    if (!top) return {};
+    const std::string name = top->name;
+    engine_->executeString("local f=_G[\"" + name + "\"]; if f then "
+                           "if HideUIPanel then HideUIPanel(f) else f:Hide() end end");
+    return name;
+}
+
+void LocalFrameXml::showPanel(const std::string& name) {
+    if (name.empty()) return;
+    engine_->executeString("local f=_G[\"" + name + "\"]; if f then "
+                           "if ShowUIPanel then ShowUIPanel(f) else f:Show() end end");
+}
+
 bool LocalFrameXml::padWorldMapToggle() {
 #ifdef WOWEE_SWITCH
     if(!panelTreeLive() || platform::switchport::keyboardCapturesInput() || platform::switchport::inputTextFocus())return false;
@@ -230,13 +254,12 @@ bool LocalFrameXml::padWorldMapToggle() {
     engine_->executeString(open
         ? "if WorldMapFrame then if HideUIPanel then HideUIPanel(WorldMapFrame) "
           "else WorldMapFrame:Hide() end end"
-        // Where the player is, and then the map. The map remembers whatever
-        // zone it was last left on, so without this it opens on somewhere
-        // else's coastline - which is not an answer to "where am I". The
-        // interface's own minimap button does exactly this pair.
+        // Where the player is, and then the map. ToggleWorldMap does not exist
+        // in 3.3.5 and the missing-API fallback answers `if ToggleWorldMap` with
+        // a truthy no-op, so the elseif never ran and the map never opened.
         : "if SetMapToCurrentZone then SetMapToCurrentZone() end "
-          "if ToggleWorldMap then ToggleWorldMap() elseif WorldMapFrame then "
-          "if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
+          "if ToggleFrame and WorldMapFrame then ToggleFrame(WorldMapFrame) "
+          "elseif WorldMapFrame then WorldMapFrame:Show() end");
     return true;
 #else
     return false;

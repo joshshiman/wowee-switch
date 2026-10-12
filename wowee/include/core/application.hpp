@@ -389,6 +389,8 @@ private:
     bool localRealmPopupOpen_ = false; // Nested popup state before ImGui handles Circle.
     bool menuHubOpen_ = false;
     int menuHubSel_ = 0;
+    // The panel hidden by the placement mode, restored when the placement ends.
+    std::string placeHiddenPanel_;
     bool localRealmJournalOpen_ = false;
     bool localRealmInventoryOpen_ = false;
     bool localRealmNpcPanelOpen_ = false;
