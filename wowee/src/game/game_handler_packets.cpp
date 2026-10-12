@@ -3617,6 +3617,17 @@ void GameHandler::enqueueIncomingPacketFront(network::Packet&& packet) {
     pendingIncomingPackets_.emplace_front(std::move(packet));
 }
 
+void GameHandler::deferCompressedUpdate(network::Packet&& packet) {
+    // A compressed update whose decompressed size would push this frame past
+    // its byte budget goes back to the front of the queue. It is the first
+    // packet the next frame drains, and the queue is already spread across
+    // frames, so the only cost is one frame of latency for a packet that is
+    // itself a burst. ghCompressedUpdateDeferred_ stops the drain loop so the
+    // packet is not re-popped this frame.
+    enqueueIncomingPacketFront(std::move(packet));
+    ghCompressedUpdateDeferred_ = true;
+}
+
 // enqueueUpdateObjectWork and processPendingUpdateObjectWork moved to EntityController
 
 void GameHandler::processQueuedIncomingPackets() {
@@ -3629,10 +3640,18 @@ void GameHandler::processQueuedIncomingPackets() {
     const auto start = std::chrono::steady_clock::now();
     int processed = 0;
 
-    while (processed < maxPacketsThisUpdate) {
-        float elapsedMs = std::chrono::duration<float, std::milli>(
+    // The compressed-update byte budget is per frame, so it starts empty here
+    // and a packet that could not fit is put back for the next frame rather
+    // than decompressed now. See EntityController::handleCompressedUpdateObject.
+    ghCompressedUpdateBytesThisFrame_ = 0;
+    ghCompressedUpdateDeferred_ = false;
+    auto elapsedMs = [&]() {
+        return std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - start).count();
-        if (elapsedMs >= budgetMs) {
+    };
+
+    while (processed < maxPacketsThisUpdate) {
+        if (elapsedMs() >= budgetMs) {
             break;
         }
 
@@ -3667,6 +3686,24 @@ void GameHandler::processQueuedIncomingPackets() {
                         " state=", worldStateName(state));
         }
         ++processed;
+
+        // A compressed update that overran this frame's byte budget re-queued
+        // itself at the front; stop now so it is not popped again here.
+        if (ghCompressedUpdateDeferred_) {
+            break;
+        }
+        // Counted only when the packet actually ran to completion; a deferred
+        // compressed update is handled next frame and counted there.
+        ++ghPacketsHandled_;
+
+        // Check the clock after the packet as well as before it. The pre-check
+        // gates the *next* packet, so this is belt-and-suspenders for the
+        // ordinary path - but it makes the ceiling hold at the loop boundary
+        // regardless of which branch ran, which is what keeps a future edit
+        // from quietly reintroducing an unbudgeted tail.
+        if (elapsedMs() >= budgetMs) {
+            break;
+        }
     }
 
     if (entityController_->hasPendingUpdateObjectWork()) {

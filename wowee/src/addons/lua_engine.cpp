@@ -373,9 +373,22 @@ wowee::ui::Widget* widgetOf(lua_State* L, int index) {
 ///
 /// Named rather than written out at each site because there are twenty of them
 /// and the twenty-first is the one that will be forgotten.
-void markTreeDirty(lua_State* L) {
-    if (auto* tree = wowee::addons::getWidgetTree(L)) tree->markLayoutDirty();
+///
+/// The site is the *caller's*, not this helper's, and that is why it arrives as
+/// arguments rather than from a defaulted parameter. markLayoutDirty names the
+/// file and line through WOWEE_DIRTY_SITE_FILE/LINE, which the compiler fills in
+/// at the call site of the function they default - and the call site here is
+/// always this one line, so every one of the twenty bindings reported as
+/// `lua_engine.cpp:<this line>` and the binding that was actually raising the
+/// generation on an idle frame was masked. The macro below expands the two at
+/// the caller instead, so the FX_GATE line names the binding.
+void markTreeDirtyImpl(lua_State* L, const char* file, int line) {
+    if (auto* tree = wowee::addons::getWidgetTree(L))
+        tree->markLayoutDirty("markTreeDirty", file, line);
 }
+// Keeps the twenty existing call sites textually unchanged - they still write
+// `markTreeDirty(L)` - while recording where each one is.
+#define markTreeDirty(L) markTreeDirtyImpl((L), __FILE__, __LINE__)
 
 /// The same widget, with its rect resolved first.
 ///
@@ -3064,8 +3077,12 @@ int lua_Tooltip_SetGuildBankItem(lua_State* L) {
 
 int lua_Tooltip_ClearLines(lua_State* L) {
     if (auto* w = widgetOf(L, 1)) {
+        const bool had = !w->tooltipLines.empty();
         w->tooltipLines.clear();
-        markTreeDirty(L);
+        // Clearing a tooltip that holds nothing is not a change; the size it
+        // was measured at is already the size of no lines. The mark is what
+        // would keep the solve owed - see setWidth.
+        if (had) markTreeDirty(L);
     }
     // GameTooltip declares OnTooltipCleared and nothing fired it. What it runs
     // is GameTooltip_ClearMoney, so a tooltip that had shown a price kept its
@@ -3624,7 +3641,13 @@ int lua_Frame_IsMouseEnabled(lua_State* L) {
 
 int lua_Frame_SetFrameStrata(lua_State* L) {
     if (auto* w = widgetOf(L, 1)) {
-        w->strata = wowee::ui::parseStrata(luaL_optstring(L, 2, "MEDIUM"));
+        const wowee::ui::FrameStrata strata =
+            wowee::ui::parseStrata(luaL_optstring(L, 2, "MEDIUM"));
+        // Setting the stratum it already carries is not a change. This binding
+        // writes the two fields below and nothing else, so those two are the
+        // whole of the no-op test - see setWidth, which carries the reasoning.
+        if (strata == w->strata && w->strataExplicit) return 0;
+        w->strata = strata;
         w->strataExplicit = true;
         // The stratum is inherited down the subtree and is the first key the
         // draw order sorts on, so both have to be resolved again.
@@ -3651,6 +3674,12 @@ int lua_Frame_SetFrameLevel(lua_State* L) {
     auto* w = widgetOf(L, 1);
     if (!w) return 0;
     const int wanted = static_cast<int>(luaL_optnumber(L, 2, 0));
+    // Setting the level it already carries, explicitly, is not a change. All
+    // three fields the call writes have to already hold the answer, because it
+    // writes all three and shifts the descendants by the difference: a frame
+    // whose effLevel was bumped above its stated level by its parent is a real
+    // change even when the stated level repeats.
+    if (w->levelExplicit && wanted == w->level && wanted == w->effLevel) return 0;
     // Anything inside that set its own level moves by the same amount, because
     // a child's level is relative to its parent. Raising a window by hand and
     // raising it by clicking it must leave the same arrangement behind.
@@ -3776,22 +3805,36 @@ int lua_FontString_SetTextColor(lua_State* L) {
 
 int lua_FontString_SetFont(lua_State* L) {
     if (auto* w = widgetOf(L, 1)) {
-        // A label with no width of its own is as wide as its own text in its
-        // own face at its own size, and all three of those are settled before
-        // the solve by a pass the layout gate skips with it.
-        markTreeDirty(L);
-        if (lua_isstring(L, 2)) w->fontFace = lua_tostring(L, 2);
+        // Work out what the call would leave behind before writing it, so a
+        // repeat of the font it already draws in can be told from a change -
+        // see setWidth. Only the arguments that were passed count: a missing
+        // face or height leaves the field as it stands.
+        std::string face = w->fontFace;
+        std::string outline = w->fontOutline;
+        float height = w->fontHeight;
+        if (lua_isstring(L, 2)) face = lua_tostring(L, 2);
         // The flags argument, where "OUTLINE" and "THICKOUTLINE" arrive.
         if (const char* flags = lua_isstring(L, 4) ? lua_tostring(L, 4) : nullptr) {
             const std::string f(flags);
-            if (f.find("THICK") != std::string::npos)        w->fontOutline = "THICK";
-            else if (f.find("OUTLINE") != std::string::npos) w->fontOutline = "NORMAL";
-            else                                             w->fontOutline.clear();
+            if (f.find("THICK") != std::string::npos)        outline = "THICK";
+            else if (f.find("OUTLINE") != std::string::npos) outline = "NORMAL";
+            else                                             outline.clear();
         }
         // (path, height, flags). Only the height is honoured for now; the path
         // needs a font atlas rebuild, which cannot happen mid-frame.
         const double h = luaL_optnumber(L, 3, 0.0);
-        if (h > 0.0) w->fontHeight = static_cast<float>(h);
+        if (h > 0.0) height = static_cast<float>(h);
+        if (face == w->fontFace && outline == w->fontOutline &&
+            height == w->fontHeight) {
+            return 0;
+        }
+        w->fontFace = face;
+        w->fontOutline = outline;
+        w->fontHeight = height;
+        // A label with no width of its own is as wide as its own text in its
+        // own face at its own size, and all three of those are settled before
+        // the solve by a pass the layout gate skips with it.
+        markTreeDirty(L);
     }
     return 0;
 }
@@ -3849,6 +3892,7 @@ int lua_FontString_SetSpacing(lua_State* L) {
 /// the font string it holds.
 static void applyFontObject(lua_State* L, int fontIndex, wowee::ui::Widget* w) {
     if (!w) return;
+    const std::string hadName = w->fontObjectName;
     if (lua_isstring(L, fontIndex)) {       // by name
         // Remembered, not only unpacked. GetFontObject has to hand the object
         // back, and the fields copied out of it cannot be reassembled into the
@@ -3861,9 +3905,17 @@ static void applyFontObject(lua_State* L, int fontIndex, wowee::ui::Widget* w) {
         lua_pushvalue(L, fontIndex);
     }
     if (lua_istable(L, -1)) {
-        // Same reason as SetFont: a font object carries the face and the size
-        // a label is measured in.
-        markTreeDirty(L);
+        // The same font object again is not a change. FrameXML applies its
+        // shared font objects by name more than three thousand times, and every
+        // one of those re-raised the generation for a label whose face, size
+        // and colour were already what they were - see setWidth.
+        const float hadHeight = w->fontHeight;
+        const std::string hadFace = w->fontFace;
+        const std::string hadOutline = w->fontOutline;
+        const bool hadShadow = w->hasShadow;
+        const float hadShadowX = w->shadowX, hadShadowY = w->shadowY;
+        float hadColor[4], hadShadowColor[4];
+        for (int i = 0; i < 4; ++i) { hadColor[i] = w->color[i]; hadShadowColor[i] = w->shadowColor[i]; }
         lua_getfield(L, -1, "height");
         if (lua_isnumber(L, -1)) w->fontHeight = static_cast<float>(lua_tonumber(L, -1));
         lua_pop(L, 1);
@@ -3899,6 +3951,17 @@ static void applyFontObject(lua_State* L, int fontIndex, wowee::ui::Widget* w) {
             }
             lua_pop(L, 1);
         }
+        // Same reason as SetFont: a font object carries the face and the size
+        // a label is measured in.
+        bool changed = hadName != w->fontObjectName ||
+                       hadHeight != w->fontHeight || hadFace != w->fontFace ||
+                       hadOutline != w->fontOutline || hadShadow != w->hasShadow ||
+                       hadShadowX != w->shadowX || hadShadowY != w->shadowY;
+        for (int i = 0; i < 4 && !changed; ++i) {
+            changed = hadColor[i] != w->color[i] ||
+                      hadShadowColor[i] != w->shadowColor[i];
+        }
+        if (changed) markTreeDirty(L);
     }
     lua_pop(L, 1);
 }
@@ -4305,14 +4368,24 @@ int lua_Frame_GetPushedTextOffset(lua_State* L) {
 
 int lua_Frame_SetHitRectInsets(lua_State* L) {
     if (auto* w = widgetOf(L, 1)) {
+        const float l = static_cast<float>(luaL_optnumber(L, 2, 0.0));
+        const float r = static_cast<float>(luaL_optnumber(L, 3, 0.0));
+        const float t = static_cast<float>(luaL_optnumber(L, 4, 0.0));
+        const float b = static_cast<float>(luaL_optnumber(L, 5, 0.0));
+        // The same four insets again are not a change - see setWidth. FrameXML
+        // re-applies them where it rebuilds a control.
+        if (l == w->hitInsetLeft && r == w->hitInsetRight &&
+            t == w->hitInsetTop && b == w->hitInsetBottom) {
+            return 0;
+        }
         // The hit rect is derived during the solve, so a frame told to stop
         // answering clicks over part of itself keeps answering them until the
         // next pass.
+        w->hitInsetLeft   = l;
+        w->hitInsetRight  = r;
+        w->hitInsetTop    = t;
+        w->hitInsetBottom = b;
         markTreeDirty(L);
-        w->hitInsetLeft   = static_cast<float>(luaL_optnumber(L, 2, 0.0));
-        w->hitInsetRight  = static_cast<float>(luaL_optnumber(L, 3, 0.0));
-        w->hitInsetTop    = static_cast<float>(luaL_optnumber(L, 4, 0.0));
-        w->hitInsetBottom = static_cast<float>(luaL_optnumber(L, 5, 0.0));
     }
     return 0;
 }

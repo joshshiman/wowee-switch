@@ -3554,6 +3554,48 @@ public:
     void updateTaxiAndMountState(float deltaTime);
     void updateAutoAttack(float deltaTime);
 
+    // ── [WORLD_PERF] last-frame attribution of update() ──────────────
+    //
+    // The stage timer in Application says `gameHandler->update` cost 55 ms of
+    // a connected-realm frame and 9 ms of a local one, but the only sub-timers
+    // inside it (socket->update, the queued-packet drain) never cross 5 ms, so
+    // the bulk was unattributed. Each field below is the last recorded frame,
+    // in the same steady_clock / double-millisecond units as the renderer's
+    // lastXxxMs, so the two halves of a frame read alike.
+    //
+    // ghMiscMs is deliberately the *remainder* - total update() minus the five
+    // named stages - so ghSocket + ghPacket + ghTimers + ghInterp +
+    // ghTransport + ghMisc equals the `gameHandler->update` stage exactly, and
+    // a large misc means the cost is in the pre-world/IN_WORLD body rather
+    // than in any one named step.
+    [[nodiscard]] double ghSocketMs() const { return ghSocketMs_; }
+    [[nodiscard]] double ghPacketMs() const { return ghPacketMs_; }
+    [[nodiscard]] double ghTimersMs() const { return ghTimersMs_; }
+    [[nodiscard]] double ghInterpMs() const { return ghInterpMs_; }
+    [[nodiscard]] double ghTransportMs() const { return ghTransportMs_; }
+    [[nodiscard]] double ghMiscMs() const { return ghMiscMs_; }
+    // Traffic proof: whether the cost above is driven by how much the server
+    // sent. The two sizes are sampled at the top of update(); the three counts
+    // are reset there and bumped as the frame does the work, so a slow frame
+    // with tiny counts is client-side work, not traffic.
+    [[nodiscard]] size_t ghPendingInbound() const { return ghPendingInbound_; }
+    [[nodiscard]] size_t ghPendingBatches() const { return ghPendingBatches_; }
+    [[nodiscard]] size_t ghBlocksApplied() const { return ghBlocksApplied_; }
+    [[nodiscard]] size_t ghPacketsHandled() const { return ghPacketsHandled_; }
+    [[nodiscard]] size_t ghOutOfRangeRemoved() const { return ghOutOfRangeRemoved_; }
+
+    // Bumped by EntityController while it drains the update-object queue. The
+    // counters live here, beside the queue they describe, so the [WORLD_PERF]
+    // writer can read them without reaching through the controller.
+    size_t& ghBlocksAppliedRef() { return ghBlocksApplied_; }
+    size_t& ghOutOfRangeRemovedRef() { return ghOutOfRangeRemoved_; }
+    // Decompressed bytes the compressed-update path has spent this frame; reset
+    // at the top of the packet drain. A compressed update that would push the
+    // frame past the byte budget is put back at the front of the queue instead
+    // of being decompressed now (see deferCompressedUpdate).
+    size_t& ghCompressedUpdateBytesRef() { return ghCompressedUpdateBytesThisFrame_; }
+    void deferCompressedUpdate(network::Packet&& packet);
+
     /**
      * Reset DBC-backed caches so they reload from new expansion data.
      * Called by Application when the expansion profile changes.
@@ -4281,6 +4323,21 @@ private:
     // Network
     std::unique_ptr<network::WorldSocket> socket;
     std::deque<network::Packet> pendingIncomingPackets_;
+
+    // [WORLD_PERF] update() attribution - see the public getters above.
+    double ghSocketMs_ = 0.0;
+    double ghPacketMs_ = 0.0;
+    double ghTimersMs_ = 0.0;
+    double ghInterpMs_ = 0.0;
+    double ghTransportMs_ = 0.0;
+    double ghMiscMs_ = 0.0;
+    size_t ghPendingInbound_ = 0;
+    size_t ghPendingBatches_ = 0;
+    size_t ghBlocksApplied_ = 0;
+    size_t ghPacketsHandled_ = 0;
+    size_t ghOutOfRangeRemoved_ = 0;
+    size_t ghCompressedUpdateBytesThisFrame_ = 0;
+    bool ghCompressedUpdateDeferred_ = false;
 
     // State
     WorldState state = WorldState::DISCONNECTED;

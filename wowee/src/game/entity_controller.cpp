@@ -39,6 +39,19 @@ float slowUpdateObjectBlockLogThresholdMs() {
     return static_cast<float>(thresholdMs);
 }
 
+// Per-frame ceiling on how many bytes of SMSG_COMPRESSED_UPDATE_OBJECT this
+// client will decompress. A single packet may carry up to 5 MiB (the parse
+// guard in handleCompressedUpdateObject), so the ceiling must be at least
+// that, or a lone large packet could never be admitted and would starve the
+// queue. Several smaller packets that together would exceed it are deferred
+// to the next frame instead of run now - the queue already drains across
+// frames, so the only cost is one frame of latency on a burst.
+size_t compressedUpdateBytesPerFrame() {
+    static const int mib =
+        core::envIntClamped("WOWEE_NET_COMPRESSED_UPDATE_MIB_PER_FRAME", 5, 1, 64);
+    return static_cast<size_t>(mib) * 1024 * 1024;
+}
+
 } // anonymous namespace
 
 EntityController::EntityController(GameHandler& owner)
@@ -112,11 +125,13 @@ void EntityController::processPendingUpdateObjectWork(const std::chrono::steady_
 
     const int maxBlocksThisUpdate = updateObjectBlocksBudgetPerUpdate(owner_.getState());
     int processedBlocks = 0;
+    auto elapsedMs = [&]() {
+        return std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - start).count();
+    };
 
     while (!pendingUpdateObjectWork_.empty() && processedBlocks < maxBlocksThisUpdate) {
-        float elapsedMs = std::chrono::duration<float, std::milli>(
-            std::chrono::steady_clock::now() - start).count();
-        if (elapsedMs >= budgetMs) {
+        if (elapsedMs() >= budgetMs) {
             break;
         }
 
@@ -131,12 +146,15 @@ void EntityController::processPendingUpdateObjectWork(const std::chrono::steady_
                             "ms guidCount=", work.data.outOfRangeGuids.size());
             }
             work.outOfRangeProcessed = true;
+            // Out-of-range can be the whole budget on its own (a long guid
+            // list). Do not go on to apply blocks in the same frame if it was.
+            if (elapsedMs() >= budgetMs) {
+                break;
+            }
         }
 
         while (work.nextBlockIndex < work.data.blocks.size() && processedBlocks < maxBlocksThisUpdate) {
-            elapsedMs = std::chrono::duration<float, std::milli>(
-                std::chrono::steady_clock::now() - start).count();
-            if (elapsedMs >= budgetMs) {
+            if (elapsedMs() >= budgetMs) {
                 break;
             }
 
@@ -156,9 +174,25 @@ void EntityController::processPendingUpdateObjectWork(const std::chrono::steady_
             }
             ++work.nextBlockIndex;
             ++processedBlocks;
+            ++owner_.ghBlocksAppliedRef();
+
+            // Check after the block too. The pre-check gates the next block,
+            // so this is belt-and-suspenders on the ordinary path, but it
+            // keeps the frame's ceiling at the loop boundary whatever the
+            // branch above did.
+            if (elapsedMs() >= budgetMs) {
+                break;
+            }
         }
 
         if (work.nextBlockIndex >= work.data.blocks.size()) {
+            // finalizeUpdateObjectBatch rebuilds the online inventory and can
+            // be real work, so keep it inside the budget too. If the frame is
+            // already over, the completed batch stays queued and is finalized
+            // first thing next frame - the queue already drains across frames.
+            if (elapsedMs() >= budgetMs) {
+                break;
+            }
             finalizeUpdateObjectBatch(work.newItemCreated);
             pendingUpdateObjectWork_.pop_front();
             continue;
@@ -248,6 +282,7 @@ void EntityController::processOutOfRangeObjects(const std::vector<uint64_t>& gui
             owner_.clearPlayerTransport();
         }
         entityManager.removeEntity(guid);
+        ++owner_.ghOutOfRangeRemovedRef();
     }
 
     // Once, after the whole batch: a vendor sale can take several items out of
@@ -2693,6 +2728,7 @@ void EntityController::handleCompressedUpdateObject(network::Packet& packet) {
         return;
     }
 
+    const size_t headerStart = packet.getReadPos();
     uint32_t decompressedSize = packet.readUInt32();
     LOG_DEBUG("  Decompressed size: ", decompressedSize);
 
@@ -2702,6 +2738,28 @@ void EntityController::handleCompressedUpdateObject(network::Packet& packet) {
         LOG_WARNING("Invalid decompressed size: ", decompressedSize);
         return;
     }
+
+    // Per-frame decompressed-byte budget. A city or raid can send several
+    // large compressed updates in one burst, and decompressing them all in a
+    // single frame is what turns a 2 ms drain into a several-hundred-ms one.
+    // If this packet would push the frame over the ceiling, put it back at the
+    // front of the queue for the next frame. The `bytesThisFrame > 0` guard
+    // means the first compressed update of a frame always proceeds, so a
+    // misconfigured budget smaller than a single packet can never livelock the
+    // queue - the default budget already equals the 5 MiB parse ceiling, so
+    // the guard is inert in the normal case. The read position is rewound on
+    // the copy so the deferral re-reads the header cleanly next frame.
+    size_t& bytesThisFrame = owner_.ghCompressedUpdateBytesRef();
+    if (bytesThisFrame > 0 &&
+        bytesThisFrame + decompressedSize > compressedUpdateBytesPerFrame()) {
+        network::Packet deferred = packet;
+        deferred.setReadPos(headerStart);
+        LOG_DEBUG("Deferring SMSG_COMPRESSED_UPDATE_OBJECT (", decompressedSize,
+                  " bytes): ", bytesThisFrame, " already decompressed this frame");
+        owner_.deferCompressedUpdate(std::move(deferred));
+        return;
+    }
+    bytesThisFrame += decompressedSize;
 
     // Remaining data is zlib compressed
     size_t compressedSize = packet.getRemainingSize();

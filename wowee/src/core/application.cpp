@@ -2108,6 +2108,26 @@ void Application::run() {
                     " renderOver25ms=", ps4WorldTiming.renderOver25ms,
                     " otherAndPacingMeanMs=", ps4WorldTiming.otherAndPacingMs / ps4WorldTiming.frames,
                     " updateMeanMs=", ps4WorldTiming.updateMs / ps4WorldTiming.frames,
+                    // The update half of that mean, broken down. A connected
+                    // realm reports 55.7ms here against 9ms locally, but the
+                    // only sub-timers inside GameHandler::update were the
+                    // socket and the queued-packet drain, both under 5ms - so
+                    // the 40-60ms had no name. Last-frame samples, like the
+                    // render sub-timers below. ghMiscMs is the remainder, so
+                    // ghSocket + ghPacket + ghTimers + ghInterp + ghTransport +
+                    // ghMisc equals the gameHandler->update stage. The
+                    // counters say whether the cost is traffic-driven.
+                    " ghSocketMs=", gameHandler ? gameHandler->ghSocketMs() : 0.0,
+                    " ghPacketMs=", gameHandler ? gameHandler->ghPacketMs() : 0.0,
+                    " ghTimersMs=", gameHandler ? gameHandler->ghTimersMs() : 0.0,
+                    " ghInterpMs=", gameHandler ? gameHandler->ghInterpMs() : 0.0,
+                    " ghTransportMs=", gameHandler ? gameHandler->ghTransportMs() : 0.0,
+                    " ghMiscMs=", gameHandler ? gameHandler->ghMiscMs() : 0.0,
+                    " pendingInbound=", gameHandler ? gameHandler->ghPendingInbound() : size_t{0},
+                    " pendingUpdateBatches=", gameHandler ? gameHandler->ghPendingBatches() : size_t{0},
+                    " blocksApplied=", gameHandler ? gameHandler->ghBlocksApplied() : size_t{0},
+                    " packetsHandled=", gameHandler ? gameHandler->ghPacketsHandled() : size_t{0},
+                    " outOfRangeRemoved=", gameHandler ? gameHandler->ghOutOfRangeRemoved() : size_t{0},
                     " renderMeanMs=", ps4WorldTiming.renderMs / ps4WorldTiming.frames,
                     // B39: the render half of that mean, broken down. Without
                     // these the log said a frame took 100 ms and nothing about
@@ -4236,14 +4256,22 @@ void Application::updateInGame(float deltaTime, const char*& updateCheckpoint) {
         }
     });
     if (addonManager_ && addonsLoaded_) {
-        try {
-            localFrameXml_.update(deltaTime);
-            addonManager_->update(deltaTime);
-        } catch (const std::bad_alloc&) {
-            localFrameXml_.reset();
-            addonManager_->failOriginalInterface("UI snapshot allocation failed");
-            addonManager_->discardPartialInterface();
-        }
+        // The identical pair is timed as "local FrameXML update" on the local
+        // path (see the local-realm branch above); on the connected path it was
+        // not timed at all, so the one number that could have named the
+        // interface's share of the 40-60 ms update phase was missing. Same
+        // stage name on both paths, so the two realms' costs sit side by side
+        // in the report.
+        runInGameStage("local FrameXML update", [&] {
+            try {
+                localFrameXml_.update(deltaTime);
+                addonManager_->update(deltaTime);
+            } catch (const std::bad_alloc&) {
+                localFrameXml_.reset();
+                addonManager_->failOriginalInterface("UI snapshot allocation failed");
+                addonManager_->discardPartialInterface();
+            }
+        });
         if (!addonManager_->originalInterfaceLoaded()) localFrameXml_.reset();
     }
     // Always unsheath on combat engage.

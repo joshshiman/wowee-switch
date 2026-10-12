@@ -351,20 +351,20 @@ void GameHandler::updateNetworking() {
     if (socket) {
         auto socketStart = std::chrono::steady_clock::now();
         socket->update();
-        float socketMs = std::chrono::duration<float, std::milli>(
+        ghSocketMs_ = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - socketStart).count();
-        if (socketMs > 3.0f) {
-            LOG_WARNING("SLOW socket->update: ", socketMs, "ms");
+        if (ghSocketMs_ > 3.0) {
+            LOG_WARNING("SLOW socket->update: ", ghSocketMs_, "ms");
         }
     }
 
     {
         auto packetStart = std::chrono::steady_clock::now();
         processQueuedIncomingPackets();
-        float packetMs = std::chrono::duration<float, std::milli>(
+        ghPacketMs_ = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - packetStart).count();
-        if (packetMs > 3.0f) {
-            LOG_WARNING("SLOW queued packet handling: ", packetMs, "ms");
+        if (ghPacketMs_ > 3.0) {
+            LOG_WARNING("SLOW queued packet handling: ", ghPacketMs_, "ms");
         }
     }
 
@@ -711,6 +711,23 @@ void GameHandler::updateTimers(float deltaTime) {
 }
 
 void GameHandler::update(float deltaTime) {
+    // [WORLD_PERF] attribution. Reset this frame's named stages and traffic
+    // counters, then fill them in as the update runs. ghMiscMs is the
+    // remainder, computed on every exit, so the six fields always sum to the
+    // stage Application times around this call - a large misc means the cost
+    // is in the update body, not in any one named step.
+    const auto updateStart = std::chrono::steady_clock::now();
+    ghSocketMs_ = ghPacketMs_ = ghTimersMs_ = ghInterpMs_ = ghTransportMs_ = ghMiscMs_ = 0.0;
+    ghBlocksApplied_ = ghPacketsHandled_ = ghOutOfRangeRemoved_ = 0;
+    ghPendingInbound_ = pendingIncomingPackets_.size();
+    ghPendingBatches_ = entityController_ ? entityController_->pendingUpdateObjectWorkSize() : 0;
+    auto finishUpdate = [&]() {
+        const double total = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - updateStart).count();
+        ghMiscMs_ = total - (ghSocketMs_ + ghPacketMs_ + ghTimersMs_ + ghInterpMs_ + ghTransportMs_);
+        if (ghMiscMs_ < 0.0) ghMiscMs_ = 0.0;
+    };
+
     pumpLocalSocial();
     // The char-create callback used to be deferred to here, out of the packet
     // handler and so out of any render pass. It is not any more: the
@@ -719,11 +736,15 @@ void GameHandler::update(float deltaTime) {
     // behind it were never written at all. A block that cannot run, guarding a
     // deferral that no longer happens, reads as though both still do.
     if (!socket) {
+        finishUpdate();
         return;
     }
 
     updateNetworking();
-    if (!socket) return;  // disconnect() may have been called
+    if (!socket) {  // disconnect() may have been called
+        finishUpdate();
+        return;
+    }
 
     // Fallback for CMSG_CHAR_DELETE with no server response: if the server
     // doesn't send SMSG_CHAR_DELETE within 3 seconds, re-request the character
@@ -801,7 +822,12 @@ void GameHandler::update(float deltaTime) {
     // what PLAYER_REGEN_DISABLED means in WoW and what decides whether a panel
     // may be changed. Two sources, two edges, at slightly different moments.
 
-    updateTimers(deltaTime);
+    {
+        const auto timersStart = std::chrono::steady_clock::now();
+        updateTimers(deltaTime);
+        ghTimersMs_ = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - timersStart).count();
+    }
 
     // Send periodic heartbeat if in world
     if (state == WorldState::IN_WORLD) {
@@ -903,8 +929,11 @@ void GameHandler::update(float deltaTime) {
 
         // Update transport manager
         if (transportManager_) {
+            const auto transportStart = std::chrono::steady_clock::now();
             transportManager_->update(deltaTime);
             updateAttachedTransportChildren(deltaTime);
+            ghTransportMs_ = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - transportStart).count();
         }
 
         updateAutoAttack(deltaTime);
@@ -930,9 +959,15 @@ void GameHandler::update(float deltaTime) {
                       [this]{ closeTaxi(); }, "Taxi window");
         closeIfTooFar(isTrainerWindowOpen(), getTrainerSpells().trainerGuid, [this]{ closeTrainer(); }, "Trainer");
 
-        updateEntityInterpolation(deltaTime);
+        {
+            const auto interpStart = std::chrono::steady_clock::now();
+            updateEntityInterpolation(deltaTime);
+            ghInterpMs_ = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - interpStart).count();
+        }
 
     }
+    finishUpdate();
 }
 
 // ============================================================

@@ -95,6 +95,9 @@ public:
     void processPendingUpdateObjectWork(const std::chrono::steady_clock::time_point& start,
                                         float budgetMs);
     [[nodiscard]] bool hasPendingUpdateObjectWork() const { return !pendingUpdateObjectWork_.empty(); }
+    /// How many batches are still queued. Beside the queue because the
+    /// [WORLD_PERF] update attribution reports it as traffic proof.
+    [[nodiscard]] size_t pendingUpdateObjectWorkSize() const { return pendingUpdateObjectWork_.size(); }
 
     // --- Reset all state (called on disconnect / character switch) ---
     void clearAll();
