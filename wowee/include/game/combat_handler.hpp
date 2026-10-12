@@ -118,7 +118,17 @@ public:
     /// target survives half a fight's worth of tab-targeting.
     void targetLastEnemy();
     void targetLastFriend();
-    void tabTarget(float playerX, float playerY, float playerZ);
+    /// Cycle to the next tab target, nearest first, from the player's position.
+    ///
+    /// includeNeutrals widens the filter from "hostile" to "attackable": a
+    /// neutral, non-interactable creature (a wolf with no NPC flags) joins the
+    /// cycle, while an interactable NPC (quest giver, vendor, trainer) and a
+    /// friendly player still do not. That is the same rule
+    /// GameHandler::targetNearest uses for its Attackable mode, and the pad's
+    /// crosshair L1 asks for it. The cycle list and index are shared, so the
+    /// second press continues from wherever the first one landed.
+    void tabTarget(float playerX, float playerY, float playerZ,
+                   bool includeNeutrals = false);
     void assistTarget();
 
     // --- PvP ---

@@ -1980,8 +1980,9 @@ void GameHandler::declineResurrect() {
     if (combatHandler_) combatHandler_->declineResurrect();
 }
 
-void GameHandler::tabTarget(float playerX, float playerY, float playerZ) {
-    if (combatHandler_) combatHandler_->tabTarget(playerX, playerY, playerZ);
+void GameHandler::tabTarget(float playerX, float playerY, float playerZ,
+                            bool includeNeutrals) {
+    if (combatHandler_) combatHandler_->tabTarget(playerX, playerY, playerZ, includeNeutrals);
 }
 
 void GameHandler::addLocalChatMessage(const MessageChatData& msg) {

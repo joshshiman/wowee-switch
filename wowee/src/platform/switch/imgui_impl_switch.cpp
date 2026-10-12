@@ -323,7 +323,8 @@ void ImGui_ImplSwitch_NewFrame(int displayWidth, int displayHeight) {
     // system keyboard is over everything.
     const MouseState& mouse = mouseState();
     io.AddMousePosEvent(mouse.x, mouse.y);
-    io.MouseDrawCursor = inputCursorVisible() && (!keyboardOpen() || applicationKeyboardOpen());
+    io.MouseDrawCursor = inputCursorVisible() && !crosshairActive() &&
+                         (!keyboardOpen() || applicationKeyboardOpen());
 
     // Gamepad navigation: the D-pad, while an ImGui window has the focus and
     // no text field does. Off the interface the D-pad zooms and turns, and
@@ -448,6 +449,10 @@ void ImGui_ImplSwitch_EndFrame(bool interfaceWantsText) {
         g_bd.wasWantingText = wantsText; g_bd.focusedField = field;
     }
     renderKeyboard();
+    // After the keyboard, so the crosshair is not drawn under the modal: the
+    // modal is a field with the keyboard, and the crosshair is not up then
+    // (the client stands it down while a text field has focus).
+    renderCrosshair();
     // After it: a keyboard closed on this frame has its answer queued by now,
     // and this is the frame that pushes the first of its three chords.
     deliverReplacement(field);

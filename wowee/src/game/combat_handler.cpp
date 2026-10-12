@@ -1568,7 +1568,8 @@ void CombatHandler::targetLastFriend() {
     setTarget(lastFriendTargetGuid_);
 }
 
-void CombatHandler::tabTarget(float playerX, float playerY, float playerZ) {
+void CombatHandler::tabTarget(float playerX, float playerY, float playerZ,
+                              bool includeNeutrals) {
     // Maximum tab-target range in yards (matches the WoW client).
     constexpr float kTabRange   = 40.0f;
     constexpr float kTabRangeSq = kTabRange * kTabRange;
@@ -1581,6 +1582,12 @@ void CombatHandler::tabTarget(float playerX, float playerY, float playerZ) {
     // Helper: returns true if the entity is a hostile that can be tab-targeted.
     // Corpses are never tab targets while fighting; out of combat they only
     // qualify when they still hold loot.
+    //
+    // includeNeutrals widens this from hostile to attackable: a neutral
+    // creature with no NPC flags (a wolf) is a fight, so it joins the cycle,
+    // while an interactable NPC (quest giver / vendor / trainer) and a
+    // non-hostile player stay out. Same rule as GameHandler::targetNearest's
+    // Attackable mode, which the pad's crosshair L1 asks for.
     auto isValidTabTarget = [&](const std::shared_ptr<Entity>& e) -> bool {
         if (!e) return false;
         const uint64_t guid = e->getGuid();
@@ -1594,7 +1601,10 @@ void CombatHandler::tabTarget(float playerX, float playerY, float playerZ) {
         }
         const bool hostileByFaction = unit->isHostile();
         const bool hostileByCombat = isAggressiveTowardPlayer(guid);
-        return hostileByFaction || hostileByCombat;
+        if (hostileByFaction || hostileByCombat) return true;
+        if (!includeNeutrals) return false;
+        if (e->getType() != ObjectType::UNIT) return false;
+        return !unit->isInteractable();
     };
 
     // Restart the cycle after a pause - the player has moved on; the next tab

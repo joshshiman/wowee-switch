@@ -160,6 +160,13 @@ bool s_cursorMode = false;        // R3: the right stick moves the cursor even i
 bool s_consolePortActive = false;
 bool s_keyboardRequest = false;
 
+// The in-world crosshair (remote realm). While it is up the cursor is pinned to
+// the screen centre and the face buttons are the world's clicks; the client
+// sets it once a frame (application.cpp). s_crosshairTargetRequest is the L1
+// one-shot the client answers with a nearest-attackable cycle.
+bool s_crosshairActive = false;
+bool s_crosshairTargetRequest = false;
+
 // The emulated keyboard: what the pad holds, indexed by scancode. Also what
 // SDL_GetKeyboardState returns.
 std::array<Uint8, SDL_NUM_SCANCODES> s_held{};
@@ -556,7 +563,7 @@ void readPad(float dt) {
             const float ny = static_cast<float>(t.y) / 720.0f;
             const float px = clampf(nx, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayW - 1, 0));
             const float py = clampf(ny, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayH - 1, 0));
-            if (!s_lookEngaged) {
+            if (!s_lookEngaged && !s_crosshairActive) {
                 int xrel = 0, yrel = 0;
                 moveCursor(px - s_cursorX, py - s_cursorY, xrel, yrel);
                 if (xrel != 0 || yrel != 0 || !s_touchWasDown) pushMouseMotion(xrel, yrel);
@@ -802,6 +809,23 @@ void pumpInput() {
         s_cursorY = s_relativeOriginY;
     }
 
+    // The crosshair sits at the middle of the screen. Pinned here, before the
+    // position is captured below, so at rest the frame reports no cursor motion
+    // and the world click under the crosshair is always the screen centre.
+    //
+    // Not while the right stick is actually looking: a look is a right-button
+    // drag, and GameScreen tells a drag from a click by how far the cursor
+    // moved (game_screen.cpp:1979-1987). Holding the cursor still through a look
+    // would make every look a click - it would interact with or attack whatever
+    // is in front of the player every time they turned the camera. So the look
+    // drags the cursor as it always has, and the cursor snaps back to centre the
+    // moment the look ends (s_lookEngaged goes false on release). The touch
+    // surface does not move the crosshair.
+    if (s_crosshairActive && !s_lookEngaged) {
+        s_cursorX = static_cast<float>(s_displayW) * 0.5f;
+        s_cursorY = static_cast<float>(s_displayH) * 0.5f;
+    }
+
     const float prevX = s_cursorX;
     const float prevY = s_cursorY;
     s_wheelThisFrame = 0.0f;
@@ -875,11 +899,15 @@ void pumpInput() {
                 }
             }
         }
-        // Face buttons -> F1..F4
+        // Face buttons -> F1..F4. With the crosshair up, Y and A are the world's
+        // own clicks rather than F3/F4 (handled just below the R3 toggle), so
+        // the two rows stand down: one press, one answer.
         if (gameplayButtons & ORBIS_PAD_BUTTON_SQUARE) want[static_cast<size_t>(SDL_SCANCODE_F1)] = true;   // X
         if (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) want[static_cast<size_t>(SDL_SCANCODE_F2)] = true;   // B
-        if (gameplayButtons & ORBIS_PAD_BUTTON_TRIANGLE) want[static_cast<size_t>(SDL_SCANCODE_F3)] = true; // Y
-        if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) want[static_cast<size_t>(SDL_SCANCODE_F4)] = true;    // A
+        if (!s_crosshairActive) {
+            if (gameplayButtons & ORBIS_PAD_BUTTON_TRIANGLE) want[static_cast<size_t>(SDL_SCANCODE_F3)] = true; // Y
+            if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) want[static_cast<size_t>(SDL_SCANCODE_F4)] = true;    // A
+        }
 
         // D-Pad -> F5..F8
         if (gameplayButtons & ORBIS_PAD_BUTTON_UP) want[static_cast<size_t>(SDL_SCANCODE_F5)] = true;
@@ -887,8 +915,10 @@ void pumpInput() {
         if (gameplayButtons & ORBIS_PAD_BUTTON_LEFT) want[static_cast<size_t>(SDL_SCANCODE_F7)] = true;
         if (gameplayButtons & ORBIS_PAD_BUTTON_RIGHT) want[static_cast<size_t>(SDL_SCANCODE_F8)] = true;
 
-        // Bumpers -> F9..F10
-        if (gameplayButtons & ORBIS_PAD_BUTTON_L1) want[static_cast<size_t>(SDL_SCANCODE_F9)] = true;
+        // Bumpers -> F9..F10. L1 is target-nearest-attackable while the
+        // crosshair is up, so its F9 (INTERACTTARGET) stands down then.
+        if (!s_crosshairActive && (gameplayButtons & ORBIS_PAD_BUTTON_L1))
+            want[static_cast<size_t>(SDL_SCANCODE_F9)] = true;
         if (gameplayButtons & ORBIS_PAD_BUTTON_R1) want[static_cast<size_t>(SDL_SCANCODE_F10)] = true;
 
         // Triggers (Modifiers) -> Shift / Ctrl
@@ -910,6 +940,19 @@ void pumpInput() {
             if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) left = true;
             if (gameplayButtons & ORBIS_PAD_BUTTON_CIRCLE) right = true;
         }
+        // Crosshair up (remote realm, in world, no menu): the face buttons are
+        // the world's own clicks at the screen centre. A is the right click the
+        // client's real world pick answers - interact, loot or auto-attack on
+        // whatever the crosshair is on - and Y is the left click that selects or
+        // deselects. L1 asks the client for the nearest attackable unit. R3 and
+        // cursor mode are mutually exclusive with this (the client turns the
+        // crosshair off while R3 has the stick on the cursor).
+        if (s_crosshairActive) {
+            if (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) right = true;
+            if (gameplayButtons & ORBIS_PAD_BUTTON_TRIANGLE) left = true;
+            if (st.pressed & gameplayButtons & ORBIS_PAD_BUTTON_L1)
+                s_crosshairTargetRequest = true;
+        }
         // Hold-A is left-click too, in any mode. A tap fires the F4 binding
         // (interact); holding it past a quarter second also holds the left
         // mouse button, which is what picks a bag item up and what the drop
@@ -917,7 +960,12 @@ void pumpInput() {
         // outside cursor mode, so nothing can ever be dragged from a bag to
         // the bar. The tap still fires first - an extra interact on pickup
         // is harmless beside a drag that would otherwise be impossible.
-        {
+        //
+        // Not while the crosshair is up: there A is the right click, and a
+        // simultaneous left click would be the wrong button and would stop the
+        // right click's tap test from ever firing. A is a clean right click
+        // then, and Y is the left one.
+        if (!s_crosshairActive) {
             static bool s_crossWasHeld = false;
             static Clock::time_point s_crossDownSince{};
             const bool crossHeld = (gameplayButtons & ORBIS_PAD_BUTTON_CROSS) != 0;
@@ -1128,6 +1176,34 @@ void renderKeyboard() {
     if (finish) finishKeyboard(accepted, result);
 }
 
+void renderCrosshair() {
+    // Not while the right stick is looking: the look is a camera drag with the
+    // cursor hidden, and a crosshair parked at the centre would claim a pick
+    // point that is not where the drag is.
+    if (!s_crosshairActive || s_lookEngaged) return;
+    // Drawn into the foreground list, over everything the interface put down,
+    // because the crosshair is the thing the player is aiming with. Four short
+    // lines with a gap and a small ring: cheap enough for the Switch's UI pass.
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    if (!dl) return;
+    const ImVec2 c(static_cast<float>(s_displayW) * 0.5f,
+                   static_cast<float>(s_displayH) * 0.5f);
+    const float arm = 11.0f, gap = 3.5f, ring = 7.0f;
+    // Two passes: a dark copy one pixel off for contrast, then white. Without
+    // the shadow the crosshair disappears over a bright sky or snow.
+    const ImU32 shadow = IM_COL32(0, 0, 0, 170);
+    const ImU32 white  = IM_COL32(255, 255, 255, 210);
+    for (int pass = 0; pass < 2; ++pass) {
+        const ImU32 col = pass ? white : shadow;
+        const float o = pass ? 0.0f : 1.0f;
+        dl->AddLine(ImVec2(c.x - arm + o, c.y + o), ImVec2(c.x - gap + o, c.y + o), col, 2.0f);
+        dl->AddLine(ImVec2(c.x + gap + o, c.y + o), ImVec2(c.x + arm + o, c.y + o), col, 2.0f);
+        dl->AddLine(ImVec2(c.x + o, c.y - arm + o), ImVec2(c.x + o, c.y - gap + o), col, 2.0f);
+        dl->AddLine(ImVec2(c.x + o, c.y + gap + o), ImVec2(c.x + o, c.y + arm + o), col, 2.0f);
+        dl->AddCircle(ImVec2(c.x + o, c.y + o), ring, col, 16, 1.5f);
+    }
+}
+
 bool keyboardOpen() { return s_keyboard.open || s_applicationKeyboardOpen; }
 bool keyboardCapturesInput() { return keyboardOpen() || nowMs() < s_ignoreButtonsUntilMs; }
 bool applicationKeyboardOpen() { return s_applicationKeyboardOpen; }
@@ -1174,6 +1250,29 @@ void setInputMenuNavigation(MenuOwner owner, bool open) {
 }
 bool inputMenuNavigation() { return s_menuOwners != 0; }
 void setInputCarrying(bool carrying) { s_carrying = carrying; }
+
+void setCrosshairActive(bool active) {
+    if (s_crosshairActive == active) return;
+    s_crosshairActive = active;
+    if (active) {
+        // Pin at once, so the first frame the crosshair is up already reports
+        // the centre rather than wherever the cursor happened to be.
+        s_cursorX = static_cast<float>(s_displayW) * 0.5f;
+        s_cursorY = static_cast<float>(s_displayH) * 0.5f;
+    } else {
+        // A press that arrived as the crosshair went down must not fire later.
+        s_crosshairTargetRequest = false;
+    }
+}
+bool crosshairActive() { return s_crosshairActive; }
+
+bool takeCrosshairTargetRequest() {
+    const bool r = s_crosshairTargetRequest;
+    s_crosshairTargetRequest = false;
+    return r;
+}
+
+bool inputCursorMode() { return s_cursorMode; }
 
 void setConsolePortActive(bool active) {
     s_consolePortActive = active;

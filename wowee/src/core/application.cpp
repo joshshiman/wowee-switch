@@ -4899,6 +4899,31 @@ void Application::render() {
     // lane runs in as well. Nothing owns the pad, so nothing holds the bit.
     platform::switchport::setInputMenuNavigation(
         platform::switchport::MenuOwner::FrameXml, drawWidgets && localFrameXml_.panelOpen());
+
+    // The in-world crosshair (remote realm only). While it is up the pad layer
+    // pins the cursor to the screen centre and turns A into the world's own
+    // right click, Y into its left click and L1 into target-nearest-attackable
+    // - the client's real interact/loot/attack pick, driven from the middle of
+    // the screen rather than from a search. Every gate below is a reason the
+    // player is doing something other than standing in the world: the local
+    // realm keeps its overlay gestures untouched, a menu or the world map owns
+    // the pad, R3 has handed the right stick back to the cursor, or a cinematic
+    // is playing. One call a frame, and it is cheap.
+    const bool crosshairActive = state == AppState::IN_GAME &&
+        gameHandler && !gameHandler->isLocalExploration() &&
+        !characterIntroOwnsView() &&
+        platform::switchport::consolePortActive() &&
+        !platform::switchport::inputMenuNavigation() &&
+        !platform::switchport::inputCursorMode() &&
+        !localFrameXml_.worldMapOwnsPad();
+    platform::switchport::setCrosshairActive(crosshairActive);
+    // L1's one-shot while the crosshair is up: cycle the nearest attackable
+    // unit (hostile or a neutral non-interactable creature - the client's own
+    // tab range, its own cycle). Only the remote realm reaches here.
+    if (crosshairActive && platform::switchport::takeCrosshairTargetRequest()) {
+        const auto& movement = gameHandler->getMovementInfo();
+        gameHandler->tabTarget(movement.x, movement.y, movement.z, /*includeNeutrals=*/true);
+    }
 #endif
     if (drawWidgets && addonManager_ && addonManager_->getLuaEngine() && renderer) {
         runRenderStage("addonWidgets", [&] {

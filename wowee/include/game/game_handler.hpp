@@ -630,7 +630,11 @@ public:
     uint64_t getTargetGuid() const override { return targetGuid; }
     std::shared_ptr<Entity> getTarget() const override;
     bool hasTarget() const override { return targetGuid != 0; }
-    void tabTarget(float playerX, float playerY, float playerZ);
+    /// Cycle to the next tab target (nearest first) from the given position.
+    /// includeNeutrals widens the filter to attackable - hostile, or a neutral
+    /// non-interactable creature - which is what the pad's crosshair L1 wants.
+    void tabTarget(float playerX, float playerY, float playerZ,
+                   bool includeNeutrals = false);
 
     // Focus targeting
     void setFocus(uint64_t guid) override;

@@ -194,6 +194,23 @@ void setInputUiFocus(bool focused);
 enum class MenuOwner : unsigned { LocalRealm = 1, Settings = 2, FrameXml = 4, Hub = 8 };
 void setInputMenuNavigation(MenuOwner owner, bool open);
 bool inputMenuNavigation();
+
+/// The in-world crosshair, remote realm only. While it is up the pad layer pins
+/// the cursor to the screen centre and the face buttons become the world's own
+/// clicks - Cross a right click (interact / loot / auto-attack under the
+/// crosshair), Triangle a left click (select / deselect), L1 a request for the
+/// nearest attackable unit - instead of their ConsolePort F-keys. The client
+/// sets this once a frame; false is today's behaviour exactly. Never true on
+/// the local realm.
+void setCrosshairActive(bool active);
+bool crosshairActive();
+/// True once per L1 press while the crosshair is up. The client answers by
+/// cycling the nearest attackable target (see takeKeyboardRequest for the
+/// same one-shot shape).
+bool takeCrosshairTargetRequest();
+/// R3: the right stick drives the cursor even in the world. Read by the client
+/// so the crosshair stands down while it is on.
+bool inputCursorMode();
 /// Whether the cursor is holding a spell/item (set by the panel lane each
 /// frame). While true, the face buttons and shoulders place into their slot
 /// rather than being suppressed by an open panel.
@@ -272,6 +289,11 @@ void showKeyboardEx(const KeyboardOptions& options,
 
 /// Draw the shared in-game text modal after UI composition, before ImGui::Render.
 void renderKeyboard();
+
+/// Draw the crosshair at the screen centre (foreground draw list) while it is
+/// up. Cheap: two short lines per arm plus a small ring. Does nothing when the
+/// crosshair is down.
+void renderCrosshair();
 
 /// Exclusive ownership for an in-game text modal, including release debounce.
 bool keyboardCapturesInput();
