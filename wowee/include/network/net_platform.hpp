@@ -301,6 +301,14 @@ inline socket_t openResolvedSocket(const std::string& host, uint16_t port,
 
         memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
+#ifdef WOWEE_SWITCH
+        // Horizon's netstack is BSD-derived and connect() validates sa_len.
+        // It is set in the other three socket paths (auth packets, the local
+        // realm, LAN discovery) and was missing here - and here is the auth and
+        // world TCP connect, so login and world entry could fail EINVAL while
+        // LAN and local play worked.
+        addr.sin_len = sizeof(addr);
+#endif
         addr.sin_addr = reinterpret_cast<struct sockaddr_in*>(res->ai_addr)->sin_addr;
         addr.sin_port = htons(port);
         freeaddrinfo(res);

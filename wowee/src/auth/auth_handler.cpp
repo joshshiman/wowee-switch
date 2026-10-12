@@ -314,6 +314,14 @@ void AuthHandler::sendLogonProof() {
         if (const char* env = std::getenv("WOWEE_INTEGRITY_DIR")) {
             if (env && *env) candidateDirs.emplace_back(env);
         }
+        // Card-side layouts: the extracted retail executable, if the operator
+        // dropped one there. The integrity ("CRC") hash is computed from
+        // WoW.exe; without it the field is omitted from the logon proof and
+        // only servers that enforce the check reject the login (most private
+        // servers do not).
+        candidateDirs.emplace_back("sdmc:/wowps/Data/misc");
+        candidateDirs.emplace_back("sdmc:/switch/wowee/data/misc");
+        candidateDirs.emplace_back("sdmc:/wowps/Data");
         // Expansion-isolated extraction layouts. Select narrowly so a Wrath or
         // stock Classic executable can never be used for a Turtle integrity hash.
         if (clientInfo.majorVersion == 1 && clientInfo.minorVersion == 18) {
