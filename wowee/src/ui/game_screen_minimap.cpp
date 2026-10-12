@@ -1261,15 +1261,18 @@ void GameScreen::renderMinimapPlayerArrow(const MinimapFrame& frame) {
         float py = -nx; // perpendicular y
 
         // The player marker is the world map's own icon (MinimapArrow.blp), so
-        // both maps agree on what "you" looks like. Loaded once; a failed load
-        // is remembered, and the drawn chevron below is the fallback.
-        if (!minimapArrowTried_) {
-            minimapArrowTried_ = true;
-            if (services_.assetManager && services_.window) {
-                minimapArrowTex_ = ui::uploadUiTextureFromBlp(
-                    services_.assetManager, "Interface\\Minimap\\MinimapArrow.blp",
-                    services_.window);
-            }
+        // both maps agree on what "you" looks like. The upload is retried a few
+        // times (the first frames can precede a ready Vulkan context); the drawn
+        // chevron below is the fallback.
+        if (!minimapArrowTex_ && minimapArrowAttempts_ < 5 &&
+            services_.assetManager && services_.window) {
+            ++minimapArrowAttempts_;
+            minimapArrowTex_ = ui::uploadUiTextureFromBlp(
+                services_.assetManager, "Interface\\Minimap\\MinimapArrow.blp",
+                services_.window);
+            if (minimapArrowTex_) LOG_WARNING("Minimap player marker texture: loaded");
+            else LOG_WARNING("Minimap player marker texture: unavailable (attempt ",
+                             minimapArrowAttempts_, ")");
         }
         if (minimapArrowTex_) {
             const float H = 12.0f; // half-size, screen pixels

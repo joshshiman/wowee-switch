@@ -183,9 +183,10 @@ private:
 
     // The world map's own player marker (MinimapArrow.blp), reused as the
     // minimap's so both maps agree on what "you" looks like. Uploaded once; a
-    // failed load is remembered rather than retried every frame.
+    // few attempts are allowed because the first frames can run before the
+    // Vulkan context is ready, and the outcome is logged.
     VkDescriptorSet minimapArrowTex_ = VK_NULL_HANDLE;
-    bool minimapArrowTried_ = false;
+    int minimapArrowAttempts_ = 0;
 
     // Combat UI (extracted from GameScreen - owns all combat overlay rendering)
     CombatUI combatUI_;

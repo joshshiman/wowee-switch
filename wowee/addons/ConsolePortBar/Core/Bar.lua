@@ -301,6 +301,11 @@ function Bar:ADDON_LOADED(name)
 				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
 				ConsolePortBarSetup.woweeRev = 5
 			end
+			-- WoWee rev 6: pitch widened to 100 on both axes.
+			if (ConsolePortBarSetup.woweeRev or 0) < 6 then
+				ConsolePortBarSetup.layout = ab:GetDefaultButtonLayout()
+				ConsolePortBarSetup.woweeRev = 6
+			end
 		-------------------------------
 		end
 		ab:CreateManifest()
@@ -535,6 +540,18 @@ function Bar:OnLoad(cfg, benign)
         wrapper:SetClassicBorders(classicBorders)
         wrapper:SetSwipeColor(unpack(cfg.swipeRGB or {1, 1, 1, 1}))
         wrapper:SetBorderColor(unpack(cfg.borderRGB or {1, 1, 1, 1}))
+    end
+    -- One BARPOS line per button, naming where it actually landed, so a
+    -- spacing question is answered from the log (BARLAYOUT says the intent;
+    -- this says the result).
+    if __WoweeWarn then
+        for _, w in ipairs(self.Buttons) do
+            local b = w['']
+            if b and b.id then
+                __WoweeWarn('BARPOS '..tostring(b.id)..' left='..tostring(b:GetLeft())..
+                    ' top='..tostring(b:GetTop())..' w='..tostring(b:GetWidth())..' h='..tostring(b:GetHeight()))
+            end
+        end
     end
 
 	-- Strip _childupdate-state from non-promoted buttons only

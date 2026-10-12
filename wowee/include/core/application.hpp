@@ -215,6 +215,9 @@ private:
     /// other way in. Bound to Plus and to the bar's show/hide button.
     void renderMenuHub();
     void toggleMenuHub() { menuHubOpen_ = !menuHubOpen_; }
+    /// A banner shown while the cursor holds a spell/item, so the "press the
+    /// button you want it on" flow is obvious.
+    void renderPlaceHint();
     /// The service windows a player opens by talking to the character who runs
     /// them: the auction house, a merchant's stock, and a trainer's list. They
     /// live in their own translation unit because the overlay above is already

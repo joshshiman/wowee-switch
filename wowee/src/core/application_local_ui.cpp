@@ -1371,4 +1371,26 @@ void Application::renderMenuHub() {
     ImGui::End();
 }
 
+void Application::renderPlaceHint() {
+    if (state != AppState::IN_GAME) return;
+    bool carrying = false;
+    if (gameHandler) carrying = gameHandler->askInterface("GetCursorInfo() ~= nil");
+    if (!carrying) return;
+    const auto& io = ImGui::GetIO();
+    const float scale = std::clamp(io.DisplaySize.y / 900.0f, 0.8f, 1.35f);
+    // Everything but the bar is stepped back while something is being placed,
+    // so the slots read as the target and the panel underneath stops competing
+    // for attention.
+    ImGui::GetBackgroundDrawList()->AddRectFilled(
+        ImVec2(0, 0), ImVec2(io.DisplaySize.x, io.DisplaySize.y), IM_COL32(0, 0, 0, 110));
+    const char* text = "PLACING  -  press an action button to put it there        B  cancel";
+    const ImVec2 ts = ImGui::CalcTextSize(text);
+    const float pad = 14 * scale;
+    const ImVec2 at((io.DisplaySize.x - ts.x) * .5f, io.DisplaySize.y * .14f);
+    auto* dl = ImGui::GetForegroundDrawList();
+    dl->AddRectFilled(ImVec2(at.x - pad, at.y - pad), ImVec2(at.x + ts.x + pad, at.y + ts.y + pad),
+                      IM_COL32(0, 0, 0, 210), 6 * scale);
+    dl->AddText(ImVec2(at.x, at.y), IM_COL32(255, 226, 120, 255), text);
+}
+
 } // namespace wowee::core

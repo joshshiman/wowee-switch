@@ -5638,6 +5638,7 @@ void Application::render() {
             // On every realm: the panel doors draw where the client's own
             // in-game screen does not, which is exactly the local realm.
             renderMenuHub();
+            renderPlaceHint();
         });
 
         // The interface, over the world and everything the world drew on top
