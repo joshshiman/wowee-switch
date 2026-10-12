@@ -10385,11 +10385,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                     LOG_WARNING("[WOWEE_ACT] cancel -> cursor dropped");
                 } else {
                     gh->cancelCast();
-                    if (auto* realm = gh->localServiceRealm()) {
-                        realm->stopAttack();
-                    } else {
-                        gh->stopAutoAttack();
-                    }
+                    gh->stopAttackAny();
                     gh->setTargetGuidRaw(0);
                     gh->clearFocus();
                     LOG_WARNING("[WOWEE_ACT] cancel -> cleared");

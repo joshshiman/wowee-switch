@@ -1065,6 +1065,13 @@ public:
 
     void startAutoAttack(uint64_t targetGuid);
     void stopAutoAttack();
+    // Realm-aware combat verbs: ONE entry point per gesture, so the pad, the
+    // keyboard and the local overlay all get the same behaviour on any realm.
+    // Offline the local authority is called directly (what the overlay did
+    // inline); online the packet is sent. New code should use these rather than
+    // branching on localServiceRealm() at the call site.
+    void attackTarget(uint64_t targetGuid);
+    void stopAttackAny();
     bool isAutoAttacking() const;
     bool hasAutoAttackIntent() const;
     bool isInCombat() const;
@@ -1854,6 +1861,8 @@ public:
     }
     /** Send CMSG_RECLAIM_CORPSE; noop if not a ghost or not near corpse. */
     void reclaimCorpse();
+    /// Realm-aware corpse reclaim: local authority offline, packet online.
+    void reclaimCorpseAny();
     void releaseSpirit();
     void acceptResurrect();
     void declineResurrect();
@@ -2054,6 +2063,8 @@ public:
 
     // ---- Loot ----
     void lootTarget(uint64_t guid);
+    /// Realm-aware loot: local authority offline, packet online.
+    void lootTargetAny(uint64_t guid);
     void lootItem(uint8_t slotIndex, bool confirmed = false);
     void confirmPendingLoot();
     void confirmBindOnUse();

@@ -1934,6 +1934,11 @@ void GameHandler::reclaimCorpse() {
     if (combatHandler_) combatHandler_->reclaimCorpse();
 }
 
+void GameHandler::reclaimCorpseAny() {
+    if (auto* realm = localServiceRealm()) { realm->reclaimCorpse(); return; }
+    reclaimCorpse();
+}
+
 void GameHandler::useSelfRes() {
     if (combatHandler_) combatHandler_->useSelfRes();
 }
@@ -2159,6 +2164,17 @@ void GameHandler::startAutoAttack(uint64_t targetGuid) {
 
 void GameHandler::stopAutoAttack() {
     if (combatHandler_) combatHandler_->stopAutoAttack();
+}
+
+void GameHandler::attackTarget(uint64_t targetGuid) {
+    if (!targetGuid) targetGuid = getTargetGuid();
+    if (auto* realm = localServiceRealm()) { realm->attack(targetGuid); return; }
+    startAutoAttack(targetGuid);
+}
+
+void GameHandler::stopAttackAny() {
+    if (auto* realm = localServiceRealm()) { realm->stopAttack(); return; }
+    stopAutoAttack();
 }
 
 void GameHandler::addCombatText(CombatTextEntry::Type type, int32_t amount, uint32_t spellId, bool isPlayerSource, uint8_t powerType,
@@ -2778,6 +2794,11 @@ void GameHandler::offerPetition(uint64_t petitionGuid, uint64_t targetGuid) {
 
 void GameHandler::lootTarget(uint64_t guid) {
     if (inventoryHandler_) inventoryHandler_->lootTarget(guid);
+}
+
+void GameHandler::lootTargetAny(uint64_t guid) {
+    if (auto* realm = localServiceRealm()) { realm->loot(guid); return; }
+    lootTarget(guid);
 }
 
 void GameHandler::lootItem(uint8_t slotIndex, bool confirmed) {
