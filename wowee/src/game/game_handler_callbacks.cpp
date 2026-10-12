@@ -1,4 +1,5 @@
 #include "game/local_realm.hpp"
+#include "game/local_target_selection.hpp"
 #include "game/local_combat_state.hpp"
 #include "game/local_aura_presentation.hpp"
 #include "game/game_handler.hpp"
@@ -2182,6 +2183,69 @@ void GameHandler::stopAttackAny() {
     stopAutoAttack();
 }
 
+bool GameHandler::targetNearest(bool friendlyFirst) {
+    // LOCAL: mirror the overlay's nearest-living selection. The pad's own
+    // target+act gesture is owned by the native overlay there, so this arm is
+    // here so the verb is coherent on both realms, not because dispatch reaches
+    // it. Selection only: no attack is started and no target is cleared.
+    if (auto* realm = localServiceRealm()) {
+        if (const auto* self = realm->localPlayer()) {
+            const uint64_t guid = nearestLivingLocalTarget(*self, realm->npcs());
+            if (guid) {
+                setTargetGuidRaw(guid);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    if (!combatHandler_) return false;
+
+    // REMOTE: the nearest eligible unit from the client's entities, then set it
+    // through the ordinary selection path - GameHandler::setTarget ->
+    // CombatHandler::setTarget, which sends CMSG_SET_SELECTION
+    // (world_packets_social.cpp:376, called at combat_handler.cpp:1349). So the
+    // server owns the resulting target exactly as it would for a mouse click.
+    //
+    // "Friendly" is a living, non-hostile, interactable unit (quest giver /
+    // trainer / vendor); "enemy" is the same walk with the hostility test that
+    // CombatHandler::targetEnemy uses. Corpses are neither: they are loot, and
+    // targetAndAct handles them once selected.
+    float px = 0.0f, py = 0.0f, pz = 0.0f;
+    if (auto self = getEntityManager().getEntity(getPlayerGuid())) {
+        px = self->getX(); py = self->getY(); pz = self->getZ();
+    }
+
+    constexpr float kRangeSq = 40.0f * 40.0f;
+    uint64_t bestFriendly = 0, bestEnemy = 0;
+    float bestFriendlyD2 = kRangeSq, bestEnemyD2 = kRangeSq;
+
+    for (const auto& [guid, entity] : getEntityManager().getEntities()) {
+        if (!entity || guid == getPlayerGuid()) continue;
+        const auto type = entity->getType();
+        if (type != ObjectType::UNIT && type != ObjectType::PLAYER) continue;
+        auto* unit = dynamic_cast<Unit*>(entity.get());
+        if (!unit || unit->getHealth() == 0) continue;
+        const float dx = entity->getX() - px;
+        const float dy = entity->getY() - py;
+        const float dz = entity->getZ() - pz;
+        const float d2 = dx * dx + dy * dy + dz * dz;
+        if (!(d2 <= kRangeSq)) continue;   // out of range, or NaN
+        if (unit->isHostile() || isAggressiveTowardPlayer(guid)) {
+            if (d2 < bestEnemyD2) { bestEnemyD2 = d2; bestEnemy = guid; }
+        } else if (unit->isInteractable()) {
+            if (d2 < bestFriendlyD2) { bestFriendlyD2 = d2; bestFriendly = guid; }
+        }
+    }
+
+    const uint64_t chosen = friendlyFirst
+        ? (bestFriendly ? bestFriendly : bestEnemy)
+        : (bestEnemy ? bestEnemy : bestFriendly);
+    if (!chosen) return false;
+    setTarget(chosen);
+    return getTargetGuid() == chosen;
+}
+
 bool GameHandler::targetAndAct(uint64_t guid) {
     // A released spirit has one thing in front of it: the corpse. The same
     // realm-aware reclaim answers offline and online, so it is the shared first
@@ -2547,6 +2611,15 @@ void GameHandler::castSpell(uint32_t spellId, uint64_t targetGuid) {
         if(spellId==SPELL_ID_HEARTHSTONE){realm->returnHome();return;}
         if(const auto* spell=realm->content().spell(spellId))realm->castSpell(spellId,localSpellCommandTarget(*spell,*player,targetGuid,realm->players()));
         return;
+    }
+    // The pad's Y (action slot 1, SPELL_ID_ATTACK by default) is "attack" - and
+    // offline the gesture acquires a target first. Do the same online: with
+    // nothing selected, take the nearest target friendly-first (an interactable
+    // NPC beats a hostile one), then let the resolved target flow into the
+    // auto-attack below. Scoped to the attack action only - every other slot
+    // keeps its own targeting semantics.
+    if (spellId == SPELL_ID_ATTACK && targetGuid == 0 && getTargetGuid() == 0) {
+        targetNearest(/*friendlyFirst=*/true);
     }
     if (spellHandler_) spellHandler_->castSpell(spellId, targetGuid);
 }

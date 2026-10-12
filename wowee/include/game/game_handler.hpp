@@ -648,6 +648,20 @@ public:
     void targetLastEnemy();
     void targetLastFriend();
 
+    /// Acquire the nearest eligible unit as the current target.
+    ///
+    /// The realm-aware sibling of the verbs above, for the pad's acquire-then-act
+    /// gestures (L1 interact, Y attack). When `friendlyFirst`, a living,
+    /// non-hostile, interactable unit - a quest giver, trainer, vendor - wins
+    /// over a hostile one; otherwise the nearest hostile wins. REMOTE sets the
+    /// target through the normal selection-packet path; LOCAL mirrors the
+    /// overlay's nearest-living selection. Returns true when a target is set.
+    ///
+    /// Note the narrower verbs cannot stand in for this: targetFriend selects
+    /// friendly *players* only (combat_handler.cpp:1517), so it never finds an
+    /// NPC, and targetEnemy cycles rather than acquiring the nearest.
+    bool targetNearest(bool friendlyFirst = true);
+
     // Inspection
     void inspectTarget();
     /// Inspect any player by guid, which is what FrameXML's unit menus name.

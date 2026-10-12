@@ -10292,6 +10292,11 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 // already deferred to the native overlay above, so this only
                 // runs online.
                 if (how == "none" && !gh->localServiceRealm()) {
+                    // Friendly-first acquire: with nothing selected, take the
+                    // nearest interactable friend (quest giver / trainer /
+                    // vendor) and only fall back to the nearest enemy. Then the
+                    // same act chain runs against whatever was acquired.
+                    if (!gh->hasTarget()) gh->targetNearest(/*friendlyFirst=*/true);
                     if (gh->targetAndAct(gh->hasTarget() ? gh->getTargetGuid() : 0))
                         how = "act";
                 }
