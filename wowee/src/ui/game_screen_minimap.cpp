@@ -1240,6 +1240,11 @@ void GameScreen::renderMinimapPlayerArrow(const MinimapFrame& frame) {
     auto* renderer = services_.renderer;
     auto* minimap = renderer ? renderer->getMinimap() : nullptr;
     if (!minimap) return;
+    // When FrameXML owns the minimap the MinimapCluster draws the real player
+    // arrow itself; drawing ours as well put two markers on the map. Keep
+    // FrameXML's - it is the one the operator sees as "real" - and draw nothing
+    // here. Non-FrameXML builds keep the texture/chevron below.
+    if (frameXmlOwns(UiElement::Minimap)) return;
     // Player position arrow at minimap center, pointing in camera facing direction.
     // On a rotating minimap the map already turns so forward = screen-up; on a fixed
     // minimap we rotate the arrow to match the player's compass heading.

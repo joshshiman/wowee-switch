@@ -10022,6 +10022,41 @@ std::string LuaEngine::bindingCommandFor(int sdlKeycode, bool shift, bool ctrl,
     return command;
 }
 
+namespace {
+/// Global action-slot number for an action-slot binding command, or 0 when the
+/// command is not one.
+///
+/// The main bar is ACTIONBUTTONn, one-to-one with the global slot. The four
+/// multi-action bars use separate command families whose numbering does NOT
+/// line up with the global slots, so each family carries its base:
+///   MULTIACTIONBAR1BUTTONn -> 60+n (MultiBarBottomLeft, page 6),
+///   MULTIACTIONBAR2BUTTONn -> 48+n (MultiBarBottomRight, page 5),
+///   MULTIACTIONBAR3BUTTONn -> 24+n (MultiBarRight, page 3),
+///   MULTIACTIONBAR4BUTTONn -> 36+n (MultiBarLeft, page 4).
+/// That is `actionSlotForPage(page, index) = (page-1)*12 + index` in
+/// ui/action_bar_panel.hpp, and matches ConsolePort's Config/Lookup.lua.
+int actionSlotForBindingCommand(const std::string& command) {
+    if (command.rfind("ACTIONBUTTON", 0) == 0) {
+        try { return std::stoi(command.substr(12)); } catch (...) { return 0; }
+    }
+    struct Bar { const char* prefix; int base; };
+    static const Bar kMultiBars[] = {
+        {"MULTIACTIONBAR1BUTTON", 60},
+        {"MULTIACTIONBAR2BUTTON", 48},
+        {"MULTIACTIONBAR3BUTTON", 24},
+        {"MULTIACTIONBAR4BUTTON", 36},
+    };
+    for (const Bar& bar : kMultiBars) {
+        const size_t prefixLen = std::strlen(bar.prefix);
+        if (command.rfind(bar.prefix, 0) == 0) {
+            try { return bar.base + std::stoi(command.substr(prefixLen)); }
+            catch (...) { return 0; }
+        }
+    }
+    return 0;
+}
+} // namespace
+
 bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                                    bool alt, bool down) {
     if (!L_) return false;
@@ -10385,18 +10420,35 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
         return true;
     }
 
-    // 3. Action bar slots (e.g. ACTIONBUTTON1..12)
-    if (command.rfind("ACTIONBUTTON", 0) == 0) {
-        try {
-            int slot = std::stoi(command.substr(12));
-            if (slot >= 1 && slot <= 120 && down) {
+    // 3. Action bar slots (e.g. ACTIONBUTTON1..12 on the main bar, plus the
+    // multi-bars MULTIACTIONBAR1..4BUTTONn).
+    {
+        const int slot = actionSlotForBindingCommand(command);
+        if (slot >= 1 && slot <= 120 && down) {
+            // The main bar is taken over exactly as before. The multi-bars are
+            // taken over ONLY when something is on the cursor - there the press
+            // means "place this here" - because their use path is the client's
+            // script handler: with nothing carried a multi-bar press falls
+            // straight through, so casting/using those slots is unchanged.
+            bool takeOver = command.rfind("ACTIONBUTTON", 0) == 0;
+            if (!takeOver) {
+                lua_getglobal(L_, "GetCursorInfo");
+                if (lua_isfunction(L_, -1)) {
+                    if (lua_pcall(L_, 0, 1, 0) == 0) { takeOver = !lua_isnil(L_, -1); lua_pop(L_, 1); }
+                    else lua_pop(L_, 1);
+                } else {
+                    lua_pop(L_, 1);
+                }
+            }
+            if (takeOver) {
                 outcome = "action";
                 // With something on the cursor a slot press PLACES it there -
                 // the same thing a mouse click on the slot does - but only into
                 // an EMPTY slot. Overwriting silently replaced the operator's Y
                 // (attack) the first time they tried this, and there is no
                 // reorder UI yet, so an occupied slot is left alone and says so.
-                // With nothing carried the slot is used exactly as before.
+                // With nothing carried the slot is used exactly as before (the
+                // main bar only; an empty cursor never takes over a multi-bar).
                 executeString(
                     "local s=" + std::to_string(slot) + " "
                     "if GetCursorInfo and GetCursorInfo() then "
@@ -10409,7 +10461,7 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 if (traceKey) LOG_WARNING("[WOWEE_KEYTRACE] key=", traceRaw, " cmd=", command, " -> ", outcome);
                 return true;
             }
-        } catch (...) {}
+        }
     }
 
     // Left alone if the client performs it. Not "already handled, so skip the
