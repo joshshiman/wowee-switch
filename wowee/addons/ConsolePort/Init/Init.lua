@@ -227,6 +227,28 @@ function ConsolePort:LoadSettings()
 				ConsolePort:OnNewBindings(set)
 			end
 		end
+		-- WoWee handheld remap (rev 6): L1's base becomes INTERACTTARGET
+		-- (target nearest and act). On an external realm the dispatch
+		-- activates the cursor slot, then loots / talks / attacks / targets;
+		-- offline it defers to the native overlay, which already implements
+		-- L1 target+act, so the local realm is unchanged. Saved sets still
+		-- hold L1's old ACTIONBUTTON1 base; rewrite it in place.
+		if set and (ConsolePortBindingSet.woweeBindRev or 0) < 6 then
+			if type(set.CP_T1) == 'table' then
+				set.CP_T1[''] = 'INTERACTTARGET'
+			end
+			ConsolePortBindingSet.woweeBindRev = 6
+			db.Bindings = set
+			if ConsolePortButtonHandler and ClearOverrideBindings then
+				ClearOverrideBindings(ConsolePortButtonHandler)
+			end
+			if ConsolePort.LoadBindingSet then
+				ConsolePort:LoadBindingSet(set, true)
+			end
+			if ConsolePort.OnNewBindings then
+				ConsolePort:OnNewBindings(set)
+			end
+		end
 	end
 
 	-- The utility ring is built by SetupUtilityRing, which nothing on the

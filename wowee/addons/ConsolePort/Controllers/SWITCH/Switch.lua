@@ -101,9 +101,15 @@ db.Controllers.SWITCH = {
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON3',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON8',
 		},
-		-- Trigger buttons (WoWee handheld: L = attack toggle, R = bags)
+		-- Trigger buttons (WoWee handheld: R = bags)
 		['CP_T1'] =	{
-			['']		 	= 'ACTIONBUTTON1',
+			-- WoWee handheld: L1 is target-nearest-and-act. INTERACTTARGET is
+			-- realm-branched in dispatch (lua_engine.cpp): on an external realm
+			-- it activates the hovered/cursor slot, then loots / talks /
+			-- attacks / targets; offline it defers to the native overlay,
+			-- which already implements L1 target+act, so local play is
+			-- unchanged. Base retyped from ACTIONBUTTON1, hence rev6 below.
+			['']		 	= 'INTERACTTARGET',
 			['SHIFT-'] 		= 'TARGETNEARESTENEMY', --TARGETSCANENEMY not available on 3.3.5a
 			['CTRL-'] 		= 'MULTIACTIONBAR1BUTTON4',
 			['CTRL-SHIFT-'] = 'MULTIACTIONBAR1BUTTON9',
