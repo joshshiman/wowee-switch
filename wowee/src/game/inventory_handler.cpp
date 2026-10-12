@@ -1201,6 +1201,14 @@ void InventoryHandler::handleLootResponse(network::Packet& packet) {
                      " item=", item.itemId, " count=", item.count,
                      " fromGuid=0x", std::hex, currentLoot_.lootGuid, std::dec,
                      " gameObject=", autoStoreGameObjectLoot);
+            // WARNING-level proof for the pad's A: with auto-loot on (the
+            // default) the take never reaches Lua LootSlot, so the [WOWEE_LOOT]
+            // line there cannot prove A looted. This is the same instrument at
+            // the path A's loot actually goes through.
+            LOG_WARNING("[WOWEE_LOOT] autostore slot=", static_cast<int>(item.slotIndex),
+                        " item=", item.itemId, " count=", item.count,
+                        " guid=0x", std::hex, currentLoot_.lootGuid, std::dec,
+                        " gameObject=", autoStoreGameObjectLoot);
             auto pkt = AutostoreLootItemPacket::build(item.slotIndex);
             owner_.getSocket()->send(pkt);
         }

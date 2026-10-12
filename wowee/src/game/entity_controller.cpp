@@ -664,6 +664,22 @@ float bitsToFloat(uint32_t raw) {
 }
 }  // namespace
 
+// [WOWEE_FACTION] bounded debug instrumentation - remove with the [WOWEE_*]
+// debug set. One line per unit for the first 25 units of a session, so a
+// remote realm's creature flood cannot drown the log; the map-built line in
+// faction_hostility.cpp already records whether the DBC map was installed.
+void EntityController::logUnitHostility(uint64_t guid, const Unit& unit) {
+    constexpr int kMaxLogged = 25;
+    if (factionHostilityLogged_ >= kMaxLogged) return;
+    ++factionHostilityLogged_;
+    LOG_WARNING("[WOWEE_FACTION] guid=0x", std::hex, guid, std::dec,
+                " ft=", unit.getFactionTemplate(),
+                " hostile=", unit.isHostile() ? 1 : 0,
+                " mapSize=", owner_.factionHostileMapSize(),
+                " entry=", unit.getEntry(),
+                " name=", unit.getName());
+}
+
 // Resolve cached field indices once per handler call.
 EntityController::UnitFieldIndices EntityController::UnitFieldIndices::resolve() {
     return UnitFieldIndices{
@@ -1176,6 +1192,7 @@ EntityController::UnitFieldUpdateResult EntityController::applyUnitFieldsOnUpdat
         else if (key == ufi.faction) {
             unit->setFactionTemplate(val);
             unit->setHostile(owner_.isHostileFaction(val));
+            logUnitHostility(block.guid, *unit);
         } else if (key == ufi.boundingRadius) {
             unit->setBoundingRadius(bitsToFloat(val));
         } else if (key == ufi.combatReach) {
@@ -1999,6 +2016,7 @@ void EntityController::onCreateUnit(const UpdateBlock& block, std::shared_ptr<En
 
     // Hostility
     unit->setHostile(owner_.isHostileFaction(unit->getFactionTemplate()));
+    logUnitHostility(block.guid, *unit);
 
     // Spawn dispatch
     if (unit->getDisplayId() == 0) {
@@ -2078,6 +2096,7 @@ void EntityController::onCreatePlayer(const UpdateBlock& block, std::shared_ptr<
 
     // Hostility
     unit->setHostile(owner_.isHostileFaction(unit->getFactionTemplate()));
+    logUnitHostility(block.guid, *unit);
 
     // Spawn dispatch
     if (unit->getDisplayId() != 0) {

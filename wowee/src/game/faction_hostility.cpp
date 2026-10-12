@@ -10,11 +10,17 @@ namespace wowee {
 namespace game {
 
 void buildFactionHostilityMap(pipeline::AssetManager& assetManager, GameHandler& gameHandler, uint8_t playerRace) {
-    if (!assetManager.isInitialized()) return;
+    if (!assetManager.isInitialized()) {
+        LOG_WARNING("[WOWEE_FACTION] map build skipped: asset manager not initialized");
+        return;
+    }
 
     auto ftDbc = assetManager.loadDBC("FactionTemplate.dbc");
     auto fDbc = assetManager.loadDBC("Faction.dbc");
-    if (!ftDbc || !ftDbc->isLoaded()) return;
+    if (!ftDbc || !ftDbc->isLoaded()) {
+        LOG_WARNING("[WOWEE_FACTION] map build skipped: FactionTemplate.dbc unavailable");
+        return;
+    }
 
     // Race enum -> race mask bit: race 1=0x1, 2=0x2, 3=0x4, 4=0x8, 5=0x10, 6=0x20, 7=0x40, 8=0x80, 10=0x200, 11=0x400
     uint32_t playerRaceMask = 0;
@@ -131,7 +137,20 @@ void buildFactionHostilityMap(pipeline::AssetManager& assetManager, GameHandler&
 
     uint32_t hostileCount = 0;
     for (const auto& [fid, h] : factionMap) { if (h) hostileCount++; }
+    const size_t mapEntries = factionMap.size();
+    const uint32_t nonHostileCount = static_cast<uint32_t>(mapEntries) - hostileCount;
     gameHandler.setFactionHostileMap(std::move(factionMap));
+    // One-shot, always-loud line so a Release run proves the map was built and
+    // how it came out. Without it a skipped build is invisible: every unit then
+    // falls through to isHostileFaction()'s hostile default and the log looks
+    // identical to a wrong map.
+    LOG_WARNING("[WOWEE_FACTION] map built: entries=", mapEntries,
+        " race=", static_cast<int>(playerRace),
+        " playerFt=", playerFtId,
+        " hostile=", hostileCount,
+        " nonhostile=", nonHostileCount,
+        " friendGroup=0x", std::hex, playerFriendGroup,
+        " enemyGroup=0x", playerEnemyGroup, std::dec);
     LOG_INFO("Faction hostility for race ", static_cast<int>(playerRace), " (FT ", playerFtId, "): ",
         hostileCount, "/", ftDbc->getRecordCount(),
         " hostile (friendGroup=0x", std::hex, playerFriendGroup, ", enemyGroup=0x", playerEnemyGroup, std::dec, ")");

@@ -621,6 +621,12 @@ public:
     // Targeting
     void setTarget(uint64_t guid) override;
     void clearTarget() override;
+    /// Realm-aware clear, for the pad's B (CANCELALL). On a REMOTE realm this
+    /// also sends CMSG_SET_SELECTION with guid 0, because clearing the guid
+    /// locally left the server believing a target was still selected and it
+    /// kept coming back - so the player could not switch the target off. Offline
+    /// it is exactly setTargetGuidRaw(0), unchanged.
+    void clearTargetAny();
     uint64_t getTargetGuid() const override { return targetGuid; }
     std::shared_ptr<Entity> getTarget() const override;
     bool hasTarget() const override { return targetGuid != 0; }
@@ -655,25 +661,36 @@ public:
     ///         used at application_local_ui.cpp:131) and what L1's target+act
     ///         runs first, so the gesture means the same thing on both realms.
     /// Enemy - the nearest HOSTILE (or aggressive-toward-the-player) unit only.
-    ///         This is what Y needs when it acquires before auto-attacking:
-    ///         attacking a quest giver or vendor does nothing, so with nothing
-    ///         selected Y must find something it can actually fight.
-    enum class TargetNearestMode { Any, Enemy };
+    /// Attackable - the nearest unit the player can actually fight: hostile, or
+    ///         a creature with no NPC flags (a neutral wolf). Quest givers,
+    ///         vendors and trainers (npcFlags set, isInteractable()) stay
+    ///         excluded, and a friendly player is never an attack target. This
+    ///         is what Y needs when it acquires before auto-attacking: the old
+    ///         Enemy filter skipped a neutral Diseased Young Wolf entirely, so
+    ///         Y read as dead against one.
+    enum class TargetNearestMode { Any, Enemy, Attackable };
 
     /// Acquire the nearest eligible unit as the current target.
     ///
     /// The realm-aware sibling of the verbs above, for the pad's acquire-then-act
     /// gestures. What counts as eligible is the mode: Any takes the nearest
     /// living unit of either faction (matching the offline overlay), Enemy takes
-    /// only the nearest hostile. REMOTE sets the target through the normal
-    /// selection-packet path; LOCAL mirrors the overlay's nearest-living
-    /// selection. Returns true when a target is set. Logs the chosen target at
-    /// WARNING ([WOWEE_TGT]) so a run proves what was picked.
+    /// only the nearest hostile, Attackable the nearest fightable unit. REMOTE
+    /// sets the target through the normal selection-packet path; LOCAL mirrors
+    /// the overlay's nearest-living selection. Returns true when a target is set.
+    /// Logs the chosen target at WARNING ([WOWEE_TGT]) so a run proves what was
+    /// picked.
+    ///
+    /// `range` is the acquisition radius in yards. It defaults to 40 (the
+    /// tab-target reach); the pad's interact gesture passes the offline
+    /// overlay's 8 m interact radius (application_local_ui.cpp:169) so L/A never
+    /// grab a wolf 15-29 m away.
     ///
     /// Note the narrower verbs cannot stand in for this: targetFriend selects
     /// friendly *players* only (combat_handler.cpp:1517), so it never finds an
     /// NPC, and targetEnemy cycles rather than acquiring the nearest.
-    bool targetNearest(TargetNearestMode mode = TargetNearestMode::Any);
+    bool targetNearest(TargetNearestMode mode = TargetNearestMode::Any,
+                       float range = 40.0f);
 
     // Inspection
     void inspectTarget();
@@ -4058,6 +4075,10 @@ public:
         auto it = factionHostileMap_.find(factionTemplateId);
         return it != factionHostileMap_.end() ? it->second : true;
     }
+    /// How many faction templates the DBC-driven map actually carries. A zero
+    /// here means the build never ran (see buildFactionHostilityMap) and every
+    /// unit is falling through to isHostileFaction()'s hostile default.
+    [[nodiscard]] size_t factionHostileMapSize() const { return factionHostileMap_.size(); }
 
 private:
     // Dead: autoTargetAttacker moved to CombatHandler

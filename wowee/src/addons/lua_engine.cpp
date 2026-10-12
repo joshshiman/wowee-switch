@@ -5829,6 +5829,35 @@ void LuaEngine::registerCoreAPI() {
     });
     lua_setglobal(L_, "__WoweeLogWarning");
 
+    // __WoweeCPButtonAction(name) - the action a ConsolePort button's binding
+    // set carries for the unmodified tier, or "". On an external realm the pad
+    // dispatch sees the raw CP_* name (F9 -> CP_T1) because no native overlay
+    // scrubbed the bar's base override (Bar.lua WoWeeScrubPadOverrides); the
+    // bound action is what the button should do there (INTERACTTARGET for L1).
+    // Mirrors the Lua one-liner:
+    //   local set = ConsolePort and ConsolePort.GetBindingSet and
+    //               ConsolePort:GetBindingSet()
+    //   if type(set)=='table' and type(set[name])=='table' then
+    //       return set[name][''] end
+    lua_pushcfunction(L_, [](lua_State* L) -> int {
+        const char* name = luaL_optstring(L, 1, "");
+        if (!name || !*name) { lua_pushstring(L, ""); return 1; }
+        lua_getglobal(L, "ConsolePort");
+        if (!lua_istable(L, -1)) { lua_pop(L, 1); lua_pushstring(L, ""); return 1; }
+        lua_getfield(L, -1, "GetBindingSet");
+        if (!lua_isfunction(L, -1)) { lua_pop(L, 2); lua_pushstring(L, ""); return 1; }
+        lua_pushvalue(L, -2);                     // self = ConsolePort
+        if (lua_pcall(L, 1, 1, 0) != 0) { lua_pop(L, 2); lua_pushstring(L, ""); return 1; }
+        if (!lua_istable(L, -1)) { lua_pop(L, 2); lua_pushstring(L, ""); return 1; }
+        lua_getfield(L, -1, name);                // set[name]
+        if (!lua_istable(L, -1)) { lua_pop(L, 3); lua_pushstring(L, ""); return 1; }
+        lua_getfield(L, -1, "");                  // set[name]['']
+        const char* action = lua_tostring(L, -1);
+        lua_pushstring(L, action ? action : "");
+        return 1;
+    });
+    lua_setglobal(L_, "__WoweeCPButtonAction");
+
     // WoW API stubs
     lua_pushcfunction(L_, lua_wow_message);
     lua_setglobal(L_, "message");
@@ -10079,6 +10108,34 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
     const std::string traceRaw = wowKeyName(sdlKeycode);
     const bool traceKey = traceRaw.size() >= 2 && traceRaw[0] == 'F';
     const char* outcome = "unhandled";
+
+    // 0. A raw ConsolePort button name with no override. On an external realm
+    // there is no native overlay to scrub the bar's base override, so L1's F9
+    // falls through to the click binding F9 -> CP_T1 and the dispatch cannot
+    // resolve the button name (the run logged "cmd=CP_T1 -> noscript"). Ask
+    // the button's own binding set what it is bound to and re-dispatch, so the
+    // same button means the same thing online as the overlay gives it offline.
+    // Remote-only: offline the overlay keeps owning unmodified L.
+    if (!command.empty() && command.rfind("CP_", 0) == 0) {
+        if (auto* gh = getGameHandler(L_)) {
+            if (!gh->localServiceRealm()) {
+                lua_getglobal(L_, "__WoweeCPButtonAction");
+                if (lua_isfunction(L_, -1)) {
+                    lua_pushlstring(L_, command.c_str(), command.size());
+                    if (lua_pcall(L_, 1, 1, 0) == 0) {
+                        const char* action = lua_tostring(L_, -1);
+                        if (action && *action) command = action;
+                        lua_pop(L_, 1);
+                    } else {
+                        lua_pop(L_, 1);
+                    }
+                } else {
+                    lua_pop(L_, 1);
+                }
+            }
+        }
+    }
+
     // 1. CLICK FrameName:MouseButton commands (e.g. CLICK ConsolePortUtilityToggle:LeftButton)
     if (command.rfind("CLICK ", 0) == 0) {
         std::string rest = command.substr(6);
@@ -10294,10 +10351,14 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 if (how == "none" && !gh->localServiceRealm()) {
                     // L1's acquire mirrors the offline overlay: the nearest
                     // living unit of ANY faction (nearestLivingLocalTarget), not
-                    // friendly-first. That is what the operator's L1 expects -
-                    // it can land on the wolf they mean to kill, and
-                    // targetAndAct then decides talk vs attack from the target.
-                    if (!gh->hasTarget()) gh->targetNearest(game::GameHandler::TargetNearestMode::Any);
+                    // friendly-first - but inside the overlay's 8 m interact
+                    // radius (application_local_ui.cpp:169), not the 40 m
+                    // tab-target reach, so L never lands on a wolf 15-29 m away.
+                    // targetAndAct then decides loot / talk / attack from the
+                    // target and, with nothing selected, prefers a lootable
+                    // corpse at the player's feet.
+                    if (!gh->hasTarget())
+                        gh->targetNearest(game::GameHandler::TargetNearestMode::Any, 8.0f);
                     if (gh->targetAndAct(gh->hasTarget() ? gh->getTargetGuid() : 0))
                         how = "act";
                 }
@@ -10384,7 +10445,11 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 } else {
                     gh->cancelCast();
                     gh->stopAttackAny();
-                    gh->setTargetGuidRaw(0);
+                    // Realm-aware: a local-only clear left the server believing
+                    // a target was still selected, so it kept coming back and
+                    // the player could not switch off. Remote sends
+                    // CMSG_SET_SELECTION with guid 0; offline is unchanged.
+                    gh->clearTargetAny();
                     gh->clearFocus();
                     LOG_WARNING("[WOWEE_ACT] cancel -> cleared");
                 }

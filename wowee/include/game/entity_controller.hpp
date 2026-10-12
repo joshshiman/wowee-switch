@@ -116,6 +116,13 @@ private:
     std::unordered_map<uint32_t, GameObjectQueryResponseData> gameObjectInfoCache_;
     std::unordered_set<uint32_t> pendingGameObjectQueries_;
 
+    // --- [WOWEE_FACTION] bounded debug instrumentation ---
+    // Hostility is computed once per unit (create / faction-field update); a
+    // 151k-creature realm must not flood the log, so only the first N are
+    // written. The map-built line in faction_hostility.cpp carries the size.
+    int factionHostilityLogged_ = 0;
+    void logUnitHostility(uint64_t guid, const Unit& unit);
+
     // --- Update Object work queue ---
     struct PendingUpdateObjectWork {
         UpdateObjectData data;

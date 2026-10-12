@@ -1582,6 +1582,25 @@ void GameHandler::clearTarget() {
     if (combatHandler_) combatHandler_->clearTarget();
 }
 
+void GameHandler::clearTargetAny() {
+    if (auto* realm = localServiceRealm()) {
+        // Offline the overlay owns the guid; a raw clear is the whole job and
+        // keeps the old behaviour byte-for-byte.
+        setTargetGuidRaw(0);
+        return;
+    }
+    // Remote: the server has to be told as well. Zeroing the guid locally only
+    // left the server believing a target was still selected, so it kept coming
+    // back and the player could not switch off. setTarget(0) goes through
+    // CombatHandler::setTarget -> SetSelectionPacket::build(0), i.e.
+    // CMSG_SET_SELECTION with guid 0 (world_packets_social.cpp:376).
+    if (combatHandler_ && getTargetGuid() != 0) {
+        setTarget(0);
+    } else {
+        setTargetGuidRaw(0);
+    }
+}
+
 std::shared_ptr<Entity> GameHandler::getTarget() const {
     return combatHandler_ ? combatHandler_->getTarget() : nullptr;
 }
@@ -2183,18 +2202,23 @@ void GameHandler::stopAttackAny() {
     stopAutoAttack();
 }
 
-bool GameHandler::targetNearest(TargetNearestMode mode) {
+bool GameHandler::targetNearest(TargetNearestMode mode, float range) {
     const bool enemiesOnly = mode == TargetNearestMode::Enemy;
+    const bool attackableOnly = mode == TargetNearestMode::Attackable;
+    const char* modeName = enemiesOnly ? "enemy"
+                         : attackableOnly ? "attackable" : "any";
 
     // LOCAL: mirror the overlay's nearest-living selection for Any (the
     // nearest NPC of either faction, exactly what nearestLivingLocalTarget
-    // does), or take the nearest hostile for Enemy. Selection only: no attack
-    // is started and no target is cleared.
+    // does), or take the nearest hostile for Enemy. Attackable has no local
+    // path - offline Y returns through realm->attack() before reaching here -
+    // so it mirrors Any. Selection only: no attack is started and no target is
+    // cleared.
     if (auto* realm = localServiceRealm()) {
         const auto* self = realm->localPlayer();
         if (!self) return false;
         uint64_t guid = 0;
-        float bestD2 = 40.0f * 40.0f;
+        float bestD2 = range * range;
         bool chosenHostile = false;
         std::string chosenName;
         uint32_t chosenEntry = 0;
@@ -2213,8 +2237,14 @@ bool GameHandler::targetNearest(TargetNearestMode mode) {
         }
         if (!guid) return false;
         setTargetGuidRaw(guid);
+        uint32_t chosenFt = 0;
+        if (auto e = getEntityManager().getEntity(guid)) {
+            if (auto* u = dynamic_cast<Unit*>(e.get())) chosenFt = u->getFactionTemplate();
+        }
         LOG_WARNING("[WOWEE_TGT] targetNearest -> guid=0x", std::hex, guid, std::dec,
                     " hostile=", chosenHostile ? 1 : 0,
+                    " ft=", chosenFt,
+                    " mode=", modeName,
                     " dist=", std::sqrt(bestD2),
                     " ", chosenName.empty() ? std::to_string(chosenEntry) : chosenName);
         return true;
@@ -2231,41 +2261,56 @@ bool GameHandler::targetNearest(TargetNearestMode mode) {
     // Any takes the nearest living creature (the offline overlay's NPC set - it
     // never considers players, and a friendly player would fall through
     // targetAndAct to an attack). Enemy takes the nearest hostile, creatures and
-    // players alike. Corpses are neither: they are loot, and targetAndAct
-    // handles them once selected.
+    // players alike. Attackable takes the nearest fightable unit - a neutral
+    // creature is fair game, a quest giver/vendor (npcFlags set) is not, and a
+    // friendly player never is. Corpses are neither: they are loot, and
+    // targetAndAct handles them once selected.
     float px = 0.0f, py = 0.0f, pz = 0.0f;
     if (auto self = getEntityManager().getEntity(getPlayerGuid())) {
         px = self->getX(); py = self->getY(); pz = self->getZ();
     }
 
-    constexpr float kRangeSq = 40.0f * 40.0f;
+    const float kRangeSq = range * range;
     uint64_t best = 0;
     float bestD2 = kRangeSq;
     bool bestHostile = false;
+    uint32_t bestFt = 0;
 
     for (const auto& [guid, entity] : getEntityManager().getEntities()) {
         if (!entity || guid == getPlayerGuid()) continue;
         const auto type = entity->getType();
         if (type != ObjectType::UNIT && type != ObjectType::PLAYER) continue;
-        // Any mirrors the offline NPC set, which is creatures only.
+        // Any and Attackable mirror the offline NPC set, which is creatures
+        // only; Enemy also considers players.
         if (!enemiesOnly && type != ObjectType::UNIT) continue;
         auto* unit = dynamic_cast<Unit*>(entity.get());
         if (!unit || unit->getHealth() == 0) continue;
         const bool hostile = unit->isHostile() || isAggressiveTowardPlayer(guid);
         if (enemiesOnly && !hostile) continue;
+        // Attackable: hostile, or a creature with no NPC flags (a neutral
+        // wolf). An interactable NPC (quest giver / vendor / trainer) is not a
+        // fight, and a non-hostile player never is either.
+        if (attackableOnly && !hostile &&
+            (type == ObjectType::PLAYER || unit->isInteractable())) continue;
         const float dx = entity->getX() - px;
         const float dy = entity->getY() - py;
         const float dz = entity->getZ() - pz;
         const float d2 = dx * dx + dy * dy + dz * dz;
         if (!(d2 <= kRangeSq)) continue;   // out of range, or NaN
-        if (d2 < bestD2) { bestD2 = d2; best = guid; bestHostile = hostile; }
+        if (d2 < bestD2) { bestD2 = d2; best = guid; bestHostile = hostile;
+                           bestFt = unit->getFactionTemplate(); }
     }
 
     if (!best) return false;
     setTarget(best);
     if (getTargetGuid() != best) return false;
+    // ft= names the faction template the hostile= bit came from, so the next
+    // run shows what was chosen and why (a neutral wolf's ft reads 32). mode=
+    // and dist= say which selector picked it and how far out it was.
     LOG_WARNING("[WOWEE_TGT] targetNearest -> guid=0x", std::hex, best, std::dec,
                 " hostile=", bestHostile ? 1 : 0,
+                " ft=", bestFt,
+                " mode=", modeName,
                 " dist=", std::sqrt(bestD2),
                 " ", entityDisplayName(getEntityManager().getEntity(best)));
     return true;
@@ -2312,11 +2357,64 @@ bool GameHandler::targetAndAct(uint64_t guid) {
     // REMOTE: the same decision against the client's own target state. The
     // client can tell all three cases - Unit::getHealth/getMaxHealth for
     // "dead", isHostile + isInteractable for "friend" (entity.hpp:357-438) - so
-    // this is not a Lua-side branch. With no actionable target, the dispatch's
-    // own acquire order runs: nearest enemy, then nearest friend.
-    const uint64_t want = guid ? guid : getTargetGuid();
+    // this is not a Lua-side branch.
+    //
+    // With nothing actionable selected, the acquire mirrors the offline
+    // overlay's interact() (application_local_ui.cpp:164-180): a LOOTABLE
+    // CORPSE at the player's feet first - the client's own 8 m loot gate,
+    // local_gameplay.cpp:5295 - then the nearest living unit inside the 8 m
+    // interact radius, never the 40 m tab-target reach. So A on a fresh corpse
+    // takes the loot instead of re-acquiring a living wolf 15-29 m away.
+
+    // Nearest dead, lootable corpse inside `range` yards, read from the
+    // client's own dynamic flags (UNIT_DYNFLAG_LOOTABLE - the bit the minimap's
+    // corpse dots use, game_screen_minimap.cpp:751).
+    auto nearestLootableCorpseWithin = [&](float range) -> uint64_t {
+        float px = 0.0f, py = 0.0f, pz = 0.0f;
+        if (auto self = getEntityManager().getEntity(getPlayerGuid())) {
+            px = self->getX(); py = self->getY(); pz = self->getZ();
+        }
+        const float r2 = range * range;
+        uint64_t bestCorpse = 0;
+        float bestD2 = r2;
+        for (const auto& [entGuid, entity] : getEntityManager().getEntities()) {
+            if (!entity || entGuid == getPlayerGuid()) continue;
+            if (entity->getType() != ObjectType::UNIT) continue;
+            auto* unit = dynamic_cast<Unit*>(entity.get());
+            if (!unit || unit->getHealth() != 0) continue;
+            if ((unit->getDynamicFlags() & UNIT_DYNFLAG_LOOTABLE) == 0) continue;
+            const float dx = entity->getX() - px;
+            const float dy = entity->getY() - py;
+            const float dz = entity->getZ() - pz;
+            const float d2 = dx * dx + dy * dy + dz * dz;
+            if (!(d2 <= r2)) continue;   // out of range, or NaN
+            if (!bestCorpse || d2 < bestD2) { bestCorpse = entGuid; bestD2 = d2; }
+        }
+        return bestCorpse;
+    };
+
+    uint64_t want = guid ? guid : getTargetGuid();
     std::shared_ptr<Entity> target;
     if (want) target = (want == getTargetGuid()) ? getTarget() : getEntityManager().getEntity(want);
+
+    const bool actionable = target &&
+        (target->getType() == ObjectType::GAMEOBJECT ||
+         target->getType() == ObjectType::UNIT ||
+         target->getType() == ObjectType::PLAYER);
+    if (!actionable) {
+        // 1. A lootable corpse at the player's feet.
+        const uint64_t corpse = nearestLootableCorpseWithin(8.0f);
+        if (corpse) {
+            lootTargetAny(corpse);
+            LOG_WARNING("[WOWEE_ACT] targetAndAct -> acquire+loot");
+            return true;
+        }
+        // 2. The nearest living unit inside the 8 m interact radius.
+        targetNearest(TargetNearestMode::Any, 8.0f);
+        want = getTargetGuid();
+        target = getTarget();
+    }
+
     if (target) {
         if (target->getType() == ObjectType::GAMEOBJECT) {
             interactWithGameObject(want);
@@ -2338,42 +2436,6 @@ bool GameHandler::targetAndAct(uint64_t guid) {
             attackTarget(want);
             LOG_WARNING("[WOWEE_ACT] targetAndAct -> attack");
             return true;
-        }
-        // A target this gesture cannot act on falls through to acquisition,
-        // exactly as the dispatch chain did.
-    }
-    targetEnemy(false);
-    if (hasTarget()) {
-        attackTarget(getTargetGuid());
-        LOG_WARNING("[WOWEE_ACT] targetAndAct -> acquire+attack");
-        return true;
-    }
-    targetFriend(false);
-    if (hasTarget()) {
-        auto friendly = getTarget();
-        if (friendly && (friendly->getType() == ObjectType::UNIT ||
-                         friendly->getType() == ObjectType::PLAYER)) {
-            auto unit = std::static_pointer_cast<Unit>(friendly);
-            if (!unit->isHostile() && unit->isInteractable()) {
-                // Five yards is the server's INTERACTION_DISTANCE; beyond it
-                // the hello fails silently, so do not send it.
-                bool inRange = true;
-                auto npc = getEntityManager().getEntity(friendly->getGuid());
-                auto player = getEntityManager().getEntity(getPlayerGuid());
-                if (npc && player) {
-                    const float dx = player->getX() - npc->getX();
-                    const float dy = player->getY() - npc->getY();
-                    const float dz = player->getZ() - npc->getZ();
-                    inRange = (dx * dx + dy * dy + dz * dz) <= 25.0f;
-                }
-                if (inRange) {
-                    interactWithNpc(friendly->getGuid());
-                    LOG_WARNING("[WOWEE_ACT] targetAndAct -> acquire+talk");
-                    return true;
-                }
-                LOG_WARNING("[WOWEE_ACT] targetAndAct -> friendly-too-far");
-                return false;
-            }
         }
     }
     LOG_WARNING("[WOWEE_ACT] targetAndAct -> none");
@@ -2639,12 +2701,15 @@ void GameHandler::castSpell(uint32_t spellId, uint64_t targetGuid) {
     }
     // The pad's Y (action slot 1, SPELL_ID_ATTACK by default) is "attack" - and
     // offline the gesture acquires a target first. Do the same online: with
-    // nothing selected, take the nearest HOSTILE unit (attacking a quest giver
-    // does nothing), then let the resolved target flow into the auto-attack
-    // below. Scoped to the attack action only - every other slot keeps its own
-    // targeting semantics.
+    // nothing selected, take the nearest ATTACKABLE unit - hostile, or a
+    // creature with no NPC flags (a neutral Diseased Young Wolf). The old
+    // Enemy filter skipped the neutral wolf entirely, so Y read as dead against
+    // one; quest givers and vendors stay excluded because attacking them does
+    // nothing. Acquire inside the same 8 m interact radius as A/L, then let the
+    // resolved target flow into the auto-attack below. Scoped to the attack
+    // action only - every other slot keeps its own targeting semantics.
     if (spellId == SPELL_ID_ATTACK && targetGuid == 0 && getTargetGuid() == 0) {
-        targetNearest(TargetNearestMode::Enemy);
+        targetNearest(TargetNearestMode::Attackable, 8.0f);
     }
     if (spellHandler_) spellHandler_->castSpell(spellId, targetGuid);
 }
