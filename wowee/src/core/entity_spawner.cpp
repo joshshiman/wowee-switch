@@ -2597,11 +2597,6 @@ void EntitySpawner::spawnOnlineCreature(uint64_t guid, uint32_t displayId, float
         return;
     }
 
-    // [ACDBG] temporary creature spawn probe - remove with the [ACDBG] set.
-    LOG_WARNING("[ACDBG] spawn guid=0x", std::hex, guid, std::dec,
-                " displayId=", displayId, " scale=", scale,
-                " renderPos=(", renderPos.x, ",", renderPos.y, ",", renderPos.z, ")");
-
     // Per-instance hair, skin and head-detail overrides. These run for every
     // NPC, cached model or not, so two NPCs sharing a model still get their own
     // colouring.

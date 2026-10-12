@@ -67,11 +67,9 @@ void EntityController::registerOpcodes(DispatchTable& table) {
         return s == WorldState::IN_WORLD || s == WorldState::ENTERING_WORLD;
     };
     table[Opcode::SMSG_UPDATE_OBJECT] = [this, inWorldOrEntering](network::Packet& packet) {
-        LOG_WARNING("[ACDBG] update-object SMSG_UPDATE_OBJECT state=", static_cast<int>(owner_.getState()), " size=", packet.getSize());
         if (inWorldOrEntering()) handleUpdateObject(packet);
     };
     table[Opcode::SMSG_COMPRESSED_UPDATE_OBJECT] = [this, inWorldOrEntering](network::Packet& packet) {
-        LOG_WARNING("[ACDBG] update-object SMSG_COMPRESSED_UPDATE_OBJECT state=", static_cast<int>(owner_.getState()), " size=", packet.getSize());
         if (inWorldOrEntering()) handleCompressedUpdateObject(packet);
     };
     table[Opcode::SMSG_DESTROY_OBJECT] = [this, inWorldOrEntering](network::Packet& packet) {
@@ -2066,12 +2064,6 @@ void EntityController::onCreateUnit(const UpdateBlock& block, std::shared_ptr<En
             owner_.unitMoveFlagsCallbackRef()(block.guid, block.moveFlags, ~0u);
         }
     }
-    // [ACDBG] temporary creature/unit create probe - remove with the [ACDBG] set.
-    LOG_WARNING("[ACDBG] create guid=0x", std::hex, block.guid, std::dec,
-                " type=", static_cast<int>(block.objectType),
-                " displayId=", unit->getDisplayId(),
-                " entry=", unit->getEntry(),
-                " pos=(", unit->getX(), ",", unit->getY(), ",", unit->getZ(), ")");
 }
 
 void EntityController::onCreatePlayer(const UpdateBlock& block, std::shared_ptr<Entity>& entity) {
@@ -2168,12 +2160,6 @@ void EntityController::onCreatePlayer(const UpdateBlock& block, std::shared_ptr<
         owner_.applyQuestStateFromFields(owner_.lastPlayerFieldsRef());
     }
 
-    // [ACDBG] temporary player create probe - remove with the [ACDBG] set.
-    LOG_WARNING("[ACDBG] create guid=0x", std::hex, block.guid, std::dec,
-                " type=", static_cast<int>(block.objectType),
-                " displayId=", unit->getDisplayId(),
-                " entry=", unit->getEntry(),
-                " pos=(", unit->getX(), ",", unit->getY(), ",", unit->getZ(), ")");
 }
 
 void EntityController::onCreateGameObject(const UpdateBlock& block, std::shared_ptr<Entity>& entity) {
@@ -2232,12 +2218,6 @@ void EntityController::onCreateGameObject(const UpdateBlock& block, std::shared_
             go->getX(), go->getY(), go->getZ(), go->getOrientation());
     }
 
-    // [ACDBG] temporary gameobject create probe - remove with the [ACDBG] set.
-    LOG_WARNING("[ACDBG] create guid=0x", std::hex, block.guid, std::dec,
-                " type=", static_cast<int>(block.objectType),
-                " displayId=", go->getDisplayId(),
-                " entry=", go->getEntry(),
-                " pos=(", go->getX(), ",", go->getY(), ",", go->getZ(), ")");
 }
 
 void EntityController::onCreateItem(const UpdateBlock& block, bool& newItemCreated) {
