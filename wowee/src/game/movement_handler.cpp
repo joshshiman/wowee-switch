@@ -946,7 +946,8 @@ void MovementHandler::dismount() {
 // root, flag, collision-height, knockback) require the same ACK structure:
 // GUID + counter + movement payload with server-space coordinates. Centralised
 // here so transport coordinate conversion can't diverge between handlers.
-network::Packet MovementHandler::buildForceAck(Opcode ackOpcode, uint32_t counter) {
+network::Packet MovementHandler::buildForceAck(Opcode ackOpcode, uint32_t counter,
+                                               bool includeApplied) {
     network::Packet ack(wireOpcode(ackOpcode));
     const bool legacyGuid =
         isActiveExpansion("classic") || isActiveExpansion("tbc") || isActiveExpansion("turtle");
@@ -978,6 +979,14 @@ network::Packet MovementHandler::buildForceAck(Opcode ackOpcode, uint32_t counte
         owner_.getPacketParsers()->writeMovementPayload(ack, wire);
     } else {
         MovementPacket::writeMovementPayload(ack, wire);
+    }
+
+    // AzerothCore's HandleMoveFlagChangeOpcode reads one more uint32 `isApplied`
+    // after the movement payload for every flag-change ack except the two gravity
+    // ones (MiscHandler.cpp). Omitting it made the server throw a
+    // ByteBufferException ("opcode: 837") and drop the ack. 1 = applied.
+    if (includeApplied) {
+        ack.writeUInt32(1);
     }
     return ack;
 }
@@ -1072,7 +1081,13 @@ void MovementHandler::handleForceMoveFlagChange(network::Packet& packet, const c
 
     if (!owner_.getSocket()) return;
     if (wireOpcode(ackOpcode) == 0xFFFF) return;
-    owner_.getSocket()->send(buildForceAck(ackOpcode, counter));
+    // Every flag-change ack carries the trailing `isApplied` field on this
+    // server, except the gravity toggles, which AzerothCore skips
+    // (HandleMoveFlagChangeOpcode, MiscHandler.cpp).
+    const bool includeApplied =
+        ackOpcode != Opcode::CMSG_MOVE_GRAVITY_DISABLE_ACK &&
+        ackOpcode != Opcode::CMSG_MOVE_GRAVITY_ENABLE_ACK;
+    owner_.getSocket()->send(buildForceAck(ackOpcode, counter, includeApplied));
 }
 
 void MovementHandler::handleMoveSetCollisionHeight(network::Packet& packet) {

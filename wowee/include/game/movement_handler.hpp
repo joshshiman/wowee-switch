@@ -230,7 +230,7 @@ private:
     void handleOtherPlayerMovement(network::Packet& packet);
     void handleMoveSetSpeed(network::Packet& packet);
     void handleForceRunSpeedChange(network::Packet& packet);
-    network::Packet buildForceAck(Opcode ackOpcode, uint32_t counter);
+    network::Packet buildForceAck(Opcode ackOpcode, uint32_t counter, bool includeApplied = false);
     void handleForceSpeedChange(network::Packet& packet, const char* name, Opcode ackOpcode, float* speedStorage);
     void handleForceMoveRootState(network::Packet& packet, bool rooted);
     void handleMoveKnockBack(network::Packet& packet);
