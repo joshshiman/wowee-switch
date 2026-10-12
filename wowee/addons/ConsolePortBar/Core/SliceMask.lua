@@ -260,7 +260,10 @@ local function BuildSliceContainer(parent, slices, direction, originalSize)
     local container = CreateFrame('Frame', nil, parent)
     container:SetSize(targetSize, targetSize)
     container:SetPoint('CENTER', parent.icon, 'CENTER', 0, 0)
-    container:SetFrameLevel(parent:GetFrameLevel() - 2)
+    -- Above the button's own ARTWORK dome: frame level is compared before
+    -- layer, so a container below the parent's level rendered the sliced wing
+    -- icon underneath the button art (the same "behind the frame" look).
+    container:SetFrameLevel(parent:GetFrameLevel() + 1)
     container._size = targetSize
     container._sliceTextures = {}
     container._isVertical = isVertical

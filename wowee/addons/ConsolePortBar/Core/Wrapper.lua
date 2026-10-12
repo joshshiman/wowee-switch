@@ -338,6 +338,11 @@ function WrapperMixin:UpdateOrientation(orientation)
                 local tex = button[parentKey]
                 if tex then tex:SetTexCoord(unpack(coords)) end
             end
+            -- The icon rides the same per-orientation quad as the frame art.
+            -- Without this the art transposed/rotated per orientation while the
+            -- icon kept its square texcoord, so only the orientation whose quad
+            -- was near-identity cropped correctly.
+            if button.icon then button.icon:SetTexCoord(unpack(coords)) end
         end
 
         -- Apply mask/swipe for non-main modifier buttons
@@ -600,6 +605,13 @@ local function CreateButton(parent, id, name, modifier, size, texSize, config)
 	button.Shadow = _G[name..'Shadow']
 	button.cooldown = _G[name..'Cooldown'];
 	button.roundcd = _G[name..'RCooldown']
+
+	-- The icon is declared on BACKGROUND in the action-button template, so the
+	-- button's ARTWORK dome/ring and the BACKGROUND shadow (created after the
+	-- icon) drew over it and it read as darkened behind the frame. Lift it above
+	-- the art; the OVERLAY Border and Name still win because they are created
+	-- later and share that layer.
+	if button.icon then button.icon:SetDrawLayer('OVERLAY', 0) end
 
 	local textures = buttonTextures[modifier]
 

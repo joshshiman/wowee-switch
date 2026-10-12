@@ -5464,7 +5464,10 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(p.attackTarget || localCombatActive(p,g.npcs))
             return reject("Cannot mount during combat");
     }
-    if(!d->unsupportedReason.empty())return reject(d->name+": "+d->unsupportedReason);
+    if(!d->unsupportedReason.empty()) {
+        LOG_WARNING("[LOCAL_CAST] reject spell=",cmd.id," name=",d->name," reason=",d->unsupportedReason);
+        return reject(d->name+": "+d->unsupportedReason);
+    }
     if(!localSpellFormReady(p,*d))return reject("This spell cannot be used in the current form or stance");
     if(!localFormEnvironmentReady(p,*d))return reject("This form cannot be used while travelling or in this environment");
     if((d->meleeSpecialProfile||d->stormstrikeProfile)&&!validEquipment(p,c))return reject("Invalid equipped weapon state");
@@ -5475,8 +5478,21 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(!finishing&&p.castingSpellId)return reject("A spell is already being cast; move or stop to cancel");
     if(!finishing&&p.globalCooldownMs)return reject("Global cooldown is active");
     if(d->allowableClasses&&!(d->allowableClasses&(1u<<(p.classId-1))))return reject("This ability is not available to your class");
-    if(!d->formId && (d->resourceType==5 ? p.classId!=6 : d->resourceType!=255&&d->resourceType!=uint8_t(p.resourceType)))
-        return reject("Ability uses a different resource type");
+    // A spell that costs nothing cannot fail a resource check. The strict match
+    // below refused a rage class any FREE ability whose DBC power type reads as
+    // Mana (0), which is exactly a warrior picking a cost-free strike. Spells
+    // that do cost keep the strict match; the mismatch is logged so the actual
+    // types are visible when it fires.
+    if(!d->formId && (d->mana || d->manaPercent)) {
+        const bool resourceOk = d->resourceType==5 ? p.classId==6
+            : (d->resourceType==255 || d->resourceType==uint8_t(p.resourceType));
+        if(!resourceOk) {
+            LOG_WARNING("[LOCAL_CAST] resource mismatch spell=",cmd.id," name=",d->name,
+                        " spellType=",int(d->resourceType)," playerType=",int(p.resourceType),
+                        " class=",int(p.classId)," cost=",d->mana);
+            return reject("Ability uses a different resource type");
+        }
+    }
     const auto runeMask=selectLocalRunes(p.classId,p.runeCooldownMs,d->runeCost);
     if(!runeMask)return reject("Not enough ready runes");
     if(finishing&&!p.castCostPrepared)return reject("Cast preparation is unavailable");
