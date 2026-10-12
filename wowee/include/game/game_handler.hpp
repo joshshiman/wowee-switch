@@ -1072,6 +1072,17 @@ public:
     // branching on localServiceRealm() at the call site.
     void attackTarget(uint64_t targetGuid);
     void stopAttackAny();
+    /// Realm-aware contextual primary action: ONE entry point for "talk / loot /
+    /// attack the thing in front of you", shared by the dispatch (pad A/L1), the
+    /// offline overlay and any future caller. Offline it runs the local
+    /// authority in the overlay's order (released spirit -> reclaim; dead,
+    /// lootable -> loot; friendly -> talk through requestLocalDialogue; else
+    /// attack); online it makes the same decision against the client's own
+    /// target state (Unit::getHealth/getMaxHealth, isHostile, isInteractable)
+    /// and sends the matching packet. Acts on `guid`, or the current target when
+    /// it is zero; with no target it acquires one (nearest enemy, then friend).
+    /// Returns true when it acted.
+    bool targetAndAct(uint64_t guid);
     bool isAutoAttacking() const;
     bool hasAutoAttackIntent() const;
     bool isInCombat() const;

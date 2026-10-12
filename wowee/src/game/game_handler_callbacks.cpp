@@ -2182,6 +2182,115 @@ void GameHandler::stopAttackAny() {
     stopAutoAttack();
 }
 
+bool GameHandler::targetAndAct(uint64_t guid) {
+    // A released spirit has one thing in front of it: the corpse. The same
+    // realm-aware reclaim answers offline and online, so it is the shared first
+    // step of the gesture.
+    if (isPlayerGhost() && canReclaimCorpseAny()) {
+        reclaimCorpseAny();
+        LOG_WARNING("[WOWEE_ACT] targetAndAct -> reclaim");
+        return true;
+    }
+
+    if (auto* realm = localServiceRealm()) {
+        // LOCAL: the same order the native overlay's primaryAction core runs -
+        // resolve the selected NPC, loot a corpse, talk to a friend, attack
+        // anything else. The local authority validates and names any reject.
+        const uint64_t want = guid ? guid : getTargetGuid();
+        const LocalRealmNpc* npc = nullptr;
+        if (want) {
+            for (const auto& n : realm->npcs()) if (n.guid == want) { npc = &n; break; }
+        }
+        if (!npc) { LOG_WARNING("[WOWEE_ACT] targetAndAct -> none"); return false; }
+        if (npc->dead && npc->lootable) {
+            lootTargetAny(want);
+            LOG_WARNING("[WOWEE_ACT] targetAndAct -> loot");
+            return true;
+        }
+        if (!npc->hostile) {
+            // requestLocalDialogue already runs realm->interact itself (it
+            // validates range and life state), so calling it here too would
+            // gossip-hello twice.
+            requestLocalDialogue(want);
+            LOG_WARNING("[WOWEE_ACT] targetAndAct -> talk");
+            return true;
+        }
+        attackTarget(want);
+        LOG_WARNING("[WOWEE_ACT] targetAndAct -> attack");
+        return true;
+    }
+
+    // REMOTE: the same decision against the client's own target state. The
+    // client can tell all three cases - Unit::getHealth/getMaxHealth for
+    // "dead", isHostile + isInteractable for "friend" (entity.hpp:357-438) - so
+    // this is not a Lua-side branch. With no actionable target, the dispatch's
+    // own acquire order runs: nearest enemy, then nearest friend.
+    const uint64_t want = guid ? guid : getTargetGuid();
+    std::shared_ptr<Entity> target;
+    if (want) target = (want == getTargetGuid()) ? getTarget() : getEntityManager().getEntity(want);
+    if (target) {
+        if (target->getType() == ObjectType::GAMEOBJECT) {
+            interactWithGameObject(want);
+            LOG_WARNING("[WOWEE_ACT] targetAndAct -> object");
+            return true;
+        }
+        if (target->getType() == ObjectType::UNIT || target->getType() == ObjectType::PLAYER) {
+            auto unit = std::static_pointer_cast<Unit>(target);
+            if (unit->getHealth() == 0 && unit->getMaxHealth() > 0) {
+                lootTargetAny(want);
+                LOG_WARNING("[WOWEE_ACT] targetAndAct -> loot");
+                return true;
+            }
+            if (!unit->isHostile() && unit->isInteractable()) {
+                interactWithNpc(want);
+                LOG_WARNING("[WOWEE_ACT] targetAndAct -> talk");
+                return true;
+            }
+            attackTarget(want);
+            LOG_WARNING("[WOWEE_ACT] targetAndAct -> attack");
+            return true;
+        }
+        // A target this gesture cannot act on falls through to acquisition,
+        // exactly as the dispatch chain did.
+    }
+    targetEnemy(false);
+    if (hasTarget()) {
+        attackTarget(getTargetGuid());
+        LOG_WARNING("[WOWEE_ACT] targetAndAct -> acquire+attack");
+        return true;
+    }
+    targetFriend(false);
+    if (hasTarget()) {
+        auto friendly = getTarget();
+        if (friendly && (friendly->getType() == ObjectType::UNIT ||
+                         friendly->getType() == ObjectType::PLAYER)) {
+            auto unit = std::static_pointer_cast<Unit>(friendly);
+            if (!unit->isHostile() && unit->isInteractable()) {
+                // Five yards is the server's INTERACTION_DISTANCE; beyond it
+                // the hello fails silently, so do not send it.
+                bool inRange = true;
+                auto npc = getEntityManager().getEntity(friendly->getGuid());
+                auto player = getEntityManager().getEntity(getPlayerGuid());
+                if (npc && player) {
+                    const float dx = player->getX() - npc->getX();
+                    const float dy = player->getY() - npc->getY();
+                    const float dz = player->getZ() - npc->getZ();
+                    inRange = (dx * dx + dy * dy + dz * dz) <= 25.0f;
+                }
+                if (inRange) {
+                    interactWithNpc(friendly->getGuid());
+                    LOG_WARNING("[WOWEE_ACT] targetAndAct -> acquire+talk");
+                    return true;
+                }
+                LOG_WARNING("[WOWEE_ACT] targetAndAct -> friendly-too-far");
+                return false;
+            }
+        }
+    }
+    LOG_WARNING("[WOWEE_ACT] targetAndAct -> none");
+    return false;
+}
+
 void GameHandler::addCombatText(CombatTextEntry::Type type, int32_t amount, uint32_t spellId, bool isPlayerSource, uint8_t powerType,
                                 uint64_t srcGuid, uint64_t dstGuid) {
     if (combatHandler_) combatHandler_->addCombatText(type, amount, spellId, isPlayerSource, powerType, srcGuid, dstGuid);

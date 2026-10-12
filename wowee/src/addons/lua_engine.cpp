@@ -10249,71 +10249,16 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                         }
                     }
                 }
-                // 2. Live target: right-click semantics (remote realm).
-                if (how == "none" && gh->hasTarget() && !gh->localServiceRealm()) {
-                    auto target = gh->getTarget();
-                    if (target) {
-                        if (target->getType() == game::ObjectType::GAMEOBJECT) {
-                            gh->interactWithGameObject(target->getGuid());
-                            how = "object";
-                        } else if (target->getType() == game::ObjectType::UNIT ||
-                                   target->getType() == game::ObjectType::PLAYER) {
-                            auto unit = std::static_pointer_cast<game::Unit>(target);
-                            if (unit->getHealth() == 0 && unit->getMaxHealth() > 0) {
-                                gh->lootTarget(target->getGuid());
-                                how = "loot";
-                            } else if (!unit->isHostile() && unit->isInteractable()) {
-                                gh->interactWithNpc(target->getGuid());
-                                how = "talk";
-                            } else if (unit->isHostile() || !unit->isInteractable()) {
-                                gh->startAutoAttack(target->getGuid());
-                                how = "attack";
-                            }
-                        }
-                    }
-                }
-                // 3. No target acquire (remote realm only; local is covered
-                // above - these handlers have no local branch).
+                // 2-4. Remote realm: ONE realm-agnostic contextual action.
+                // GameHandler::targetAndAct owns the loot / talk / attack
+                // decision (and the no-target acquire) against the live target -
+                // the same decision its local arm makes against the realm - so
+                // the gesture behaves the same on either realm. The local realm
+                // already deferred to the native overlay above, so this only
+                // runs online.
                 if (how == "none" && !gh->localServiceRealm()) {
-                    gh->targetEnemy(false);
-                    if (gh->hasTarget()) {
-                        auto target = gh->getTarget();
-                        if (target) {
-                            gh->startAutoAttack(target->getGuid());
-                            how = "acquire+attack";
-                        }
-                    }
-                }
-                if (how == "none" && !gh->localServiceRealm()) {
-                    gh->targetFriend(false);
-                    if (gh->hasTarget()) {
-                        auto target = gh->getTarget();
-                        if (target && (target->getType() == game::ObjectType::UNIT ||
-                                       target->getType() == game::ObjectType::PLAYER)) {
-                            auto unit = std::static_pointer_cast<game::Unit>(target);
-                            if (!unit->isHostile() && unit->isInteractable()) {
-                                // Five yards is the server's INTERACTION_DISTANCE;
-                                // beyond it the hello fails silently, so say so.
-                                bool inRange = true;
-                                auto npc = gh->getEntityManager().getEntity(target->getGuid());
-                                auto player = gh->getEntityManager().getEntity(gh->getPlayerGuid());
-                                if (npc && player) {
-                                    const float dx = player->getX() - npc->getX();
-                                    const float dy = player->getY() - npc->getY();
-                                    const float dz = player->getZ() - npc->getZ();
-                                    inRange = (dx * dx + dy * dy + dz * dz) <= 25.0f;
-                                }
-                                if (inRange) {
-                                    gh->interactWithNpc(target->getGuid());
-                                    how = "acquire+talk";
-                                } else {
-                                    how = "friendly-too-far";
-                                }
-                            } else {
-                                how = "acquire-unusable";
-                            }
-                        }
-                    }
+                    if (gh->targetAndAct(gh->hasTarget() ? gh->getTargetGuid() : 0))
+                        how = "act";
                 }
                 if (how == "none") how = "nothing-nearby";
                 LOG_WARNING("[WOWEE_ACT] interact -> ", how);
