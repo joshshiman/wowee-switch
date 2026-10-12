@@ -62,6 +62,14 @@ public:
 
     void setOpacity(float opacity) { opacity_ = opacity; }
 
+    /// Whether the in-shader centre arrow is drawn.
+    ///
+    /// The client's own textured player marker (GameScreen::renderMinimapPlayerArrow)
+    /// supersedes it: the two together were the duplicate marker the operator
+    /// saw. GameScreen turns this off as it draws that marker; the default keeps
+    /// the shader arrow for any caller that draws the minimap without the UI.
+    void setCenterArrowVisible(bool visible) { centerArrowVisible_ = visible; }
+
     /// Where the map is drawn, in pixels from the top-left of the window.
     ///
     /// Unset, it goes in the top-right corner at its own size, which is where
@@ -135,6 +143,7 @@ private:
     VkDescriptorSet displayDescSet = VK_NULL_HANDLE;
 
     int mapSize = 200;
+    bool centerArrowVisible_ = true;
     float viewRadius = 400.0f;
     bool enabled = true;
     bool rotateWithCamera = false;

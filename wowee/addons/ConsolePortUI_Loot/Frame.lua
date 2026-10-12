@@ -2,6 +2,20 @@ do
 local _, L = ...
 local UI = ConsolePortUI
 
+-- This client does not implement the secure show/hide handler
+-- (SecureHandlerWrapScript is absent: the global answers with the missing-API
+-- stand-in, so ask rawget). The probe below is a SecureHandlerShowHideTemplate
+-- frame whose only job is to mirror Blizzard's LootFrame's show/hide onto our
+-- own loot window - with no secure handler it never fires, so registering it
+-- left our frame permanently hidden while UI:HideFrame(LootFrame) zeroed
+-- Blizzard's frame's size, alpha and anchors. Because the renderer draws each
+-- widget at its own alpha (a parent's alpha does not cascade to its children),
+-- Blizzard's loot *children* - the item icons and the TargetDead portrait -
+-- still drew over a panel that never appeared, and a frame with no size is not
+-- a usable click target. Keep Blizzard's own loot window on a client without
+-- secure show/hide: it draws, and its LootButton OnClick reaches LootSlot.
+if not rawget(_G, 'SecureHandlerWrapScript') then return end
+
 local frame = UI:CreateFrame('Frame', _, UIParent, 'SecureHandlerBaseTemplate, SecureHandlerShowHideTemplate, SecureHandlerStateTemplate', {
 	Size = {1, 1},
 	Strata = 'HIGH',

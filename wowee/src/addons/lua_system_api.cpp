@@ -993,10 +993,10 @@ static void pushCvarDefault(lua_State* L, const std::string& n) {
     else if (n == "targetoftargetmode") lua_pushstring(L, "5");
     else if (n == "sound_enablemusic") lua_pushstring(L, "1");
     else if (n == "chatbubbles") lua_pushstring(L, "1");
-    // Off, which is what a stock client has and what interfaceoptionsframe.lua
-    // itself declares as the default. Only reached before the handler exists;
-    // once it does, the branch above answers from the setting itself.
-    else if (n == "autolootdefault") lua_pushstring(L, "0");
+    // On, so a fresh install auto-loots by default (the operator wants kill +
+    // A to take the corpse without the window). Only reached before the handler
+    // exists; once it does, the branch above answers from the setting itself.
+    else if (n == "autolootdefault") lua_pushstring(L, "1");
     // On, as it is for a fresh account. The XP bar and the unit frames put
     // their whole tooltip behind this one: GameTooltip_AddNewbieTip is called
     // with noNormalText set, so with tips off it does nothing at all and

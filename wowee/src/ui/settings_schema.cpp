@@ -414,7 +414,7 @@ constexpr SettingDesc kSchema[] = {
 
     // ---------------------------------------------------------------- Gameplay
     {"autoloot", "Auto loot", SettingKind::Bool, 0, 0, 0, "Gameplay", "Looting",
-     "Take everything from a corpse without opening the window.", "", 0},
+     "Take everything from a corpse without opening the window.", "", 1},
     {"autosellgrey", "Sell grey items", SettingKind::Bool, 0, 0, 0, "Gameplay", "",
      "Sell your grey items whenever you open a merchant.", "", 0},
     {"autorepair", "Repair at vendors", SettingKind::Bool, 0, 0, 0, "Gameplay", "",

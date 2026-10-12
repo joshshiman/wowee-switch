@@ -10292,11 +10292,12 @@ bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                 // already deferred to the native overlay above, so this only
                 // runs online.
                 if (how == "none" && !gh->localServiceRealm()) {
-                    // Friendly-first acquire: with nothing selected, take the
-                    // nearest interactable friend (quest giver / trainer /
-                    // vendor) and only fall back to the nearest enemy. Then the
-                    // same act chain runs against whatever was acquired.
-                    if (!gh->hasTarget()) gh->targetNearest(/*friendlyFirst=*/true);
+                    // L1's acquire mirrors the offline overlay: the nearest
+                    // living unit of ANY faction (nearestLivingLocalTarget), not
+                    // friendly-first. That is what the operator's L1 expects -
+                    // it can land on the wolf they mean to kill, and
+                    // targetAndAct then decides talk vs attack from the target.
+                    if (!gh->hasTarget()) gh->targetNearest(game::GameHandler::TargetNearestMode::Any);
                     if (gh->targetAndAct(gh->hasTarget() ? gh->getTargetGuid() : 0))
                         how = "act";
                 }

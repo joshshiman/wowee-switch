@@ -1240,11 +1240,11 @@ void GameScreen::renderMinimapPlayerArrow(const MinimapFrame& frame) {
     auto* renderer = services_.renderer;
     auto* minimap = renderer ? renderer->getMinimap() : nullptr;
     if (!minimap) return;
-    // When FrameXML owns the minimap the MinimapCluster draws the real player
-    // arrow itself; drawing ours as well put two markers on the map. Keep
-    // FrameXML's - it is the one the operator sees as "real" - and draw nothing
-    // here. Non-FrameXML builds keep the texture/chevron below.
-    if (frameXmlOwns(UiElement::Minimap)) return;
+    // The operator prefers this marker (the world map's own MinimapArrow.blp)
+    // over the native minimap's in-shader yellow triangle, so this is the one
+    // that stays and the shader arrow is turned off here. Without this the two
+    // both drew - the duplicate that made one of them look wrong.
+    minimap->setCenterArrowVisible(false);
     // Player position arrow at minimap center, pointing in camera facing direction.
     // On a rotating minimap the map already turns so forward = screen-up; on a fixed
     // minimap we rotate the arrow to match the player's compass heading.
@@ -1826,6 +1826,7 @@ void GameScreen::saveSettings() {
     out << "resolution_height=" << settingsPanel_.pendingResolutionHeight << "\n";
     out << "vsync=" << (settingsPanel_.pendingVsync ? 1 : 0) << "\n";
     out << "auto_loot=" << (settingsPanel_.pendingAutoLoot ? 1 : 0) << "\n";
+    out << "autoloot_default_version=" << kAutoLootDefaultVersion << "\n";
     out << "auto_sell_grey=" << (settingsPanel_.pendingAutoSellGrey ? 1 : 0) << "\n";
     out << "auto_repair=" << (settingsPanel_.pendingAutoRepair ? 1 : 0) << "\n";
     out << "graphics_preset=" << static_cast<int>(settingsPanel_.currentGraphicsPreset) << "\n";
@@ -1939,6 +1940,7 @@ void GameScreen::loadSettings() {
     bool windowScaleLoaded = false;
     bool actionBarScaleLoaded = false;
     int interfaceLayoutVersion = 0;
+    int autoLootDefaultVersion = 0;
     std::string line;
     while (std::getline(in, line)) {
         size_t eq = line.find('=');
@@ -1959,6 +1961,8 @@ void GameScreen::loadSettings() {
                 if (v >= 0 && v <= 10) settingsPanel_.pendingSafeArea = v;
             } else if (key == "interface_layout_version") {
                 interfaceLayoutVersion = std::stoi(val);
+            } else if (key == "autoloot_default_version") {
+                autoLootDefaultVersion = std::stoi(val);
             } else if (key == "window_ui_scale") {
                 settingsPanel_.pendingWindowUiScale =
                     std::clamp(std::stof(val), windowUiScaleRange().first,
@@ -2189,6 +2193,22 @@ void GameScreen::loadSettings() {
                      << "interface_layout_version=" << kInterfaceLayoutVersion << "\n";
         } else {
             LOG_WARNING("Could not persist interface layout migration to ", path);
+        }
+    }
+
+    if (autoLootDefaultVersion < kAutoLootDefaultVersion) {
+        // Auto-loot is on by default now. A file written under the old default
+        // carries auto_loot=0 and a saved value beats a changed default, so
+        // force it once and stamp the version. An explicit toggle made after
+        // this still sticks.
+        settingsPanel_.pendingAutoLoot = true;
+        in.close();
+        std::ofstream migrated(path, std::ios::app);
+        if (migrated.is_open()) {
+            migrated << "\n[AutoLoot]\nauto_loot=1\nautoloot_default_version="
+                     << kAutoLootDefaultVersion << "\n";
+        } else {
+            LOG_WARNING("Could not persist auto-loot default migration to ", path);
         }
     }
 

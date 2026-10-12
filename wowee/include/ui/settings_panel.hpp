@@ -154,7 +154,10 @@ public:
     bool pendingChatBoxVisible = true;
 
     // ---- Pending gameplay ----
-    bool pendingAutoLoot = false;
+    // On by default: the operator wants kill + A to take the corpse without
+    // opening the loot window. A saved setting or the one-shot migration in
+    // loadSettings can still turn it off.
+    bool pendingAutoLoot = true;
     bool pendingAutoSellGrey = false;
     bool pendingAutoRepair = false;
     bool pendingIdleCameraOrbit = true;

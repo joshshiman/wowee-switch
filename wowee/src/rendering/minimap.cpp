@@ -36,7 +36,8 @@ struct MinimapDisplayPush {
     float zoomRadius;
     int32_t squareShape;
     float opacity;
-};  // 44 bytes
+    float showArrow;        // 1 draws the in-shader centre arrow, 0 hides it
+};  // 48 bytes
 
 Minimap::Minimap() = default;
 
@@ -630,6 +631,7 @@ void Minimap::render(VkCommandBuffer cmd, const Camera& playerCamera,
     push.zoomRadius = zoomRadius;
     push.squareShape = squareShape ? 1 : 0;
     push.opacity = std::clamp(opacity_,0.f,1.f);
+    push.showArrow = centerArrowVisible_ ? 1.0f : 0.0f;
 
     vkCmdPushConstants(cmd, displayPipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,

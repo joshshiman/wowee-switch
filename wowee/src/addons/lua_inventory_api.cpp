@@ -3111,7 +3111,15 @@ static int lua_GetLootSlotLink(lua_State* L) {
 static int lua_LootSlot(lua_State* L) {
     auto* gh = getGameHandler(L);
     int slot = static_cast<int>(luaL_checknumber(L, 1));
-    if (!gh || !gh->isLootWindowOpen()) return 0;
+    // Proof line for the next run: a click that reaches this function is
+    // otherwise indistinguishable from one that never did, because the widget
+    // click log ("OnClick ran") fires whether or not a handler was bound.
+    const bool open = gh && gh->isLootWindowOpen();
+    const game::LootItem* proof = open ? lootItemAtSlot(gh, slot) : nullptr;
+    LOG_WARNING("[WOWEE_LOOT] LootSlot(slot=", slot, ") open=", open ? 1 : 0,
+                " item=", proof ? static_cast<int>(proof->itemId) : 0,
+                " serverSlot=", proof ? static_cast<int>(proof->slotIndex) : -1);
+    if (!gh || !open) return 0;
     if (lootHasCoin(gh) && slot == 1) { gh->lootMoney(); return 0; }
     if (const auto* item = lootItemAtSlot(gh, slot)) {
         // The server's own slot number, not the position on screen.

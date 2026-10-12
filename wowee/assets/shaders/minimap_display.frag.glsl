@@ -10,6 +10,7 @@ layout(push_constant) uniform Push {
     float zoomRadius;
     int squareShape;
     float opacity;
+    float showArrow;
 } push;
 
 layout(location = 0) in vec2 TexCoord;
@@ -64,7 +65,7 @@ void main() {
     tip = rot * tip;
     left = rot * left;
     right = rot * right;
-    if (pointInTriangle(local, tip, left, right)) {
+    if (push.showArrow > 0.5 && pointInTriangle(local, tip, left, right)) {
         mapColor.rgb = vec3(1.0, 0.86, 0.05);
     }
     float centerDot = smoothstep(0.016, 0.0, length(local));

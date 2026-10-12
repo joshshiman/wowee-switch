@@ -648,19 +648,32 @@ public:
     void targetLastEnemy();
     void targetLastFriend();
 
+    /// Which units targetNearest is allowed to pick.
+    ///
+    /// Any   - the nearest living unit of either faction. This is what the
+    ///         offline overlay's own target toggle does (nearestLivingLocalTarget,
+    ///         used at application_local_ui.cpp:131) and what L1's target+act
+    ///         runs first, so the gesture means the same thing on both realms.
+    /// Enemy - the nearest HOSTILE (or aggressive-toward-the-player) unit only.
+    ///         This is what Y needs when it acquires before auto-attacking:
+    ///         attacking a quest giver or vendor does nothing, so with nothing
+    ///         selected Y must find something it can actually fight.
+    enum class TargetNearestMode { Any, Enemy };
+
     /// Acquire the nearest eligible unit as the current target.
     ///
     /// The realm-aware sibling of the verbs above, for the pad's acquire-then-act
-    /// gestures (L1 interact, Y attack). When `friendlyFirst`, a living,
-    /// non-hostile, interactable unit - a quest giver, trainer, vendor - wins
-    /// over a hostile one; otherwise the nearest hostile wins. REMOTE sets the
-    /// target through the normal selection-packet path; LOCAL mirrors the
-    /// overlay's nearest-living selection. Returns true when a target is set.
+    /// gestures. What counts as eligible is the mode: Any takes the nearest
+    /// living unit of either faction (matching the offline overlay), Enemy takes
+    /// only the nearest hostile. REMOTE sets the target through the normal
+    /// selection-packet path; LOCAL mirrors the overlay's nearest-living
+    /// selection. Returns true when a target is set. Logs the chosen target at
+    /// WARNING ([WOWEE_TGT]) so a run proves what was picked.
     ///
     /// Note the narrower verbs cannot stand in for this: targetFriend selects
     /// friendly *players* only (combat_handler.cpp:1517), so it never finds an
     /// NPC, and targetEnemy cycles rather than acquiring the nearest.
-    bool targetNearest(bool friendlyFirst = true);
+    bool targetNearest(TargetNearestMode mode = TargetNearestMode::Any);
 
     // Inspection
     void inspectTarget();

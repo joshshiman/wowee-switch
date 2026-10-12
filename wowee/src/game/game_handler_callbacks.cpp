@@ -2183,20 +2183,41 @@ void GameHandler::stopAttackAny() {
     stopAutoAttack();
 }
 
-bool GameHandler::targetNearest(bool friendlyFirst) {
-    // LOCAL: mirror the overlay's nearest-living selection. The pad's own
-    // target+act gesture is owned by the native overlay there, so this arm is
-    // here so the verb is coherent on both realms, not because dispatch reaches
-    // it. Selection only: no attack is started and no target is cleared.
+bool GameHandler::targetNearest(TargetNearestMode mode) {
+    const bool enemiesOnly = mode == TargetNearestMode::Enemy;
+
+    // LOCAL: mirror the overlay's nearest-living selection for Any (the
+    // nearest NPC of either faction, exactly what nearestLivingLocalTarget
+    // does), or take the nearest hostile for Enemy. Selection only: no attack
+    // is started and no target is cleared.
     if (auto* realm = localServiceRealm()) {
-        if (const auto* self = realm->localPlayer()) {
-            const uint64_t guid = nearestLivingLocalTarget(*self, realm->npcs());
-            if (guid) {
-                setTargetGuidRaw(guid);
-                return true;
+        const auto* self = realm->localPlayer();
+        if (!self) return false;
+        uint64_t guid = 0;
+        float bestD2 = 40.0f * 40.0f;
+        bool chosenHostile = false;
+        std::string chosenName;
+        uint32_t chosenEntry = 0;
+        for (const auto& npc : realm->npcs()) {
+            if (!npc.guid || npc.dead || npc.mapId != self->mapId ||
+                npc.instanceId != self->instanceId) continue;
+            if (enemiesOnly && !npc.hostile) continue;
+            const float dx = npc.x - self->x, dy = npc.y - self->y, dz = npc.z - self->z;
+            const float d2 = dx * dx + dy * dy + dz * dz;
+            if (!std::isfinite(d2) || d2 > bestD2) continue;
+            if (!guid || d2 < bestD2 || npc.guid < guid) {
+                guid = npc.guid; bestD2 = d2;
+                chosenHostile = npc.hostile; chosenName = npc.name;
+                chosenEntry = npc.entry;
             }
         }
-        return false;
+        if (!guid) return false;
+        setTargetGuidRaw(guid);
+        LOG_WARNING("[WOWEE_TGT] targetNearest -> guid=0x", std::hex, guid, std::dec,
+                    " hostile=", chosenHostile ? 1 : 0,
+                    " dist=", std::sqrt(bestD2),
+                    " ", chosenName.empty() ? std::to_string(chosenEntry) : chosenName);
+        return true;
     }
 
     if (!combatHandler_) return false;
@@ -2207,43 +2228,47 @@ bool GameHandler::targetNearest(bool friendlyFirst) {
     // (world_packets_social.cpp:376, called at combat_handler.cpp:1349). So the
     // server owns the resulting target exactly as it would for a mouse click.
     //
-    // "Friendly" is a living, non-hostile, interactable unit (quest giver /
-    // trainer / vendor); "enemy" is the same walk with the hostility test that
-    // CombatHandler::targetEnemy uses. Corpses are neither: they are loot, and
-    // targetAndAct handles them once selected.
+    // Any takes the nearest living creature (the offline overlay's NPC set - it
+    // never considers players, and a friendly player would fall through
+    // targetAndAct to an attack). Enemy takes the nearest hostile, creatures and
+    // players alike. Corpses are neither: they are loot, and targetAndAct
+    // handles them once selected.
     float px = 0.0f, py = 0.0f, pz = 0.0f;
     if (auto self = getEntityManager().getEntity(getPlayerGuid())) {
         px = self->getX(); py = self->getY(); pz = self->getZ();
     }
 
     constexpr float kRangeSq = 40.0f * 40.0f;
-    uint64_t bestFriendly = 0, bestEnemy = 0;
-    float bestFriendlyD2 = kRangeSq, bestEnemyD2 = kRangeSq;
+    uint64_t best = 0;
+    float bestD2 = kRangeSq;
+    bool bestHostile = false;
 
     for (const auto& [guid, entity] : getEntityManager().getEntities()) {
         if (!entity || guid == getPlayerGuid()) continue;
         const auto type = entity->getType();
         if (type != ObjectType::UNIT && type != ObjectType::PLAYER) continue;
+        // Any mirrors the offline NPC set, which is creatures only.
+        if (!enemiesOnly && type != ObjectType::UNIT) continue;
         auto* unit = dynamic_cast<Unit*>(entity.get());
         if (!unit || unit->getHealth() == 0) continue;
+        const bool hostile = unit->isHostile() || isAggressiveTowardPlayer(guid);
+        if (enemiesOnly && !hostile) continue;
         const float dx = entity->getX() - px;
         const float dy = entity->getY() - py;
         const float dz = entity->getZ() - pz;
         const float d2 = dx * dx + dy * dy + dz * dz;
         if (!(d2 <= kRangeSq)) continue;   // out of range, or NaN
-        if (unit->isHostile() || isAggressiveTowardPlayer(guid)) {
-            if (d2 < bestEnemyD2) { bestEnemyD2 = d2; bestEnemy = guid; }
-        } else if (unit->isInteractable()) {
-            if (d2 < bestFriendlyD2) { bestFriendlyD2 = d2; bestFriendly = guid; }
-        }
+        if (d2 < bestD2) { bestD2 = d2; best = guid; bestHostile = hostile; }
     }
 
-    const uint64_t chosen = friendlyFirst
-        ? (bestFriendly ? bestFriendly : bestEnemy)
-        : (bestEnemy ? bestEnemy : bestFriendly);
-    if (!chosen) return false;
-    setTarget(chosen);
-    return getTargetGuid() == chosen;
+    if (!best) return false;
+    setTarget(best);
+    if (getTargetGuid() != best) return false;
+    LOG_WARNING("[WOWEE_TGT] targetNearest -> guid=0x", std::hex, best, std::dec,
+                " hostile=", bestHostile ? 1 : 0,
+                " dist=", std::sqrt(bestD2),
+                " ", entityDisplayName(getEntityManager().getEntity(best)));
+    return true;
 }
 
 bool GameHandler::targetAndAct(uint64_t guid) {
@@ -2614,12 +2639,12 @@ void GameHandler::castSpell(uint32_t spellId, uint64_t targetGuid) {
     }
     // The pad's Y (action slot 1, SPELL_ID_ATTACK by default) is "attack" - and
     // offline the gesture acquires a target first. Do the same online: with
-    // nothing selected, take the nearest target friendly-first (an interactable
-    // NPC beats a hostile one), then let the resolved target flow into the
-    // auto-attack below. Scoped to the attack action only - every other slot
-    // keeps its own targeting semantics.
+    // nothing selected, take the nearest HOSTILE unit (attacking a quest giver
+    // does nothing), then let the resolved target flow into the auto-attack
+    // below. Scoped to the attack action only - every other slot keeps its own
+    // targeting semantics.
     if (spellId == SPELL_ID_ATTACK && targetGuid == 0 && getTargetGuid() == 0) {
-        targetNearest(/*friendlyFirst=*/true);
+        targetNearest(TargetNearestMode::Enemy);
     }
     if (spellHandler_) spellHandler_->castSpell(spellId, targetGuid);
 }
