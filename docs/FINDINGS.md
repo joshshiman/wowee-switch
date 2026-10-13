@@ -4,7 +4,7 @@ Everything here was measured on the console at `192.168.2.44`. This file exists
 so that measurements are not repeated and ruled-out theories are not re-tried.
 Read it before debugging a new symptom.
 
-Last updated: 2026-10-09 (evening — flashing/crash/audio session).
+Last updated: 2026-10-13 (crosshair targeting, update cost, layout gate, loot, vendor).
 
 ---
 
@@ -1487,3 +1487,73 @@ Comprehensive note per user request - the whole override picture in one place.
   native FrameXML lane's raw-pad parts (padWorldMapToggle, corpse Square,
   cancel-carried Circle) must stay ConsolePort-gated: they read rawSnapshot and
   would double-drive with both ConsolePort and the local overlay.
+
+## 2026-10-13 session: crosshair targeting, update cost, layout gate, loot, vendor
+
+### Connected-realm update cost: transport, not network
+`[WORLD_PERF]` now splits the update phase. Measured: `updateMeanMs` 71-90 on a
+server vs 9-10 locally, and the split put the whole cost in transport
+(`ghTransportMs=61.3` with `packetsHandled=2`, `blocksApplied=0` — so it was
+**not** network traffic). Root cause: `TransportManager::pushTransform` →
+`WMORenderer::setInstanceTransform` called `rebuildSpatialIndex()` on every push
+(clear + re-file every instance in the zone — thousands of allocations). Fixed
+with an unchanged-matrix early-out (the M2 path already had one) plus an
+incremental `refileBounds`. 61 → 33 ms, then the rest went when the same
+treatment reached the WMO path properly; `loopFps` 7.2 → 9.6.
+
+### Idle FrameXML layout: ~10.3 ms/frame, the `markTreeDirty` mask
+Measured ~10.3 ms/frame (`fxLayoutMs` **includes** `fxSizingMs` — do not add
+them). `[FX_GATE]` was useless at first because every site reported
+`lua_engine.cpp:377`, the body of the `markTreeDirty` helper, which masked the
+real caller; it is a macro now. Unmasked, the culprit was FrameXML's
+`PlayerFrame` resting/status pulse calling `SetAlpha` on two textures every
+frame. Fixed by making an alpha change repair the draw order directly
+(`refreshDrawOrderAlpha`) instead of running the sizing sweep and the solve —
+only when the zero test flips. `fxLayoutSkipped=1` on an idle frame now.
+
+### Diseased Young Wolf is genuinely NEUTRAL — ruled out as a bug
+It reports `hostile=0`, and that is CORRECT: faction template 32 has
+`ourMask=0` and no friend/enemy group match, so the DBC-built faction map is
+sound. The hostile Northshire wolf is the Mangy Wolf (ft 38). Do not chase the
+faction map again.
+
+### Targeting on a server: the world's own click, not a search
+The pad had no remote acquisition, and search-based acquire was the wrong shape.
+The screen-centre crosshair (A = the client's real right-click at
+`game_screen.cpp:1969-2174` via `scene_pick`, Y = left click, L1 = nearest
+attackable including neutrals) replaced it. Pinned at rest only — a look is a
+right-button drag and the client tells a drag from a click by cursor travel, so
+holding the cursor still would fire a click on every turn.
+
+### Loot panel zero-sized by a guard that never fired
+`ConsolePortUI_Loot`'s stand-down tested `rawget(_G, 'SecureHandlerWrapScript')`,
+which FrameXML DOES define, so the guard fell through and the addon's `HideFrame`
+ran `SetSize(0,0)` + `ClearAllPoints()` on FrameXML's `LootFrame` — the panel
+vanished while its children kept their own sizes ("the panel doesn't show, but
+the icons do"). And the loot lane focused an empty row because
+`LOOT_SLOT_CLEARED` compacts the loot while FrameXML's handler only hides the
+named button.
+
+### The repeating error sound was the client spamming sells
+ConsolePort's auto-sell-junk handler ran its bag scan twice and a sell is
+asynchronous, so the second pass re-sent a stack the server had not answered
+about; each `SMSG_SELL_ITEM` error 1 played the error sound. Fixed with one pass
+plus a pending/rejected-GUID guard.
+
+### Vendor rows showed raw item ids
+Every `SMSG_ITEM_QUERY_SINGLE_RESPONSE` ran a full `rebuildOnlineInventory` and
+fired 12 `BAG_UPDATE` events (10-14 ms each, serial under the 2 ms packet
+budget). Gated to items the player holds, and the stock is prefetched before
+`MERCHANT_SHOW`.
+
+### The minimap marker
+The interface draws no arrow widget of its own — `Minimap`'s
+`minimapPlayerModel`/`minimapArrowModel` are engine models the FrameXML emitter
+drops — so the client's own `MinimapArrow.blp` is the marker, and the native
+minimap shader's in-shader triangle is turned off. Do not go looking for a
+FrameXML arrow to hide.
+
+### Pre-login config path (audit blocker 2), still open
+`getConfigRoot()` returns `$HOME/.wowps` = `sdmc:/wowps/wowps/.wowps`, and
+`createDirectories()` creates only `{logs,cache,saves,config,tmp}` — never
+`.wowps`. Settings changed before the first login are silently lost.

@@ -60,20 +60,30 @@ tools/switch/build_switch_nro.sh --config Release
 
 The build produces `build-switch/wowee.nro`, stages the runtime assets in
 `build-switch/wowee-data/`, and `cmake --build build-switch --target switchpkg`
-assembles an SD-card layout under `out/switch/` (copy that to the SD card root,
-so the title ends up at `sdmc:/switch/wowee/wowee.nro` next to `sdmc:/switch/wowee/data/`).
-Launch it from your homebrew menu.
+assembles an SD-card layout under `wowee/out/switch/switch/wowee/` (copy that to
+the SD card root, so the title ends up at `sdmc:/switch/wowee/wowee.nro` next to
+`sdmc:/switch/wowee/data/`). Launch it from your homebrew menu.
 
-`tools/switch/build_switch_nro.sh --help` documents the options; the CMake
-commands it wraps are:
+`tools/switch/build_switch_nro.sh --help` documents the options. The CMake
+commands it wraps run from the **repository root**, with an **absolute**
+toolchain path:
 
 ```sh
-cmake -S . -B build-switch -G Ninja \
-      -DCMAKE_TOOLCHAIN_FILE=cmake/switch.toolchain.cmake \
+DEVKITPRO=/opt/devkitpro cmake -S "$PWD/wowee" -B build-switch -G Ninja \
+      -DCMAKE_TOOLCHAIN_FILE="$PWD/wowee/cmake/switch.toolchain.cmake" \
       -DCMAKE_BUILD_TYPE=Release
-cmake --build build-switch --parallel
-cmake --build build-switch --target switchpkg
+DEVKITPRO=/opt/devkitpro cmake --build build-switch --parallel "$(nproc)"
+DEVKITPRO=/opt/devkitpro cmake --build build-switch --target switchpkg
 ```
+
+A relative `-DCMAKE_TOOLCHAIN_FILE=cmake/switch.toolchain.cmake` is only valid if
+you have already `cd`'d into `wowee/`; run from the repository root it fails at
+the first `project()` with **"Could not find toolchain file"**.
+
+> **A toolchain-flag change needs a clean configure.** `CMAKE_CXX_FLAGS_INIT`
+> is applied only when the build tree is first configured, so editing
+> `cmake/switch.toolchain.cmake` and rebuilding an existing `build-switch/`
+> silently keeps the old flags - delete the tree and reconfigure.
 
 ## Runtime layout
 
@@ -81,26 +91,33 @@ cmake --build build-switch --target switchpkg
 |------|----------|
 | `sdmc:/switch/wowee/data` | `assets/shaders/*.spv`, UI images, `Data/expansions`, `Data/opcodes` (override the root with `WOWEE_RESOURCE_ROOT`) |
 | `sdmc:/wowps/Data` | your own WotLK client `Data` (MPQs, locale subdirectories) |
-| `sdmc:/wowps/assets/local_realm` | bundled local-realm data (copied at build time) |
+| `sdmc:/switch/wowee/data/assets/local_realm` | bundled local-realm data (staged into the data directory at build time, read through `appRoot()`) |
 | `sdmc:/wowps/wowps/` | writable tree: `logs/`, `cache/`, `saves/`, `config/`, `tmp/` |
 
-The assets are staged beside the `.nro` instead of embedded in an NRO romfs:
-this devkitPro `elf2nro` cannot read a romfs *directory* (it `mmap`s the
-directory and fails), and a prebuilt image is appended without its `NroStart`
-entry, so `romfsMountSelf()` would never find it either. A side-by-side
-directory also means shaders can be refreshed by copying a file.
+The assets are staged **both** beside the `.nro` and inside it as a romfs. The
+side-by-side copy exists because this devkitPro `elf2nro` cannot read a romfs
+*directory* (it `mmap`s the directory and fails); a prebuilt image is appended
+and the header's romfs fields patched afterwards instead (the POST_BUILD step in
+`CMakeLists.txt`), because libnx reads those fields from the file named by
+`argv[0]`. On a normal install the card's `data/` beside the `.nro` **wins** and
+the embedded romfs is only a fallback, so a shader can still be refreshed by
+copying a file onto the card.
 
-`appRoot()` looks for that directory in this order:
+`appRoot()` looks for that directory in this order, taking the first candidate
+that contains `assets/shaders/`:
 
 1. `WOWEE_RESOURCE_ROOT`
 2. `data/` beside the `.nro`, then the `.nro`'s own directory (from `argv[0]`)
 3. `sdmc:/switch/<nro name>/data` (launchers that pass a bare file name)
-4. `sdmc:/switch/wowee/data`
-5. a `<dir>/data` holding `assets/shaders`, found by listing `sdmc:/` and
-   `sdmc:/switch` (step 5 exists because an emulator passes the `.nro`'s path
-   on the *host*, which says nothing about the emulated card)
+4. `romfs:/` - the assets embedded in the `.nro` (only once the romfs mounted)
+5. `sdmc:/switch/wowee/data`
+6. a `<dir>/data` holding `assets/shaders`, found by listing `sdmc:/` and
+   `sdmc:/switch` (this last step exists because an emulator passes the `.nro`'s
+   path on the *host*, which says nothing about the emulated card)
 
-Rejected candidates are logged, so `logs/boot.log` records what was tried.
+Rejected candidates are logged, so `logs/boot.log` records what was tried - a
+real run shows `resource root: sdmc:/switch/wowee/data` with `not used:
+sdmc:/switch/wowee` and `not used: romfs:/` under it.
 
 ## Running under an emulator
 
@@ -223,15 +240,21 @@ Three ways this could change, in ascending order of difficulty:
 
 ## Known gaps
 
-* Untested on hardware: the port compiles, links and packages, but no console is
-  attached, so presentation, audio, HID and the login path have not been run.
+* **Runs on hardware, in-world.** The full boot path is live (romfs mount,
+  resource-root resolution, renderer init with every pipeline, all 18 MPQs,
+  FrameXML addons), and the login screen, character creator, world entry and
+  in-world rendering all run - offline in the local realm and against a private
+  server. The `SELF-TEST: PASS renderer=ok audio=ok hid=ok net=ok data=ok
+  shaders=ok failed=none` line in `boot.log` is from the console. See
+  [README.md](../../README.md#project-status).
 * Blizzard Warden cannot run its native modules on Horizon: the kernel will not
   hand out anonymous RWX mappings, so `warden_module.cpp` loads the module
   read/write and refuses to call into it. Realms that issue a Warden challenge
   will not work; local and private servers do. See *Warden on Switch* for what
   would change that.
-* `elf2nro` here cannot embed a romfs (see *Runtime layout*), so assets are read
-  from the SD card rather than from the title itself.
+* `elf2nro` here cannot read a romfs *directory*, so the assets are built into a
+  romfs image and the `.nro` header patched (see *Runtime layout*). The card's
+  `data/` beside the `.nro` is preferred; the embedded romfs is the fallback.
 * No `deko3d`/GLES2 path: rendering is Vulkan 1.x through nxvk, which is what the
   renderer already spoke on the PS4.
 * GPU timestamps stay uncalibrated (as on the PS4 port) until the nxvk backend

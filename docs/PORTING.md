@@ -1,7 +1,8 @@
 # Porting wowee to the Nintendo Switch
 
-For **installing and playing**, see [README.md](../README.md). For **what is broken**,
-see [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md).
+For **installing and playing**, see [README.md](../README.md). For the
+pre-hardware audit and what is still open, see [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md)
+and [FINDINGS.md](FINDINGS.md).
 
 ```
 wowee/     the client (WoWPS 2.12 console port retargeted at the Switch)
@@ -48,39 +49,47 @@ tools/switch/build_switch_nro.sh    # -> build-switch/wowee.nro + wowee-data/
 cmake --build build-switch --target switchpkg  # -> out/switch/switch/wowee/
 ```
 
-The runtime assets are staged in `build-switch/wowee-data/` and shipped beside
-the `.nro` (the homebrew reads them from `sdmc:/switch/wowee/data`, overridable
-with `WOWEE_RESOURCE_ROOT`). They are not embedded in an NRO romfs because the
-devkitPro `elf2nro` build here cannot read one.
+The runtime assets are staged in `build-switch/wowee-data/`, shipped beside the
+`.nro` (the homebrew reads them from `sdmc:/switch/wowee/data`, overridable with
+`WOWEE_RESOURCE_ROOT`) **and** embedded in the `.nro` as a romfs. This devkitPro
+`elf2nro` cannot read a romfs *directory*, so a prebuilt image is appended and
+the `.nro` header patched; the card's `data/` beside the `.nro` wins when it
+exists, and the embedded romfs is the fallback.
 
 Then copy your own WotLK `Data` directory to `sdmc:/wowps/Data` on the console.
 
 > **Caveat, and read this before trusting a clean clone.** The three commands
-> above are the intended flow, but the audit found the build will not complete
-> from a fresh checkout as written: the scripts are committed non-executable, the
-> NRO romfs patch is invoked through an unset CMake variable, and the driver's
-> `libvulkan.a`/`vulkan.h` layout is unpinned. See the *"HIGH — build"* section
-> and its *"Related build findings"* subsection in
-> [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md) for the fixes.
+> above are the flow. The audit's fresh-clone blockers - scripts committed
+> non-executable, the NRO romfs patch invoked through an unset CMake variable -
+> have since been fixed; the driver's `libvulkan.a`/`vulkan.h` layout is handled
+> by the `vk_video` header install in [README.md](../README.md#install-the-toolchain).
+> The historical findings, and what is still open, are in
+> [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md).
 
 ## Status
 
-The port compiles, links and packages: `wowee.elf` and a 38 MB `wowee.nro` are
-produced by devkitA64 GCC 15.2 with statically linked Mesa NVK, and
-`cmake --build build-switch --target switchpkg` stages a complete SD-card tree.
-The resulting ELF has no unresolved symbols, exports the driver's
+**It runs on hardware, in-world.** The full boot path is live - romfs mount,
+resource-root resolution, renderer init with every pipeline, all 18 MPQs opened
+(including the 2.9 GB `common.MPQ`), FrameXML addons loaded - and the login
+screen, character creator and world entry all run. Playable offline in the local
+realm and against a private server; `boot.log` carries real `SELF-TEST: PASS
+renderer=ok audio=ok hid=ok net=ok data=ok shaders=ok failed=none` verdicts from
+the console. See [README.md](../README.md#project-status) for the live picture.
+
+The port still compiles, links and packages cleanly: `wowee.elf` and a ~74 MB
+`wowee.nro` are produced by devkitA64 GCC 16.1.0 with statically linked Mesa
+NVK, and `cmake --build build-switch --target switchpkg` stages a complete
+SD-card tree. The resulting ELF has no unresolved symbols, exports the driver's
 `vk_icdGetInstanceProcAddr`, and keeps the generated loader's
 `vkCreateInstance`/`vkCreateDevice` trampolines internal.
 
-**Not yet run on hardware.** There is no console or Atmosphère here, so display,
-audio, input, controller mapping and the WotLK login path are unverified at
-runtime. Blizzard's Warden cannot execute its native modules on Horizon (no
-anonymous RWX mappings), which rules out realms that issue Warden challenges;
-private and local servers remain the working target.
+Blizzard's Warden cannot execute its native modules on Horizon (no anonymous RWX
+mappings), which rules out realms that issue Warden challenges; private and
+local servers remain the supported target.
 
 ### What has been verified, and what has not
 
-Verified by reading the code together with the actual built artifacts
+Verified on hardware, and by reading the code together with the built artifacts
 (`build-switch/wowee.elf`, Mesa 25.0.7) and the vendored libnx sources in
 `references/`:
 
@@ -101,10 +110,12 @@ Verified by reading the code together with the actual built artifacts
 * The audout parameters (48 kHz, 2 channels, Int16) and the fact that audio-init
   failure degrades silently rather than aborting.
 
-Not verified, for want of a console: that the heap grant succeeds, socket
-non-blocking semantics, the Switch network stack's tolerance of the connect
-address, suspend/resume behaviour, and whether the build reproduces from a clean
-clone.
+Still unverified on hardware: suspend/resume and dock handling (no `appletHook`
+is installed, so a failed present is permanent and an exit request is ignored),
+the long-session memory ceiling, and whether the build reproduces from a clean
+clone. The heap grant, socket non-blocking semantics and the network stack's
+tolerance of the connect address are exercised now - the client logs in and
+reaches the world. See [FINDINGS.md](FINDINGS.md) for the ledger.
 
 No PS4 or SDL3 code is reachable on the Switch path — the `WOWEE_PS4` blocks are
 nested inside `#ifdef WOWEE_SWITCH` and additionally guarded, so they compile to

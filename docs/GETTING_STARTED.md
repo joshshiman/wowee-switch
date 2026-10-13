@@ -1,42 +1,35 @@
 # Getting started
 
-**[README.md](../README.md) is for playing the thing.** This file is for building it.
-It is the **Linux** path, verified end to end on CachyOS (Arch family, glibc,
-pacman) on 2026-10-08: from a bare machine to a packaged `wowee.nro`.
+**[README.md](../README.md) is the guide** — what you need, how to install it,
+how to run a server and how to play. *This* file is the long version of the
+**Linux build path**: from a bare machine to a packaged `wowee.nro`, verified end
+to end on CachyOS (Arch family, glibc, pacman) on 2026-10-08. Clone
+`https://github.com/joshshiman/wowee-switch.git` and work from its root.
 
-Nothing here is architected — it is what actually worked, including the three
-things that silently break a naive attempt.
+It keeps the depth the README doesn't: the nxvk driver in full (prebuilt and
+built from source), the native host build, the artifact sanity checks, and the
+configure problems that silently break a naive attempt.
 
 ---
 
 ## What you need
 
-- A hacked Switch (homebrew-capable, with a recent Atmosphère and sigpatches) and
-  an SD card.
-- **Your own copy** of a WotLK 3.3.5a client `Data` directory. Blizzard's game
-  data is not included and cannot be. You need the `.MPQ` archives with their
-  locale subdirectories intact — roughly 15 GB of them.
-- A server to connect to. Retail realms will not work; see
-  [README.md](../README.md#servers).
+[README.md § What you need](../README.md#what-you-need) lists the console, host,
+toolchain, driver, game data, server and disk requirements. Two points are
+specific to this path:
+
+- **Your own copy** of a WotLK 3.3.5a `Data` directory — the `.MPQ` archives with
+  their locale subdirectories intact, roughly 15 GB. Blizzard's game data is not
+  included and cannot be.
 - About 120 MB of downloads for the toolchain, plus a few GB of disk.
 
-**Read [README.md](../README.md#status-read-this-before-you-try-it) first.** Six
-audited defects will stop a first run, and the most useful thing you can do with
-a first successful build is work through that list. Building proves the code
-compiles and links. It does not prove the title boots.
+**Read [README.md § Project status](../README.md#project-status) first.** It is
+the honest account of what still doesn't work. Building proves the code compiles
+and links; it does not prove the title boots.
 
 ---
 
-## 1. Get the source
-
-```sh
-git clone https://github.com/joshshiman/wowee-switch.git
-cd wowee-switch
-```
-
----
-
-## 2. Install devkitPro
+## 1. Install devkitPro
 
 CachyOS ships pacman, so use devkitPro's "customising an existing pacman
 install" path rather than their self-contained installer. Register their signing
@@ -106,19 +99,20 @@ repo path first.
 
 ---
 
-## 3. Install the Vulkan driver (nxvk)
+## 2. Install the Vulkan driver (nxvk)
 
 The renderer speaks Vulkan through **Mesa NVK**, ported to the Switch as
-**nxvk**. There are two sources, and they are not equally difficult.
+**nxvk**. `PalindromicBreadLoaf/nxvk` — the upstream port — has **no releases at
+all**, so `libvulkan.a` cannot be downloaded from it: building it means compiling
+Mesa in a container, which needs podman or docker and a long build. The port
+ships a helper that does that clone-and-build for you:
 
-### Use the prebuilt archive
+```sh
+wowee/tools/switch/fetch-nxvk.sh    # clone the switch branch, then make image / make / sudo make install
+```
 
-`PalindromicBreadLoaf/nxvk` — the upstream port — has **no releases at all**, so
-`libvulkan.a` cannot be downloaded from it. Building it means compiling Mesa in a
-container, which needs podman or docker and a long build.
-
-Instead use the prebuilt drop-in at `jhuz0/nvk-switch`, which publishes exactly
-that archive:
+The easier path is the prebuilt drop-in at `jhuz0/nvk-switch`, which publishes
+exactly that archive (Mesa 25.0.7):
 
 ```sh
 mkdir -p /tmp/nxvk && cd /tmp/nxvk
@@ -144,11 +138,12 @@ corresponding-source pointer.
 
 ### The `vk_video` trap
 
-**The archive is incomplete, and the compile fails without this step.** Its
-`vulkan_core.h` includes `vk_video/vulkan_video_codec_h264std.h`, but the archive
-ships no `vk_video/` directory. Any translation unit that touches Vulkan dies
-with `fatal error: vk_video/vulkan_video_codec_h264std.h: No such file or
-directory` — which in practice means `imgui_impl_vulkan.cpp`, early in the build.
+**The prebuilt archive is incomplete, and the compile fails without this step.**
+Its `vulkan_core.h` includes `vk_video/vulkan_video_codec_h264std.h`, but the
+archive ships no `vk_video/` directory. Any translation unit that touches Vulkan
+dies with `fatal error: vk_video/vulkan_video_codec_h264std.h: No such file or
+directory` — which in practice means `imgui_impl_vulkan.cpp`, early in the
+build.
 
 The fix is *not* to grab the newest `vk_video` headers. They must match the
 archive, whose `vulkan_core.h` is `VK_HEADER_VERSION 305`:
@@ -201,7 +196,7 @@ package() {
 
 ---
 
-## 4. Put your game data where the client looks
+## 3. Put your game data where the client looks
 
 Copy your own WotLK `Data` directory to `wowps/Data` inside the repo — that is
 local-only and git-ignored, and it mirrors the console's `sdmc:/wowps/Data`:
@@ -216,7 +211,7 @@ read as-is.
 
 ---
 
-## 5. Build
+## 4. Build
 
 ```sh
 cd ~/Projects/wowee-switch
@@ -247,7 +242,7 @@ A good configure ends with these two lines, which tell you the driver was found:
 
 If it says `(portlib)` instead of `(prebuilt)`, it is picking up an
 `nxvk.pc`-style installation — also fine. If it stops with
-`No Vulkan driver for the Switch under ...`, the driver from step 3 is missing
+`No Vulkan driver for the Switch under ...`, the driver from step 2 is missing
 or in the wrong place.
 
 ### What a successful build looks like
@@ -266,12 +261,12 @@ Worth checking the ELF before you burn an SD card:
 # the driver's one real entry point must be exported
 nm build-switch/wowee.elf | grep -w vk_icdGetInstanceProcAddr
 # and there must be no unresolved symbols
-aarch64-none-elf-nm -u "$DEVKITPRO"/devkitA64/bin/wowee.elf | wc -l
+aarch64-none-elf-nm -u build-switch/wowee.elf | wc -l
 ```
 
 ---
 
-## 6. Stage it for the SD card
+## 5. Stage it for the SD card
 
 `switchpkg` assembles the tree for you:
 
@@ -281,9 +276,10 @@ wowee/out/switch/switch/wowee/data/          assets/shaders, Data/expansions, Da
 wowee/out/switch/switch/wowee/addons/
 ```
 
-Copy that `wowee` folder to `sdmc:/switch/`, then put your game data at
-`sdmc:/wowps/Data`. Launch **WoWee** from the homebrew menu. Full install and
-troubleshooting detail is in [README.md](../README.md#installing).
+Copy that `wowee` folder to `sdmc:/switch/` and put your game data at
+`sdmc:/wowps/Data`. The card layout, the FTP deploy script and the launch notes
+(Title Override for full memory) are in
+[README.md § Put it on your Switch](../README.md#2-put-it-on-your-switch).
 
 ---
 
@@ -302,7 +298,7 @@ cmake -S wowee -B build-host -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build-host --parallel "$(nproc)"
 ```
 
-Then run it against the game data you staged in step 4:
+Then run it against the game data you staged above:
 
 ```sh
 WOW_DATA_PATH=$PWD/wowps ./build-host/bin/wowee
@@ -316,9 +312,6 @@ boots, builds its Vulkan pipelines, and tells you exactly what it could not find
 
 ## Known gaps
 
-- **Never run on hardware.** Compiles, links and packages; display, audio, HID
-  and the login path are unverified. The audit is the to-do list:
-  [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md).
 - **Toolchain drift.** These steps were verified with devkitA64 GCC 16.1.0. The
   build this port was originally verified against used 15.2, so treat size and
   behavioural differences with suspicion.
@@ -327,9 +320,14 @@ boots, builds its Vulkan pipelines, and tells you exactly what it could not find
   leaves the *old* `.spv` in `wowee-data/`. If you change shaders, reconfigure
   or delete `build-switch/wowee-data` by hand. See the build findings in
   [AUDIT_FIRST_RUN.md](AUDIT_FIRST_RUN.md).
-- **`elf2nro` cannot embed a romfs directory** here, so assets are read from the
-  SD card beside the `.nro` rather than from the title. See
-  [BUILD_SWITCH.md](../wowee/docs/BUILD_SWITCH.md#runtime-layout).
+- **The card's `data/` wins over the `.nro`'s romfs.** `switchpkg` embeds a romfs
+  in the title, but the resource root resolves in this order:
+  `WOWEE_RESOURCE_ROOT` → `data/` beside the `.nro` → the `.nro`'s own directory
+  → `sdmc:/switch/<stem>/data` → the embedded romfs → `sdmc:/switch/wowee/data`.
+  On a normal install the card's `data/` is chosen and the romfs is only a
+  fallback, so **an asset change means rebuilding and redeploying the `.nro`**.
+  `boot.log` records the choice (`resource root: …`) and rejects (`not used: …`);
+  see [README.md § SD card layout](../README.md#sd-card-layout).
 
 ---
 

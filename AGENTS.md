@@ -1,7 +1,7 @@
 # AGENTS.md — WoWee Switch
 
 Working notes for anyone (human or agent) driving this project. Facts here were
-verified against the live console on **2026-10-11**; anything that changes
+verified against the live console on **2026-10-13**; anything that changes
 (address, Atmosphere version, where logs land) should be updated here first.
 
 **Read [docs/FINDINGS.md](docs/FINDINGS.md) before debugging anything.** It is
@@ -114,8 +114,8 @@ can contain realmlist addresses and account names.
 
 | Path | What |
 |------|------|
-| `/switch/wowee/wowee.nro` | the title (addons + data assets are baked into its romfs too) |
-| `/switch/wowee/addons/` | card-side addon mirror (ConsolePort set; read only if romfs changes — see traps) |
+| `/switch/wowee/wowee.nro` | the title (`Data/` + `assets/` are baked into its romfs; addons are not) |
+| `/switch/wowee/addons/` | ConsolePort set — read straight off the card, so a Lua-only FTP push works (see traps) |
 | `/wowps/Data` | the 17 GB WotLK client data, `enUS/` included — never re-deploy |
 | `/wowps/wowps/logs/` | `boot.log` (startup breadcrumbs), `wowps.log` (client log), `chat.log` |
 | `/wowps/wowps/{cache,saves,config,tmp}` | writable tree; `config/paths.cfg` overrides the data root |
@@ -194,8 +194,9 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   with a `data/` beside it) that is `sdmc:/switch/wowee/data`, so a shader or
   asset pushed onto the card **does** take effect. The romfs takes over only if
   the card's `data/` is missing or has no shaders — which is what the Oct 5–6
-  "romfs wins" note actually measured. Check the `resource root:` line in
-  `boot.log`: it names the winner and lists the `not used:` candidates.
+  "romfs wins" note actually measured. The newest console run logs
+  `resource root: sdmc:/switch/wowee/data` with `not used: romfs:/` (see
+  `logs/console/2026-10-12_1153_acworld/boot.log`), so the card wins in practice.
 - **Addon Lua is read straight off the card, so a Lua-only FTP push works.**
   The romfs contains only `Data/` and `assets/` — **never `addons/`**.
   `switchpkg` stages `addons/` *beside* the `.nro` (and into `data/addons`),
@@ -250,16 +251,24 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
 - **Temporary `[WOWEE_*]` instruments** (`PAD`, `KEYTRACE`, `ACT`, `OVR`,
   `MENU`, `MEM`, `ATTRDIAG`, `GLYPH`, center-band scan) are debug-round
   scaffolding, not features. Grep for them before adding another, and remove
-  the set before calling the branch done.
+  the set before calling the branch done. (`ACDBG` has been removed.)
+- **Permanent instrumentation** (leave it): `[WOWEE_FACTION]` (a one-shot map
+  summary plus a bounded per-unit line), `[WOWEE_TGT]` (guid/hostile/ft/mode/
+  dist/name), `[WOWEE_LOOT]` (LootSlot + autostore + the LootFrame shown/rect
+  proof), `[FX_GATE]` (the layout gate's dirty site — now unmasked, so it names
+  the real caller), and the `[WORLD_PERF]` update-phase fields: `ghSocketMs
+  ghPacketMs ghTimersMs ghInterpMs ghTransportMs ghTransportMgrMs
+  ghTransportChildrenMs ghMiscMs pendingInbound pendingUpdateBatches
+  blocksApplied packetsHandled outOfRangeRemoved ghTransports ghAttachedChildren
+  ghTransportPushes ghWmoIndexRebuilds ghWmoIndexRefiles ghWmoTransformUpdates`.
 
-## State as of 2026-10-11
+## State as of 2026-10-13
 
-- `main` now carries the handheld perf work through Phase 6 (`perf/switch-audit`
-  was fast-forwarded onto it and pushed). `feature/consoleport-native-ui` is a
-  literal ancestor of `main` — fully contained, nothing to reconcile; it is left
-  in place, not deleted.
-- UI/controls work lives on **`feature/console-ui`** (worktree
-  `../wowee-switch-ui`) — keep `perf/switch-audit` for perf work.
+- `main` carries the handheld perf work through Phase 6 (`perf/switch-audit`
+  fast-forwarded onto it). `feature/consoleport-native-ui` is a literal ancestor
+  of `main` — fully contained, nothing to reconcile; left in place, not deleted.
+- UI/controls work lives on **`perf/switch-headroom`** (this checkout,
+  `../wowee-switch-ui`).
 - `build-switch/` builds clean and stages to `wowee/out/switch/switch/wowee/`
   (clean configure + ~4 min; incremental much less). Commands in step 1 above.
   **A flag change needs a clean configure** - `CMAKE_CXX_FLAGS_INIT` only
@@ -271,16 +280,26 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
   FrameXML addons loaded), and the login screen, character creator, and world
   entry all run. Playable offline in the local realm as well as on servers.
 - **In-game UI is ConsolePort** (baked in as the native interface, Switch
-  profile): face-button clusters with ZL/ZR modifier tiers, radial utility
-  ring on Minus, panel doors on Minus/Plus tiers. The live map is in
-  [README.md](README.md#controls) — that table is verified against traces,
-  treat it as the contract.
+  profile): face-button clusters with ZL/ZR modifier tiers, **Minus = world
+  map, Plus = the all-panels hub** (the radial utility ring is retired). The
+  live map is in [README.md](README.md#controls) — that table is verified
+  against traces, treat it as the contract.
 - **Three input layers are live at once** (base pad table is gated off; the
   local-realm UI reads the raw pad; ConsolePort drives F-keys): X = local
   action + jump, Y = auto-attack, A = interact/loot/attack + mouse, B =
   cancel, L = target + act, R = bags. Fixes go through the right layer —
   never silence one blindly. Details in `docs/FINDINGS.md` (operator overrule
   + double-drive record).
+- **Crosshair lane (remote realm, in world, no menu open).** `Application::render`
+  calls `setCrosshairActive(true)` (`application.cpp:4928`): the cursor is
+  pinned to screen centre **at rest only** — not during a camera look, because a
+  look is a right-button drag and the client tells a drag from a click by cursor
+  travel, so holding the cursor still would fire a click on every turn. A is
+  then the world's **right-click** (`game_screen.cpp:1969-2174`), Y the
+  **left-click**, and L1 asks for a target (`tabTarget(..., includeNeutrals=true)`
+  — cycles the nearest ATTACKABLE unit: hostile, or a neutral creature with no
+  NPC flags). The reticle is not drawn. Any menu, the world map, or R3 cursor
+  mode turns it all off and restores the ConsolePort meanings.
 - **Audio is fixed** (blocker 1). `devWrite` no longer pre-waits on its own
   in-flight flag: libnx's `audoutPlayBuffer` already blocks until the hardware
   consumes the buffer and harvests the release.
@@ -291,23 +310,34 @@ produces *nothing* in `boot.log` — it stops mid-line — and a report appears 
 - **The teardown crash is fixed.** `main()` uses `_Exit`, so `exit()` never walks
   the C library's open FILE list - one of which was in a bad state and aborted
   at 0x18 after `shutdown` had already been logged.
-- Still open from the audit: the config path writing to a PS4 location
-  (blocker 2), local-realm saves (blocker 3), the swallowed fatal-error text
-  (blocker 4), and the 1.5 GiB heap request (blocker 6).
+- Audit blockers: **2** (the pre-login config path) is still open; **3**
+  (local-realm saves) is fixed in code, but two user-facing strings still print
+  `/data/wow_ps/Data`; **4** is mitigated — the reason is now in `boot.log`,
+  though the on-screen dialog is still a bare code; **5** (the login socket) is
+  fixed; **6** is reduced to a 1280 MiB heap request, still above the usual
+  homebrew range.
 - Console memory is still the structural risk: the driver refuses allocations
   the heap reports it can serve (a 512x256 image fails at ~96 MiB live while
   256x128 serves right after), so `createBuffer`/`createImage` drain completed
   upload batches and retry once. VMA block sizes land as a fallback ladder
   (32, 16, 8, 4 MiB); `preferredLargeHeapBlockSize` stays 32 MiB (8 MiB broke
   M2 transfers).
-- Controller panel access is rebuilt on `feature/console-ui` (pending hardware
-  validation): the utility ring is retired, **Minus = world map** and
-  **Plus = the all-panels hub**, the bar's show/hide button opens the same hub,
-  and the native FrameXML pad lane (D-pad focus, Cross pick-up/put-down, Y
-  use/equip in bags) is re-enabled under ConsolePort so the hub's panels are
-  wire-walkable and spells/items can be placed onto action slots. Still open: a
-  mid-session Lua-heap OOM crash with no clean signature match (new variant
-  under investigation, `lua_kb` breadcrumb in place).
+- **This session landed:** the crosshair world-control lane (above); the
+  connected-realm update cost (transport `pushTransform` rebuilt the WMO spatial
+  index on every push — fixed; `updateMeanMs` 71-90 → ~10, `loopFps` 7.2 → 9.6);
+  the idle FrameXML layout gate (`PlayerFrame`'s per-frame `SetAlpha` now
+  repairs draw order directly; `fxLayoutSkipped=1` idle); loot (the addon guard
+  no longer zero-sizes FrameXML's `LootFrame`, and the lane follows
+  `LOOT_SLOT_CLEARED`); and the vendor error-sound spam (one bag pass +
+  pending-GUID guard) and vendor item loading (query gate + prefetch).
+- Controller panel access is landed: the utility ring is retired, **Minus =
+  world map** and **Plus = the client's own all-panels hub**
+  (`__WoweeToggleMenus` → `Application::toggleMenuHub`), the bar's show/hide
+  button opens the same hub, and the native FrameXML pad lane (D-pad focus,
+  Cross pick-up/put-down, Y use/equip in bags) runs under ConsolePort so the
+  hub's panels are wire-walkable and spells/items can be placed onto action
+  slots. Still open: a mid-session Lua-heap OOM crash with no clean signature
+  match (new variant under investigation, `lua_kb` breadcrumb in place).
 - **Character creation, login, world load and in-game rendering are all
   exercised regularly now.** The largest remaining unknown is sustained
   in-world stability (memory over long sessions), not reaching the world.

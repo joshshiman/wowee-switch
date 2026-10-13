@@ -1,10 +1,21 @@
 # First-run audit — will it boot on a real Switch?
 
-Date: 2026-10-04
+> **Historical audit — status updated 2026-10-13.** This document records a
+> static, pre-hardware review dated **2026-10-04**, when no console was
+> available. The port has since run **in-world on real hardware** — login,
+> character creation, world entry and in-world rendering, offline in the local
+> realm and against a private server — and several findings below have been
+> fixed. Each blocker carries its current status inline; everything else is kept
+> as written for the record. The live picture is
+> [README.md](../README.md#project-status) and [FINDINGS.md](FINDINGS.md).
+
+Date: 2026-10-04 (status update 2026-10-13)
 Branch: `audit/first-run-review` (branched from `main` @ `d0dc715`; **no source files changed**)
 Scope: static audit + verification against the actual built artifacts and the
-vendored libnx/Mesa sources in `references/`. **No hardware was available, so
-nothing here was observed running.** Every item is labelled:
+vendored libnx/Mesa sources in `references/`. Written with no hardware attached,
+so nothing in the original body was observed running; the status lines added on
+2026-10-13 record what a real console has since shown. Every original item is
+labelled:
 
 | Label | Meaning |
 |-------|---------|
@@ -47,7 +58,34 @@ undiagnosable.**
 
 ---
 
+## Fixed on hardware since this audit (2026-10-11/12)
+
+Three defects a static review could not see, found and fixed once a console was
+attached:
+
+* **`thread_local` was miscompiled.** With `-mtp=soft` + `-fPIE`, devkitA64 g++
+  16.1.0 emitted `ldr w0, [x0, x0]` for every `thread_local` access — 423 sites
+  across the renderer, HUD, minimap, packet parsers and StormLib's
+  `dwLastError` — so the title data-aborted *instantly* on hardware while
+  building and running fine on the host. Fixed with `-ftls-model=local-exec` in
+  `cmake/switch.toolchain.cmake`, guarded by
+  `tools/switch/verify_tls_access.py`.
+* **The ImGui font atlas aborted on an unsatisfiable memory type.**
+  `nvk_AllocateMemory` does not bounds-check its memory type index, and the
+  font-atlas image path asked for `VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT` on a
+  console with no device-local type. The host-visible fallback now lives in
+  `rendering/vk_utils.cpp` and `imgui_impl_vulkan.cpp`.
+* **Teardown aborted at `exit()`.** `main()` now uses `_Exit`, so `exit()` no
+  longer walks the C library's open `FILE` list — one entry was in a bad state
+  and aborted after `shutdown` had already been logged.
+
+---
+
 ## BLOCKER 1 — Audio dies after ~21 ms (double-wait on `audout`) **[VERIFIED]**
+
+**Status 2026-10-13: FIXED.** `devWrite` no longer pre-waits on its own
+in-flight flag — libnx's `audoutPlayBuffer` already blocks until the hardware
+consumes the buffer and harvests the release. Audio runs.
 
 `wowee/src/platform/switch/audio_backend_switch.cpp:39-48, 156-180`
 
@@ -112,6 +150,12 @@ in flight.
 
 ## BLOCKER 2 — `getConfigRoot()` resolves to a directory nothing creates **[VERIFIED]**
 
+**Status 2026-10-13: STILL OPEN.** `getConfigRoot()` still falls through to
+`perUserConfigDir()` (`$HOME/.wowps`, `config_paths.cpp:175`), and
+`createDirectories()` still creates only
+`sdmc:/wowps/wowps/{logs,cache,saves,config,tmp}` — never the root it returns.
+Settings changed before a first login are still lost with no log line.
+
 `wowee/src/core/config_paths.cpp:153-176`
 
 ```cpp
@@ -163,6 +207,13 @@ user touches is lost with no diagnostic.
 
 ## BLOCKER 3 — Local-realm saves target a PS4 path that does not exist **[VERIFIED]**
 
+**Status 2026-10-13: FIXED in code, with a user-facing leftover.**
+`localSaveDirectory()` now routes through
+`platform::switchport::writableRoot()` (`application_local_realm.cpp:109-115`),
+so local-realm saves land under `sdmc:/wowps/wowps`. Two user-facing error
+strings still print the old `/data/wow_ps/Data` path
+(`application_local_realm.cpp:201` and `:502`); fix those when next in the file.
+
 `wowee/src/core/application_local_realm.cpp:108-114`
 
 ```cpp
@@ -211,6 +262,12 @@ while lines 61 and 110 are exactly that second hardcoded literal.
 
 ## BLOCKER 4 — `showStartupError()` shows no text **[VERIFIED]**
 
+**Status 2026-10-13: PARTIALLY FIXED.** `showStartupError()` now writes the
+message to `boot.log`, then `fatal: startup error`, then an aborted-boot verdict
+line — all before `fatalThrow()` (`system_switch.cpp:403-430`) — so the reason
+is recoverable from the log with `tail -1 logs/boot.log`. The on-screen system
+dialog still shows only the bare error code.
+
 `wowee/src/platform/switch/system_switch.cpp:354-361`
 
 ```cpp
@@ -244,6 +301,9 @@ an ImGui frame with the text before `fatalThrow`.
 ---
 
 ## HIGH — sockets: `sin_len` unset, and a single `fcntl` for non-blocking **[VERIFIED]**
+
+**Status 2026-10-13: FIXED.** `addr.sin_len` is now set
+(`net_platform.hpp:310`); the client logs in and reaches the world.
 
 `wowee/include/network/net_platform.hpp:302-305`
 
@@ -306,6 +366,11 @@ adapter's test.
 ---
 
 ## HIGH — `__nx_heap_size` = 1.5 GiB on a 2 GB console **[UNVERIFIED, but unsafe]**
+
+**Status 2026-10-13: REDUCED, still open.** `__nx_heap_size` is now
+`1280u * 1024u * 1024u` (`nvk_compat.c:162`) — down from 1.5 GiB, still far
+above the 256–320 MiB homebrew range and still the structural memory risk under
+long sessions.
 
 `wowee/switch/third_party/nxvk/nvk_compat.c:154`
 
@@ -838,6 +903,12 @@ No developer-machine path appears anywhere in build or packaging.
 ---
 
 ## Recommended order of work
+
+**Status 2026-10-13:** this was the pre-hardware plan. Per the status lines
+above, BLOCKER 1 and the sockets finding are fixed, BLOCKER 3 is fixed in code
+(two user-facing strings remain), BLOCKER 4 is partial, the heap is reduced but
+open, and BLOCKER 2 is untouched. The executable bits and the unset Python
+variable in item 8 are fixed; suspend/resume (item 7) is still not handled.
 
 **Before the hardware run** — each is small, and together they make the run
 *diagnosable*, which is the precondition for fixing anything else:
