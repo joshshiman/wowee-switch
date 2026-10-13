@@ -553,6 +553,12 @@ renderer init with every pipeline, all 18 MPQs opened (including the 2.9 GB
 and world entry all work. Playable offline in the local realm and online against
 a private server.
 
+![Where the work is: a treemap of the port's remaining work](docs/port-progress.svg)
+
+*Rectangle area is the work still remaining on that item, not what is built —
+so the biggest blocks are what to do next. Regenerate it with
+`python3 docs/make-port-progress.py` when a milestone lands.*
+
 **Solid:** audio, the `thread_local` fix, the ImGui font-atlas crash, the
 teardown crash, the controller-native UI (bar, hub, pad-navigable panels,
 placing spells onto slots), and the crosshair world-control lane.

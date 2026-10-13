@@ -1,64 +1,101 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 430" width="980" height="430" role="img" aria-label="WoWee Switch porting progress, treemap by remaining work">
-  <title>WoWee Switch — porting progress</title>
-  <defs>
-    <style>
-      .t{font:600 12px ui-sans-serif,system-ui,sans-serif;fill:#e9edf5}
-      .s{font:400 10px ui-sans-serif,system-ui,sans-serif;fill:#aab4c8}
-      .h{font:700 15px ui-sans-serif,system-ui,sans-serif;fill:#f4f7fc}
-      .p{font:400 11px ui-sans-serif,system-ui,sans-serif;fill:#0b0f16}
-      .k{font:700 11px ui-sans-serif,system-ui,sans-serif;fill:#0b0f16}
-    </style>
-  </defs>
-
-  <rect width="980" height="430" fill="#0b0f16"/>
-
-  <text x="20" y="30" class="h">WoWee Switch — where the work is</text>
-  <text x="20" y="47" class="s">Rectangles are sized by remaining work. Faded = done. Bright = open.</text>
-
-  <!-- DONE BLOCKS -->
-  <g opacity="0.55">
-    <rect x="20" y="62" width="300" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
-    <text x="30" y="82" class="t">Toolchain + NRO build</text>
-    <text x="30" y="98" class="s">devkitA64, libnx, Mesa NVK, romfs</text>
-    <text x="30" y="112" class="s">727/728 targets, 4 min incremental</text>
-
-    <rect x="326" y="62" width="180" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
-    <text x="336" y="82" class="t">TLS miscompile</text>
-    <text x="336" y="98" class="s">423 sites fixed</text>
-    <text x="336" y="112" class="s">guarded by a tool</text>
-
-    <rect x="512" y="62" width="220" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
-    <text x="522" y="82" class="t">MPQ + asset loading</text>
-    <text x="522" y="98" class="s">18 archives, 2.9 GB common.MPQ</text>
-    <text x="522" y="112" class="s">FrameXML, 4 min → 1 s</text>
-
-    <rect x="738" y="62" width="222" height="150" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
-    <text x="748" y="82" class="t">Audio + exit</text>
-    <text x="748" y="98" class="s">audout double-wait fixed</text>
-    <text x="748" y="112" class="s">clean _Exit, no teardown abort</text>
-  </g>
-
-  <!-- LOGIN DONE -->
-  <g opacity="0.55">
-    <rect x="20" y="218" width="486" height="90" rx="4" fill="#1f6f4a" stroke="#2d9a68"/>
-    <text x="30" y="238" class="t">Login screen</text>
-    <text x="30" y="254" class="s">logo, UI text and music all render on hardware</text>
-    <text x="30" y="268" class="s">font atlas, Vulkan swapchain, controller mapping</text>
-  </g>
-
-  <!-- OPEN: memory -->
-  <rect x="512" y="218" width="448" height="120" rx="4" fill="#8a4b1a" stroke="#e08a3c"/>
-  <text x="522" y="238" class="t">Memory on the console</text>
-  <text x="522" y="254" class="s">driver refuses an allocation the heap says it can serve</text>
-  <text x="522" y="268" class="s">reclaim-and-retry landed; ceiling still unexplained</text>
-  <text x="522" y="282" class="s">blocks 32/16/8/4 MiB — a fallback ladder</text>
-
-  <!-- OPEN: world -->
-  <rect x="20" y="314" width="486" height="98" rx="4" fill="#8a1f1f" stroke="#d4453f"/>
-  <text x="30" y="334" class="t">World entry — never run</text>
-  <text x="30" y="350" class="s">character creation, login, world load, in-game rendering</text>
-  <text x="30" y="364" class="s">terrain, M2/WMO, combat, Lua-driven UI</text>
-  <text x="30" y="378" class="s">the largest remaining unknown</text>
-
-  <text x="20" y="422" class="s">Measured 2026-10-09 on hardware. Sizes are a judgement of remaining work, not byte counts.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 664" width="1000" height="664" role="img" aria-label="WoWee Switch porting progress, treemap by remaining work">
+  <title>WoWee Switch - porting progress</title>
+  <defs><style>
+    .h{font:700 19px ui-sans-serif,system-ui,sans-serif;fill:#f4f7fc}
+    .sub{font:400 11.5px ui-sans-serif,system-ui,sans-serif;fill:#93a0b8}
+    .t{font:600 12.5px ui-sans-serif,system-ui,sans-serif;fill:#e9edf5}
+    .s{font:400 10.5px ui-sans-serif,system-ui,sans-serif}
+    .k{font:700 11px ui-sans-serif,system-ui,sans-serif;fill:#f4f7fc}
+    .d{font:600 11px ui-sans-serif,system-ui,sans-serif;fill:#9fe3bf}
+    .ds{font:400 10px ui-sans-serif,system-ui,sans-serif;fill:#7fae94}
+  </style></defs>
+  <rect width="1000" height="664" fill="#0b0f16"/>
+  <text x="20" y="34" class="h">WoWee Switch - where the work is</text>
+  <text x="20" y="54" class="sub">Rectangle area is the work still REMAINING on that item, not what is built. Faded green = done.</text>
+  <text x="20" y="70" class="sub"><tspan fill="#e0a13c">amber</tspan> = partly there &#183; <tspan fill="#e0605a">red</tspan> = not started &#183; the biggest blocks are what to do next.</text>
+  <rect x="20" y="82" width="960" height="366" fill="#101722" stroke="#1d2733"/>
+  <rect x="20.0" y="82.0" width="96.0" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <text x="27.0" y="98.0" class="t">Offline</text>
+  <text x="27.0" y="112.0" class="t">content</text>
+  <text x="27.0" y="126.0" class="t">coverage</text>
+  <text x="27.0" y="143.0" class="s" fill="#f0d3a6">9,464 source q…</text>
+  <text x="27.0" y="156.0" class="s" fill="#f0d3a6">classes, pets,…</text>
+  <text x="27.0" y="169.0" class="s" fill="#f0d3a6">dungeons, guil…</text>
+  <rect x="116.0" y="82.0" width="86.4" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <text x="123.0" y="98.0" class="t">Console</text>
+  <text x="123.0" y="112.0" class="t">memory</text>
+  <text x="123.0" y="126.0" class="t">ceiling</text>
+  <text x="123.0" y="143.0" class="s" fill="#f2c3c0">driver refus…</text>
+  <text x="123.0" y="156.0" class="s" fill="#f2c3c0">512x256 imag…</text>
+  <text x="123.0" y="169.0" class="s" fill="#f2c3c0">VMA ladder 3…</text>
+  <rect x="202.4" y="82.0" width="76.8" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <text x="209.4" y="98.0" class="t">Long-session</text>
+  <text x="209.4" y="112.0" class="t">stability</text>
+  <text x="209.4" y="129.0" class="s" fill="#f2c3c0">the larges…</text>
+  <text x="209.4" y="142.0" class="s" fill="#f2c3c0">no sustain…</text>
+  <rect x="279.2" y="82.0" width="76.8" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <text x="286.2" y="98.0" class="t">Connected-realm</text>
+  <text x="286.2" y="112.0" class="t">performance</text>
+  <text x="286.2" y="129.0" class="s" fill="#f0d3a6">GPU fill-b…</text>
+  <text x="286.2" y="142.0" class="s" fill="#f0d3a6">updateMean…</text>
+  <text x="286.2" y="155.0" class="s" fill="#f0d3a6">the render…</text>
+  <rect x="356.0" y="82.0" width="67.2" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <text x="363.0" y="98.0" class="t">Secure /</text>
+  <text x="363.0" y="112.0" class="t">restricted</text>
+  <text x="363.0" y="126.0" class="t">execution</text>
+  <text x="363.0" y="143.0" class="s" fill="#f0d3a6">scripted…</text>
+  <text x="363.0" y="156.0" class="s" fill="#f0d3a6">secure s…</text>
+  <rect x="423.2" y="82.0" width="67.2" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <text x="430.2" y="98.0" class="t">Class &amp;</text>
+  <text x="430.2" y="112.0" class="t">combat</text>
+  <text x="430.2" y="126.0" class="t">completion</text>
+  <text x="430.2" y="143.0" class="s" fill="#f0d3a6">pets, st…</text>
+  <text x="430.2" y="156.0" class="s" fill="#f0d3a6">DK / Pal…</text>
+  <rect x="490.4" y="82.0" width="57.6" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <text x="497.4" y="98.0" class="t">Instances,</text>
+  <text x="497.4" y="112.0" class="t">dungeons,</text>
+  <text x="497.4" y="126.0" class="t">raids</text>
+  <text x="497.4" y="143.0" class="s" fill="#f2c3c0">no boss…</text>
+  <text x="497.4" y="156.0" class="s" fill="#f2c3c0">enterin…</text>
+  <rect x="548.0" y="82.0" width="48.0" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="596.0" y="82.0" width="48.0" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <rect x="644.0" y="82.0" width="48.0" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="692.0" y="82.0" width="38.4" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="730.4" y="82.0" width="38.4" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="768.8" y="82.0" width="38.4" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="807.2" y="82.0" width="38.4" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <rect x="845.6" y="82.0" width="28.8" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="874.4" y="82.0" width="19.2" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="893.6" y="82.0" width="19.2" height="366.0" fill="#5a3410" stroke="#e0a13c" stroke-width="1.2"/>
+  <rect x="912.8" y="82.0" width="19.2" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="932.0" y="82.0" width="19.2" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="951.2" y="82.0" width="19.2" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <rect x="970.4" y="82.0" width="9.6" height="366.0" fill="#5c1616" stroke="#e0605a" stroke-width="1.2"/>
+  <text x="20" y="464" class="k">DONE</text>
+  <text x="66" y="464" class="sub" style="font-size:10.5px">shipped and on hardware - no area, because none of the work is left</text>
+  <rect x="20.0" y="476.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="29.0" y="493.0" class="d">Toolchain + NRO build</text>
+  <text x="29.0" y="506.0" class="ds">devkitA64, libnx, Mesa NVK, romfs</text>
+  <rect x="263.0" y="476.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="272.0" y="493.0" class="d">MPQ + asset loading</text>
+  <text x="272.0" y="506.0" class="ds">18 archives incl. 2.9 GB common.MPQ</text>
+  <rect x="506.0" y="476.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="515.0" y="493.0" class="d">TLS miscompile</text>
+  <text x="515.0" y="506.0" class="ds">423 sites were ldr w0,[x0,x0]</text>
+  <rect x="749.0" y="476.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="758.0" y="493.0" class="d">Audio + teardown</text>
+  <text x="758.0" y="506.0" class="ds">audout double-wait removed</text>
+  <rect x="20.0" y="528.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="29.0" y="545.0" class="d">Login, character, world</text>
+  <text x="29.0" y="558.0" class="ds">boot path live; world entry runs</text>
+  <rect x="263.0" y="528.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="272.0" y="545.0" class="d">Controller UI + crosshair</text>
+  <text x="272.0" y="558.0" class="ds">ConsolePort bar, Minus=map, hub</text>
+  <rect x="506.0" y="528.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="515.0" y="545.0" class="d">Connected realm</text>
+  <text x="515.0" y="558.0" class="ds">connects, logs in, enters world</text>
+  <rect x="749.0" y="528.0" width="231.0" height="44" rx="4" fill="#12301f" stroke="#2d9a68" opacity="0.85"/>
+  <text x="758.0" y="545.0" class="d">Sockets + local-realm saves</text>
+  <text x="758.0" y="558.0" class="ds">sin_len set; saves via writableRoot()</text>
+  <text x="20" y="652" class="sub" style="font-size:10.5px">Sizes are a judgement of remaining work, not byte counts. Measured on hardware, 2026-10-13. Generated by docs/make-port-progress.py - rerun it when a milestone lands.</text>
 </svg>
