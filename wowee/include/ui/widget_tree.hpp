@@ -1108,8 +1108,26 @@ public:
     [[nodiscard]] uint32_t hitTestWheel(float x, float y) const;
 
     /// Widgets to draw, in the order to draw them. Only those that resolved to a
-    /// visible, non-empty rect. Valid until the next layout().
+    /// visible, non-empty rect. Rebuilt by the next layout(), and kept current
+    /// between passes when a widget's alpha crosses the zero test - see
+    /// refreshDrawOrderAlpha.
     [[nodiscard]] const std::vector<const Widget*>& drawOrder() const { return drawOrder_; }
+
+    /// Re-gather one widget's place in the draw order after its alpha changed.
+    ///
+    /// Alpha is the only field the solve reads whose whole effect on this tree
+    /// is membership of the draw order: considerForDraw drops a widget once its
+    /// alpha reaches zero, and the renderer reads `w->alpha` itself for the
+    /// value it paints with. So an alpha change is not a reason to size a
+    /// label, re-anchor a frame or walk the tree at all - it is a reason to add
+    /// or remove one entry and re-sort, which is what this does.
+    ///
+    /// Called from the SetAlpha binding only when the change crosses the zero
+    /// test, so the common fade that stays above it never reaches here. Nothing
+    /// else about the widget can have moved in between: every other field that
+    /// decides membership is written by a binding that raises the layout
+    /// generation itself, and that pass rebuilds the order anyway.
+    void refreshDrawOrderAlpha(uint32_t id);
 
 private:
     /// Both hit tests, which differ only in whether a frame that took the
@@ -1150,6 +1168,11 @@ private:
     /// in either. Called from the solve, so both lists cost what is on screen
     /// rather than what is in the tree.
     void considerForDraw(const Widget& w);
+    /// Whether a visible widget belongs in the draw order - the half of
+    /// considerForDraw that the alpha test lives in, split out so an alpha
+    /// change can ask about one widget without running the solve. Reads the
+    /// widget's own alpha and nothing the solve computes.
+    [[nodiscard]] bool wantsDrawOrder(const Widget& w) const;
     /// Resolve a widget after whatever its rect is measured from.
     void resolveChain(uint32_t id, float screenW, float screenH, int& depth);
 

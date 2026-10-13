@@ -36,6 +36,17 @@ struct ActiveTransport {
     glm::quat rotation;         // Current world rotation
     glm::mat4 transform;        // Cached world transform
     glm::mat4 invTransform;     // Cached inverse for collision
+    // Last transform actually handed to the renderer, and the instance it went
+    // to. pushTransform() skips the renderer call when both are unchanged. The
+    // WMO path recomputes instance bounds, propagates the matrix to every child
+    // doodad and rebuilds the renderer's spatial index on *every* call - unlike
+    // the M2 path, which early-outs on an identical matrix - so a transport
+    // that is not moving (server-driven between snapshots, holding at a dock,
+    // or on a stationary path) was paying that whole cost every frame for an
+    // identical result.
+    glm::mat4 lastPushedTransform = glm::mat4(1.0f);
+    uint32_t lastPushedInstanceId = 0;
+    bool hasPushedTransform = false;
 
     // Player attachment state
     bool playerOnBoard;

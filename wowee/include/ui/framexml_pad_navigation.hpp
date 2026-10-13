@@ -17,6 +17,12 @@ inline constexpr std::string_view kPadPanels[] = {
     "WoweeAllBagsFrame",
     "GossipFrame", "QuestFrame", "MerchantFrame", "BankFrame", "ClassTrainerFrame", "AuctionFrame",
     "TalentFrame", "PlayerTalentFrame", "TradeSkillFrame", "MailFrame", "TradeFrame",
+    // The loot window is FrameXML's own (ConsolePort's replacement stands down
+    // on this client - see ConsolePortUI_Loot/Frame.lua), so its LootButton1..n
+    // are what the pad walks. Without the frame in this list its buttons are
+    // orphaned: padOwningPanel finds no panel above them, padPanelAllows rejects
+    // them, and a corpse can only be looted with the cursor.
+    "LootFrame",
     "GameMenuFrame", "InterfaceOptionsFrame", "VideoOptionsFrame", "AudioOptionsFrame",
     "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4"
     , "DropDownList1", "DropDownList2", "DropDownList3"
@@ -75,6 +81,15 @@ inline int padInitialPriority(std::string_view panel, std::string_view control) 
         if(control=="BrowseSearchButton")return 0;
         if(control.starts_with("AuctionFilterButton"))return 1;
         if(control.find("CloseButton")!=std::string_view::npos)return 4;
+        return 2;
+    }
+    // Opening a corpse must land on an item, not on the close button that the
+    // XML authors first (LootCloseButton is created before LootButton1). Only
+    // the buttons of slots that actually hold loot are shown, so the first
+    // eligible LootButton is the first item.
+    if(panel=="LootFrame") {
+        if(control.starts_with("LootButton"))return 0;
+        if(control=="LootCloseButton")return 4;
         return 2;
     }
     if (panel!="QuestFrame" && panel!="GossipFrame") return 0;

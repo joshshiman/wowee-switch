@@ -1177,31 +1177,12 @@ void renderKeyboard() {
 }
 
 void renderCrosshair() {
-    // Not while the right stick is looking: the look is a camera drag with the
-    // cursor hidden, and a crosshair parked at the centre would claim a pick
-    // point that is not where the drag is.
-    if (!s_crosshairActive || s_lookEngaged) return;
-    // Drawn into the foreground list, over everything the interface put down,
-    // because the crosshair is the thing the player is aiming with. Four short
-    // lines with a gap and a small ring: cheap enough for the Switch's UI pass.
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
-    if (!dl) return;
-    const ImVec2 c(static_cast<float>(s_displayW) * 0.5f,
-                   static_cast<float>(s_displayH) * 0.5f);
-    const float arm = 11.0f, gap = 3.5f, ring = 7.0f;
-    // Two passes: a dark copy one pixel off for contrast, then white. Without
-    // the shadow the crosshair disappears over a bright sky or snow.
-    const ImU32 shadow = IM_COL32(0, 0, 0, 170);
-    const ImU32 white  = IM_COL32(255, 255, 255, 210);
-    for (int pass = 0; pass < 2; ++pass) {
-        const ImU32 col = pass ? white : shadow;
-        const float o = pass ? 0.0f : 1.0f;
-        dl->AddLine(ImVec2(c.x - arm + o, c.y + o), ImVec2(c.x - gap + o, c.y + o), col, 2.0f);
-        dl->AddLine(ImVec2(c.x + gap + o, c.y + o), ImVec2(c.x + arm + o, c.y + o), col, 2.0f);
-        dl->AddLine(ImVec2(c.x + o, c.y - arm + o), ImVec2(c.x + o, c.y - gap + o), col, 2.0f);
-        dl->AddLine(ImVec2(c.x + o, c.y + gap + o), ImVec2(c.x + o, c.y + arm + o), col, 2.0f);
-        dl->AddCircle(ImVec2(c.x + o, c.y + o), ring, col, 16, 1.5f);
-    }
+    // Nothing is drawn. The reticle was removed at the operator's request - it
+    // read as obnoxious clutter in the middle of the screen. The cursor is
+    // still pinned to the centre while the crosshair is active, which is what
+    // makes A's world right click land on what the player is facing; only the
+    // drawing is gone. The arrow stays hidden at rest, as it was before the
+    // crosshair existed, so the world view is clean.
 }
 
 bool keyboardOpen() { return s_keyboard.open || s_applicationKeyboardOpen; }

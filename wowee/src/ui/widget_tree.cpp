@@ -1472,42 +1472,67 @@ void WidgetTree::considerForDraw(const Widget& w) {
     // such a frame - is the case that matters. Recorded before the draw filter
     // below, because that filter drops precisely those containers.
     if (w.kind == WidgetKind::Frame) hitCandidates_.push_back(w.id);
-    {
-        if (w.alpha <= 0.001f) return;
-        // Frames are containers, except when they carry a backdrop or are a
-        // status bar - then the frame itself has something to paint, and it
-        // paints underneath its own regions because they sit a level above it.
-        // A frame the client renders into paints itself, the same as one with
-        // a backdrop. The paperdoll's model frame is a frame, not a texture,
-        // so without this the character would be rendered and never drawn.
-        // An edit box paints its own text and its caret, the way a status bar
-        // paints its fill and a message frame its lines - so it belongs with
-        // them here and not with the containers.
-        //
-        // Without it the chat box was dropped as "a frame with nothing of its
-        // own to paint": the say bar opened, took the focus and filled with
-        // what was typed, and every character went into a widget that was never
-        // drawn. The bar itself still appeared, because its art is child
-        // textures and those draw on their own - so it looked like an empty box
-        // rather than a missing one.
-        //
-        // Not gated on holding text. The caret is what says which box is
-        // listening, and an empty box still has to show it.
-        if (w.kind == WidgetKind::Frame && !w.hasBackdrop && !w.isStatusBar &&
-            !w.isEditBox && w.externalTexture == 0 &&
-            !(w.isSimpleHtml && !w.text.empty()) &&
-            !(w.isMessageFrame && !w.messages.empty()) &&
-            !(w.isTooltip && !w.tooltipLines.empty())) return;
-        if (w.rectW <= 0.0f || w.rectH <= 0.0f) return;
-        if (w.kind == WidgetKind::Texture && w.texturePath.empty() &&
-            !w.solidColor && w.externalTexture == 0) return;
-        if (w.kind == WidgetKind::Frame && w.isStatusBar && w.barTexture.empty() &&
-            !w.hasBackdrop) return;
-        if (w.kind == WidgetKind::FontString && w.text.empty()) return;
-        // A button shows one of its state textures, not all of them.
-        if (!buttonArtVisible(w)) return;
-        drawOrder_.push_back(&w);
+    if (wantsDrawOrder(w)) drawOrder_.push_back(&w);
+}
+
+bool WidgetTree::wantsDrawOrder(const Widget& w) const {
+    if (w.alpha <= 0.001f) return false;
+    // Frames are containers, except when they carry a backdrop or are a
+    // status bar - then the frame itself has something to paint, and it
+    // paints underneath its own regions because they sit a level above it.
+    // A frame the client renders into paints itself, the same as one with
+    // a backdrop. The paperdoll's model frame is a frame, not a texture,
+    // so without this the character would be rendered and never drawn.
+    // An edit box paints its own text and its caret, the way a status bar
+    // paints its fill and a message frame its lines - so it belongs with
+    // them here and not with the containers.
+    //
+    // Without it the chat box was dropped as "a frame with nothing of its
+    // own to paint": the say bar opened, took the focus and filled with
+    // what was typed, and every character went into a widget that was never
+    // drawn. The bar itself still appeared, because its art is child
+    // textures and those draw on their own - so it looked like an empty box
+    // rather than a missing one.
+    //
+    // Not gated on holding text. The caret is what says which box is
+    // listening, and an empty box still has to show it.
+    if (w.kind == WidgetKind::Frame && !w.hasBackdrop && !w.isStatusBar &&
+        !w.isEditBox && w.externalTexture == 0 &&
+        !(w.isSimpleHtml && !w.text.empty()) &&
+        !(w.isMessageFrame && !w.messages.empty()) &&
+        !(w.isTooltip && !w.tooltipLines.empty())) return false;
+    if (w.rectW <= 0.0f || w.rectH <= 0.0f) return false;
+    if (w.kind == WidgetKind::Texture && w.texturePath.empty() &&
+        !w.solidColor && w.externalTexture == 0) return false;
+    if (w.kind == WidgetKind::Frame && w.isStatusBar && w.barTexture.empty() &&
+        !w.hasBackdrop) return false;
+    if (w.kind == WidgetKind::FontString && w.text.empty()) return false;
+    // A button shows one of its state textures, not all of them.
+    if (!buttonArtVisible(w)) return false;
+    return true;
+}
+
+void WidgetTree::refreshDrawOrderAlpha(uint32_t id) {
+    Widget* w = get(id);
+    // An invisible widget is in no draw order, so there is nothing to move -
+    // its alpha is a value the renderer would never reach.
+    if (!w || !w->visible) return;
+    const bool want = wantsDrawOrder(*w);
+    auto it = std::find(drawOrder_.begin(), drawOrder_.end(),
+                        static_cast<const Widget*>(w));
+    const bool present = it != drawOrder_.end();
+    // The change did not cross the zero test, or it crossed it for a widget
+    // the other filters keep out either way: membership is what it already was.
+    if (present == want) return;
+    if (want) {
+        drawOrder_.push_back(w);
+    } else {
+        drawOrder_.erase(it);
     }
+    // One entry moved, so the order is re-sorted rather than re-gathered. The
+    // comparison is a total one - creationOrder breaks every tie - so the
+    // position the entry arrived in cannot change the result.
+    sortDrawOrder();
 }
 
 void WidgetTree::sortDrawOrder() {

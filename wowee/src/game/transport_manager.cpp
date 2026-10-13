@@ -565,18 +565,33 @@ void TransportManager::updateTransportMovement(ActiveTransport& transport, float
 
 // Push transform to the appropriate renderer (WMO or M2).
 void TransportManager::pushTransform(ActiveTransport& transport) {
+    // Skip the renderer when nothing changed since the last push. The M2 path
+    // already early-outs on an identical matrix internally, but the WMO path
+    // does not: setInstanceTransform() recomputes the instance's world/group
+    // bounds, walks every child doodad and rebuilds the whole spatial index on
+    // each call. A transport that is not moving between server snapshots (or is
+    // holding at a dock) was doing all of that every frame for a matrix it had
+    // already pushed.
+    const bool changed = !transport.hasPushedTransform ||
+                         transport.wmoInstanceId != transport.lastPushedInstanceId ||
+                         transport.transform != transport.lastPushedTransform;
+
     if (transport.isM2) {
-        if (m2Renderer_) m2Renderer_->setInstanceTransform(transport.wmoInstanceId, transport.transform);
-    } else {
-        if (wmoRenderer_) {
-            wmoRenderer_->setInstanceTransform(transport.wmoInstanceId, transport.transform);
-            // Tell the static-world floor query this deck is in motion, so it
-            // only counts as a floor when it is underfoot. Set here rather than
-            // once at register so it survives an instance rebuild from
-            // streaming - the call is idempotent and cheap.
-            wmoRenderer_->setInstanceIsTransport(transport.wmoInstanceId, true);
+        if (changed && m2Renderer_) {
+            m2Renderer_->setInstanceTransform(transport.wmoInstanceId, transport.transform);
         }
+    } else if (wmoRenderer_) {
+        if (changed) {
+            wmoRenderer_->setInstanceTransform(transport.wmoInstanceId, transport.transform);
+        }
+        // Idempotent and O(1), and must survive an instance rebuild from
+        // streaming, so it is set even when the transform itself is unchanged.
+        wmoRenderer_->setInstanceIsTransport(transport.wmoInstanceId, true);
     }
+
+    transport.lastPushedTransform = transport.transform;
+    transport.lastPushedInstanceId = transport.wmoInstanceId;
+    transport.hasPushedTransform = true;
 }
 
 void TransportManager::updateTransformMatrices(ActiveTransport& transport) {

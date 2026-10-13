@@ -3577,6 +3577,15 @@ public:
     [[nodiscard]] double ghTimersMs() const { return ghTimersMs_; }
     [[nodiscard]] double ghInterpMs() const { return ghInterpMs_; }
     [[nodiscard]] double ghTransportMs() const { return ghTransportMs_; }
+    // The transport stage split in two, because the single number could not say
+    // which half it was: TransportManager::update (per-registered-transport
+    // path/clock/transform work) or updateAttachedTransportChildren (per
+    // transport-attached entity). The counts alongside name how much work each
+    // half had to do.
+    [[nodiscard]] double ghTransportMgrMs() const { return ghTransportMgrMs_; }
+    [[nodiscard]] double ghTransportChildrenMs() const { return ghTransportChildrenMs_; }
+    [[nodiscard]] size_t ghTransports() const { return ghTransports_; }
+    [[nodiscard]] size_t ghAttachedChildren() const { return ghAttachedChildren_; }
     [[nodiscard]] double ghMiscMs() const { return ghMiscMs_; }
     // Traffic proof: whether the cost above is driven by how much the server
     // sent. The two sizes are sampled at the top of update(); the three counts
@@ -4334,6 +4343,10 @@ private:
     double ghTimersMs_ = 0.0;
     double ghInterpMs_ = 0.0;
     double ghTransportMs_ = 0.0;
+    double ghTransportMgrMs_ = 0.0;
+    double ghTransportChildrenMs_ = 0.0;
+    size_t ghTransports_ = 0;
+    size_t ghAttachedChildren_ = 0;
     double ghMiscMs_ = 0.0;
     size_t ghPendingInbound_ = 0;
     size_t ghPendingBatches_ = 0;

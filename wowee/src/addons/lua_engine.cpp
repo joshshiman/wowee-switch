@@ -3483,11 +3483,24 @@ int lua_Region_SetAlpha(lua_State* L) {
     if (auto* w = widgetOf(L, 1)) {
         const float a = static_cast<float>(luaL_optnumber(L, 2, 1.0));
         if (a != w->alpha) {
+            // Alpha decides membership of the draw order - considerForDraw
+            // drops a widget once its alpha reaches zero - and the renderer
+            // reads the value itself, live, when it paints. It is read nowhere
+            // else: not by the sizing sweep, not by the anchor solve, not by
+            // any other widget. So a change that does not cross the zero test
+            // is no layout at all, and one that does is a single entry added to
+            // or removed from the draw order and a re-sort. Raising the layout
+            // generation for it - which this used to do - ran the whole sizing
+            // walk and solve on every frame a status icon, chat tab or cast bar
+            // pulsed, which on the console measured 10.0 + 7.7 ms of an idle
+            // frame.
+            const bool wasInOrder = w->alpha > 0.001f;
             w->alpha = a;
-            // Alpha decides membership of the draw order, which the solve
-            // gathers - so a frame faded to nothing and back is a layout
-            // change here even though nothing moved.
-            markTreeDirty(L);
+            if ((a > 0.001f) != wasInOrder) {
+                if (auto* tree = wowee::addons::getWidgetTree(L)) {
+                    tree->refreshDrawOrderAlpha(w->id);
+                }
+            }
         }
     }
     return 0;

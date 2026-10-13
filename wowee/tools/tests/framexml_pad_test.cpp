@@ -138,6 +138,23 @@ int main() {
     require(padInitialControl(g,gossip,gossipEligible)->id==bye,"greeting without options begins on Goodbye");
     std::puts("PASS gossip options before Goodbye and close");
 
+    // The loot window is FrameXML's own - ConsolePort's replacement stands down
+    // on this client - so its LootButton1..n are what the pad has to walk. The
+    // XML authors LootCloseButton before the item rows, so without a priority
+    // opening a corpse would focus the close button instead of the first item.
+    WidgetTree loot;
+    auto lootFrame=make(loot,"LootFrame",0,0,0,256,256);loot.get(lootFrame)->mouseEnabled=false;
+    make(loot,"LootCloseButton",lootFrame,200,200);
+    auto loot1=make(loot,"LootButton1",lootFrame,10,180);
+    auto loot2=make(loot,"LootButton2",lootFrame,10,130);
+    auto lootEligible=[&](const Widget* w){return w && padPanelAllows(loot,*loot.get(lootFrame),*w) && padControlPoint(loot,w,800,600).has_value();};
+    require(lootEligible(loot.get(loot1)),"a loot button is reachable under its own frame");
+    require(padInitialPriority("LootFrame","LootButton1")<padInitialPriority("LootFrame","LootCloseButton"),"loot initial focus favors the item over close");
+    require(padInitialControl(loot,lootFrame,lootEligible)->id==loot1,"opening a corpse focuses the first loot button");
+    shown(loot,loot1,false);
+    require(padInitialControl(loot,lootFrame,lootEligible)->id==loot2,"a hidden loot slot is skipped");
+    std::puts("PASS loot rows are reachable and focus starts on an item");
+
     auto modal=make(g,"StaticPopup1",0,400,100);g.get(modal)->mouseEnabled=false;
     auto yes=make(g,"StaticPopup1Button1",modal,400,100);
     auto modalEligible=[&](const Widget* w){return w && padPanelAllows(g,*g.get(modal),*w) && padControlPoint(g,w,800,600).has_value();};

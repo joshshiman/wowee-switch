@@ -718,6 +718,8 @@ void GameHandler::update(float deltaTime) {
     // is in the update body, not in any one named step.
     const auto updateStart = std::chrono::steady_clock::now();
     ghSocketMs_ = ghPacketMs_ = ghTimersMs_ = ghInterpMs_ = ghTransportMs_ = ghMiscMs_ = 0.0;
+    ghTransportMgrMs_ = ghTransportChildrenMs_ = 0.0;
+    ghTransports_ = ghAttachedChildren_ = 0;
     ghBlocksApplied_ = ghPacketsHandled_ = ghOutOfRangeRemoved_ = 0;
     ghPendingInbound_ = pendingIncomingPackets_.size();
     ghPendingBatches_ = entityController_ ? entityController_->pendingUpdateObjectWorkSize() : 0;
@@ -929,11 +931,17 @@ void GameHandler::update(float deltaTime) {
 
         // Update transport manager
         if (transportManager_) {
-            const auto transportStart = std::chrono::steady_clock::now();
+            const auto transportMgrStart = std::chrono::steady_clock::now();
             transportManager_->update(deltaTime);
+            ghTransportMgrMs_ = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - transportMgrStart).count();
+            const auto transportChildrenStart = std::chrono::steady_clock::now();
             updateAttachedTransportChildren(deltaTime);
-            ghTransportMs_ = std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - transportStart).count();
+            ghTransportChildrenMs_ = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - transportChildrenStart).count();
+            ghTransportMs_ = ghTransportMgrMs_ + ghTransportChildrenMs_;
+            ghTransports_ = transportManager_->getTransports().size();
+            ghAttachedChildren_ = transportAttachments_.size();
         }
 
         updateAutoAttack(deltaTime);

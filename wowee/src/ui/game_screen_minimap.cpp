@@ -1240,80 +1240,15 @@ void GameScreen::renderMinimapPlayerArrow(const MinimapFrame& frame) {
     auto* renderer = services_.renderer;
     auto* minimap = renderer ? renderer->getMinimap() : nullptr;
     if (!minimap) return;
-    // The operator prefers this marker (the world map's own MinimapArrow.blp)
-    // over the native minimap's in-shader yellow triangle, so this is the one
-    // that stays and the shader arrow is turned off here. Without this the two
-    // both drew - the duplicate that made one of them look wrong.
+    // One marker, and it is the interface's own. FrameXML's MinimapCluster
+    // draws the native player arrow, so this client draws none of its own: the
+    // world map's MinimapArrow.blp used to be drawn here as well, which is the
+    // second marker the operator kept seeing ("the yellow triangle"). The
+    // native minimap shader's in-shader triangle is off too, so exactly one
+    // arrow is left. The marker is a widget in the interface, not this frame's
+    // art, so there is nothing here that needs replacing it.
     minimap->setCenterArrowVisible(false);
-    // Player position arrow at minimap center, pointing in camera facing direction.
-    // On a rotating minimap the map already turns so forward = screen-up; on a fixed
-    // minimap we rotate the arrow to match the player's compass heading.
-    {
-        // Compute screen-space facing direction for the arrow.
-        // frame.bearing = clockwise angle from screen-north (0 = facing north/up).
-        float arrowAngle = 0.0f; // 0 = pointing up (north)
-        if (!minimap->isRotateWithCamera()) {
-            // Fixed minimap: arrow must show actual facing relative to north.
-            // Match the mirrored minimap texture by flipping the arrow's
-            // visual north/south component.
-            arrowAngle = -glm::radians(renderer->getCharacterYaw());
-        }
-        // Screen direction the arrow tip points toward
-        float nx =  std::sin(arrowAngle); // screen +X = east
-        float ny = -std::cos(arrowAngle); // screen -Y = north
-        // Perpendicular direction (rotated 90°)
-        float px =  ny; // perpendicular x
-        float py = -nx; // perpendicular y
-
-        // The player marker is the world map's own icon (MinimapArrow.blp), so
-        // both maps agree on what "you" looks like. The upload is retried a few
-        // times (the first frames can precede a ready Vulkan context); the drawn
-        // chevron below is the fallback.
-        if (!minimapArrowTex_ && minimapArrowAttempts_ < 5 &&
-            services_.assetManager && services_.window) {
-            ++minimapArrowAttempts_;
-            minimapArrowTex_ = ui::uploadUiTextureFromBlp(
-                services_.assetManager, "Interface\\Minimap\\MinimapArrow.blp",
-                services_.window);
-            if (minimapArrowTex_) LOG_WARNING("Minimap player marker texture: loaded");
-            else LOG_WARNING("Minimap player marker texture: unavailable (attempt ",
-                             minimapArrowAttempts_, ")");
-        }
-        if (minimapArrowTex_) {
-            const float H = 12.0f; // half-size, screen pixels
-            const ImVec2 c(frame.centerX, frame.centerY);
-            // The texture points up (north) at 0 rotation, so its top edge is
-            // the tip: v=0 is the tip, v=1 the tail; u runs across.
-            auto pt = [&](float u, float v) {
-                const float a = 1.0f - 2.0f * v; // +1 tip .. -1 tail
-                const float b = 2.0f * u - 1.0f; // -1 left .. +1 right
-                return ImVec2(c.x + nx * H * a + px * H * b,
-                              c.y + ny * H * a + py * H * b);
-            };
-            frame.drawList->AddImageQuad((ImTextureID)(uintptr_t)minimapArrowTex_,
-                pt(0, 0), pt(1, 0), pt(1, 1), pt(0, 1),
-                ImVec2(0, 0), ImVec2(1, 0), ImVec2(1, 1), ImVec2(0, 1),
-                IM_COL32(255, 255, 255, 255));
-            return;
-        }
-
-        // Draw a chevron-style arrow: tip, two base corners, and a notch at the back
-        const float tipLen  = 8.0f;  // tip forward distance
-        const float baseW   = 5.0f;  // half-width at base
-        const float notchIn = 3.0f;  // how far back the center notch sits
-
-        ImVec2 tip  (frame.centerX + nx * tipLen,  frame.centerY + ny * tipLen);
-        ImVec2 baseL(frame.centerX - nx * baseW + px * baseW,  frame.centerY - ny * baseW + py * baseW);
-        ImVec2 baseR(frame.centerX - nx * baseW - px * baseW,  frame.centerY - ny * baseW - py * baseW);
-        ImVec2 notch(frame.centerX - nx * (baseW - notchIn),   frame.centerY - ny * (baseW - notchIn));
-
-        // Fill: bright white with slight gold tint, dark outline for readability
-        frame.drawList->AddTriangleFilled(tip, baseL, notch, IM_COL32(255, 248, 200, 245));
-        frame.drawList->AddTriangleFilled(tip, notch, baseR, IM_COL32(255, 248, 200, 245));
-        frame.drawList->AddTriangle(tip, baseL, notch, IM_COL32(60, 40, 0, 200), 1.2f);
-        frame.drawList->AddTriangle(tip, notch, baseR, IM_COL32(60, 40, 0, 200), 1.2f);
-    }
-
+    (void)frame;
 }
 
 // The wheel and the ctrl+click, when this client owns the ring.

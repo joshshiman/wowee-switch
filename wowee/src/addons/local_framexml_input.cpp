@@ -794,13 +794,16 @@ bool LocalFrameXml::navigate() {
         }
     }
 #endif
-    // A greeting or a quest: A is confirm here, the button the pad uses on the
-    // menus hub, not the pick-up/put-down the world uses. There is nothing to
-    // carry in a conversation, so the pickup contract below is the wrong answer
-    // and Square was the only way to accept a quest. FrameXML's own press/
-    // release dispatch at the focused control, so the authored OnClick runs.
+    // A greeting, a quest or a looted corpse: A is confirm here, the button the
+    // pad uses on the menus hub, not the pick-up/put-down the world uses. There
+    // is nothing to carry in a conversation, and a loot row is a take, so the
+    // pickup contract below is the wrong answer - without this A would run the
+    // world click that is also A while no panel owns the pad. FrameXML's own
+    // press/release dispatch at the focused control, so the authored OnClick
+    // runs: LootButton_OnClick reaches LootSlot, which is the take.
     if (focused && !rootChanged &&
-        (root->name == "GossipFrame" || root->name == "QuestFrame") &&
+        (root->name == "GossipFrame" || root->name == "QuestFrame" ||
+         root->name == "LootFrame") &&
         ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false) &&
         !ui::interfaceConsumedKey(ImGuiKey_GamepadFaceDown)) {
         const auto id = focused->id;
