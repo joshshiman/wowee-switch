@@ -1515,10 +1515,19 @@ void WMORenderer::setInstancePosition(uint32_t instanceId, const glm::vec3& posi
     auto idxIt = instanceIndexById.find(instanceId);
     if (idxIt == instanceIndexById.end()) return;
     auto& inst = instances[idxIt->second];
+
+    const glm::vec3 oldBoundsMin = inst.worldBoundsMin;
+    const glm::vec3 oldBoundsMax = inst.worldBoundsMax;
+
     inst.position = position;
     inst.updateModelMatrix();
     refreshInstanceBounds(inst);
-    rebuildSpatialIndex();
+
+    // Incremental refile rather than a rebuild over every instance in the zone.
+    // The instance vector is untouched here, so instanceIndexById needs no work.
+    refileBounds(spatialGrid, oldBoundsMin, oldBoundsMax,
+                 inst.worldBoundsMin, inst.worldBoundsMax, inst.id);
+    ++spatialIndexRefilesFrame_;
 }
 
 void WMORenderer::setInstanceIsTransport(uint32_t instanceId, bool isTransport) {
@@ -1531,6 +1540,24 @@ void WMORenderer::setInstanceTransform(uint32_t instanceId, const glm::mat4& tra
     auto idxIt = instanceIndexById.find(instanceId);
     if (idxIt == instanceIndexById.end()) return;
     auto& inst = instances[idxIt->second];
+
+    // Unchanged-matrix early-out, mirroring M2Renderer::setInstanceTransform.
+    // The WMO path is the expensive one: it recomputes the instance's world and
+    // per-group bounds, re-transforms every child doodad and (before this) rebuilt
+    // the whole spatial index - once per call, for a matrix it had already been
+    // given. A transport holding at a dock or parked between server snapshots was
+    // paying all of that every frame for no change.
+    if (inst.modelMatrix == transform) return;
+
+    // Reject a non-finite matrix before it can poison the grid: toSpatialCell()
+    // of NaN truncates to a bogus cell index and the instance would be filed
+    // there. Same guard the M2 path carries.
+    for (int c = 0; c < 4; c++)
+        for (int r = 0; r < 4; r++)
+            if (!std::isfinite(transform[c][r])) return;
+
+    const glm::vec3 oldBoundsMin = inst.worldBoundsMin;
+    const glm::vec3 oldBoundsMax = inst.worldBoundsMax;
 
     // Decompose transform to position/rotation/scale
     inst.position = glm::vec3(transform[3]);
@@ -1554,7 +1581,9 @@ void WMORenderer::setInstanceTransform(uint32_t instanceId, const glm::mat4& tra
 
     refreshInstanceBounds(inst);
 
-    // Propagate transform to child M2 doodads (chairs, furniture on transports)
+    // Propagate transform to child M2 doodads (chairs, furniture on transports).
+    // Only reached for a matrix that actually moved, which is the only time the
+    // children's world transforms change.
     if (m2Renderer_ && !inst.doodads.empty()) {
         for (const auto& doodad : inst.doodads) {
             glm::mat4 worldTransform = inst.modelMatrix * doodad.localTransform;
@@ -1562,7 +1591,16 @@ void WMORenderer::setInstanceTransform(uint32_t instanceId, const glm::mat4& tra
         }
     }
 
-    rebuildSpatialIndex();
+    // Move this one instance from the box it was filed under to its current one,
+    // instead of rebuildSpatialIndex() clearing and re-filling the grid over every
+    // instance in the zone. refileBounds() is a no-op when the instance still
+    // covers the same run of cells, which is the common case: a hull moving a few
+    // units per frame sits inside 64-unit cells. The instance vector is untouched,
+    // so instanceIndexById is left alone.
+    refileBounds(spatialGrid, oldBoundsMin, oldBoundsMax,
+                 inst.worldBoundsMin, inst.worldBoundsMax, inst.id);
+    ++spatialIndexRefilesFrame_;
+    ++instanceTransformUpdatesFrame_;
 }
 
 bool WMORenderer::addDoodadToInstance(uint32_t instanceId, uint32_t m2InstanceId, const glm::mat4& localTransform) {
@@ -1877,6 +1915,7 @@ void WMORenderer::precomputeFloorCache() {
 }
 
 void WMORenderer::rebuildSpatialIndex() {
+    ++spatialIndexRebuildsFrame_;
     spatialGrid.clear();
     instanceIndexById.clear();
     instanceIndexById.reserve(instances.size());
@@ -1913,6 +1952,17 @@ void WMORenderer::gatherCandidates(const glm::vec3& queryMin, const glm::vec3& q
 
 void WMORenderer::prepareRender() {
     ++currentFrameId;
+
+    // Snapshot the per-frame spatial-index/transform counters. Game update
+    // (TransportManager::update -> setInstanceTransform) runs before this call,
+    // so what accumulated since the previous frame is this frame's update cost;
+    // it is published as the "last frame" value the [WORLD_PERF] writer reads.
+    spatialIndexRebuildsLastFrame_ = spatialIndexRebuildsFrame_;
+    spatialIndexRebuildsFrame_ = 0;
+    spatialIndexRefilesLastFrame_ = spatialIndexRefilesFrame_;
+    spatialIndexRefilesFrame_ = 0;
+    instanceTransformUpdatesLastFrame_ = instanceTransformUpdatesFrame_;
+    instanceTransformUpdatesFrame_ = 0;
 
     // Update material UBOs if settings changed (mapped memory writes - main thread only)
     if (materialSettingsDirty_) {

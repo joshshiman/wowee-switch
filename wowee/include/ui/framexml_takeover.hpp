@@ -241,6 +241,29 @@ std::vector<std::string> frameXmlSuppressedFrames();
 /// them on every run and the one real typo is lost among them.
 std::vector<std::string> frameXmlLazySuppressedFrames();
 
+/// Frames to keep hidden even while their element is owned.
+///
+/// frameXmlSuppressedFrames() is the other half of the handover rule: it hides
+/// FrameXML's copy of an element only while this client is drawing its own. The
+/// five shared surfaces - the minimap, the world map, the zone text, the taxi
+/// picker and the settings panel - are not that. This client draws *into* a
+/// frame FrameXML owns rather than beside it, so FrameXML's frame stays on
+/// screen and the element is owned, which makes every row in kSuppress for it
+/// dead. That is the right default, but it leaves no way to hide a single
+/// decoration the interface hangs on a shared surface while keeping the rest of
+/// it.
+///
+/// One such decoration is the minimap's player arrow. It is not a frame in the
+/// original interface - `<Minimap>` declares it as two engine models,
+/// `minimapPlayerModel="Interface\Minimap\MinimapArrow.mdx"` and
+/// `minimapArrowModel="Interface\Minimap\Rotating-MinimapArrow.mdl"`, and the
+/// emitter drops both attributes - so in this port there is nothing named here
+/// to hide. The names are kept because a future emitter, or an addon, could
+/// build an arrow region, and because the one-shot report in the widget
+/// renderer names which of the two cases a run is in. See the kSuppress note
+/// beside it for the minimap's own entry.
+std::vector<std::string> frameXmlHiddenDecorationFrames();
+
 /// Whether a frame in the check list is one the interface builds only when it
 /// has something to put in it.
 ///

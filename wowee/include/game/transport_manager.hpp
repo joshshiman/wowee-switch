@@ -306,6 +306,13 @@ public:
     void setClientSideAnimation(bool enabled) { clientSideAnimation_ = enabled; }
     [[nodiscard]] bool isClientSideAnimation() const { return clientSideAnimation_; }
 
+    /// Transforms actually handed to a renderer during the most recent update().
+    /// A push is counted only when pushTransform() decided the matrix changed, so
+    /// this is the number the renderer had to do real work for; compare it with
+    /// the registered transport count to see how much the unchanged-matrix guard
+    /// is filtering. Published in the [WORLD_PERF] ghTransport group.
+    [[nodiscard]] uint32_t getTransportPushesThisFrame() const { return transportPushesThisFrame_; }
+
 private:
     void updateTransportMovement(ActiveTransport& transport, float deltaTime);
     void updateTransformMatrices(ActiveTransport& transport);
@@ -319,6 +326,9 @@ private:
     rendering::WMORenderer* wmoRenderer_ = nullptr;
     rendering::M2Renderer* m2Renderer_ = nullptr;
     bool clientSideAnimation_ = false;  // DISABLED - use server positions instead of client prediction
+    // Transforms pushed to a renderer during the last update(); reset at the top
+    // of update() and read by the [WORLD_PERF] writer.
+    uint32_t transportPushesThisFrame_ = 0;
     // double: float loses millisecond precision after ~4.5 hours (2^23 / 1000),
     // causing transport path interpolation to visibly jerk in long play sessions.
     double elapsedTime_ = 0.0;

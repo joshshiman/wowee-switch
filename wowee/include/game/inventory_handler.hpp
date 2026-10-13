@@ -168,7 +168,13 @@ public:
     // Drop the session-persistent buyback mirror (fresh character world entry).
     void clearBuybackState();
     void buyItem(uint64_t vendorGuid, uint32_t itemId, uint32_t slot, uint32_t count);
-    void sellItem(uint64_t vendorGuid, uint64_t itemGuid, uint32_t count);
+    /// Send CMSG_SELL_ITEM, at most once per item until its answer arrives.
+    ///
+    /// Returns false when the request was suppressed because the same item
+    /// already has a sell in flight, or because the server already refused it
+    /// this vendor session. Callers use that to skip buyback bookkeeping for a
+    /// request that never went out.
+    bool sellItem(uint64_t vendorGuid, uint64_t itemGuid, uint32_t count);
     void sellItemBySlot(int backpackIndex);
     void sellItemInBag(int bagIndex, int slotIndex);
     void buyBackItem(uint32_t buybackSlot);
@@ -679,6 +685,25 @@ private:
     uint32_t pendingBuybackWireSlot_ = 0;
     uint32_t pendingBuyItemId_ = 0;
     uint32_t pendingBuyItemSlot_ = 0;
+
+    // ---- Sell de-duplication ----
+    //
+    // The auto-sell-junk path (ConsolePort's MERCHANT_SHOW handler, and this
+    // client's own autoSellGrey_) loops over every bag slot and calls the sell
+    // verb for each grey item. It runs more than once per vendor session, and
+    // each pass re-reads a stack the server has not answered about yet, so the
+    // same item was sold over and over - one CMSG_SELL_ITEM and one error sound
+    // per pass. A sell is asynchronous, so the answer cannot be assumed, and
+    // the fix is to remember what is in flight and what has already failed.
+    //
+    // pendingSellGuids_: a request is out and unanswered. Cleared by the
+    //   SMSG_SELL_ITEM that answers it, whatever the result.
+    // rejectedSellGuids_: the server refused this item ("Can't find item").
+    //   The refusal leaves the stack in the bag, so a later pass would ask
+    //   forever; a rejected GUID stays blocked until the vendor window closes
+    //   and reopens.
+    std::unordered_set<uint64_t> pendingSellGuids_;
+    std::unordered_set<uint64_t> rejectedSellGuids_;
 
     void reconcileBuybackSlots();
 

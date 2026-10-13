@@ -155,6 +155,20 @@ public:
      */
     void setInstanceTransform(uint32_t instanceId, const glm::mat4& transform);
 
+    /// Diagnostics for the [WORLD_PERF] transport group, all sampled as
+    /// "last frame" values (snapshotted in prepareRender()):
+    ///  - transformUpdates: setInstanceTransform calls that passed the
+    ///    unchanged-matrix early-out and did real work.
+    ///  - indexRebuilds: full rebuildSpatialIndex() calls, which clear and
+    ///    re-file the grid over every instance in the zone. This is the cost
+    ///    the incremental refile path exists to remove, so it should stay 0
+    ///    on a frame with no instance churn.
+    ///  - indexRefiles: incremental refileBounds() calls from the move paths,
+    ///    which are no-ops when the instance keeps the same grid cells.
+    [[nodiscard]] uint32_t getLastFrameInstanceTransformUpdates() const { return instanceTransformUpdatesLastFrame_; }
+    [[nodiscard]] uint32_t getLastFrameSpatialIndexRebuilds() const { return spatialIndexRebuildsLastFrame_; }
+    [[nodiscard]] uint32_t getLastFrameSpatialIndexRefiles() const { return spatialIndexRefilesLastFrame_; }
+
     /// Mark an instance as a moving transport. Its collision still answers the
     /// static-world floor query (you walk onto a hull, you stand on a lift), but
     /// only when the deck is genuinely underfoot - see getFloorHeight. Idempotent;
@@ -975,6 +989,16 @@ private:
     // Uniform grid for fast local collision queries.
     SpatialGrid spatialGrid;
     std::unordered_map<uint32_t, size_t> instanceIndexById;
+    // Per-frame counters for the [WORLD_PERF] transport group. The *Frame_
+    // values accumulate during the update phase and are moved to the *LastFrame_
+    // values (and zeroed) at the top of prepareRender(), so the log reads this
+    // frame's update cost. See the getters above.
+    uint32_t spatialIndexRebuildsFrame_ = 0;
+    uint32_t spatialIndexRebuildsLastFrame_ = 0;
+    uint32_t spatialIndexRefilesFrame_ = 0;
+    uint32_t spatialIndexRefilesLastFrame_ = 0;
+    uint32_t instanceTransformUpdatesFrame_ = 0;
+    uint32_t instanceTransformUpdatesLastFrame_ = 0;
     // Collision scratch buffers are thread_local (see wmo_renderer.cpp) for thread-safety.
 
     // Parallel visibility culling

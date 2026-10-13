@@ -3,6 +3,7 @@
 #include "addons/lua_engine.hpp"
 #include "game/local_realm.hpp"
 #include "game/local_services.hpp"
+#include "game/game_handler.hpp"
 #include "core/logger.hpp"
 #include <vector>
 #ifdef WOWEE_SWITCH
@@ -680,6 +681,36 @@ bool LocalFrameXml::navigate() {
         engine_->dispatchMouse(-1,-1,io.DisplaySize.y,{false,false,false});
         if(!panelTreeLive())return true;
     }
+    // The loot window's rows lag the loot the client holds.
+    //
+    // LootFrame_Update, the frame's own fill, runs on show and on a page turn
+    // and nowhere else. FrameXML's LOOT_SLOT_CLEARED handler hides the one
+    // button it is told about and leaves the rest where they were, while the
+    // client has already compacted its items - so the quest item that was in
+    // display slot two is in slot one now, on the hidden row, and the row still
+    // on screen is empty. The pad then has nothing to focus but that empty row,
+    // and A takes nothing until the corpse is reopened and OnShow refills the
+    // frame. Re-run the frame's own fill whenever the loot it draws has
+    // changed, so the rows the pad walks are the rows the client holds.
+    if(handler_ && root->name=="LootFrame" && handler_->isLootWindowOpen()){
+        const auto& loot=handler_->getCurrentLoot();
+        const uint64_t signature=loot.lootGuid ^
+            (static_cast<uint64_t>(loot.items.size())<<32) ^
+            (static_cast<uint64_t>(loot.gold)<<8);
+        // One record for the lane: the signature is the loot the frame was last
+        // told to draw, and a take, a coin pickup or a new corpse all move it.
+        static uint64_t syncedLoot=0;
+        if(rootChanged || signature!=syncedLoot){
+            syncedLoot=signature;
+            engine_->executeString(
+                "if LootFrame and LootFrame_Update then "
+                "LootFrame.numLootItems=(GetNumLootItems and GetNumLootItems()) or 0; "
+                "LootFrame_Update() end");
+            if(!panelTreeLive())return true;
+            root=tree.get(rootId);
+            if(!root){focus_=0;return false;}
+        }
+    }
     // Carrying makes the action bars part of the open panel's navigation space.
     // They are not descendants of it, so without this the D-pad could never
     // leave the spellbook and a spell picked up there had nowhere to go. Only
@@ -695,6 +726,24 @@ bool LocalFrameXml::navigate() {
         if(!w || !w->visible || !w->enabled || !w->mouseEnabled || w->alpha<=.001f)return false;
         if(w->objectType!="Button" && w->objectType!="CheckButton" &&
            w->objectType!="Slider" && w->objectType!="EditBox")return false;
+        // A loot row the client has nothing in is not a control, however the
+        // frame is drawing it: LOOT_SLOT_CLEARED leaves the emptied row's
+        // neighbour on screen, and the pad must never focus or take it. Judged
+        // against the client's loot because that is what the take will use.
+        // Only while the whole loot fits one page, where a row's name number is
+        // its display slot; page two renumbers the same names and a walk that
+        // misread those would lose the page rather than merely focus an empty
+        // row. The re-sync above is what makes a row the client still holds
+        // visible again, so this only ever rejects the genuinely empty.
+        if(handler_ && handler_->isLootWindowOpen()){
+            const int slot=ui::padLootRowSlot(w->name);
+            if(slot>0){
+                const auto& loot=handler_->getCurrentLoot();
+                const int items=static_cast<int>(loot.items.size());
+                const bool coin=loot.gold>0;
+                if(items+(coin?1:0)<=4 && !ui::padLootSlotFilled(coin,items,slot))return false;
+            }
+        }
         const auto* active=tree.get(rootId);
         return w && active && ui::padPanelAllows(tree,*active,*w,
             holding && padPickupTargetForName(w->name).kind==PadPickupTarget::Kind::Action) && controlPoint(w).has_value();

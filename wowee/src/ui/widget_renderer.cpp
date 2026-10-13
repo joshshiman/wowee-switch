@@ -1056,6 +1056,7 @@ void WidgetRenderer::layout(WidgetTree& tree, float screenW, float screenH) {
     // asks for them, and a name is only wrong if it is still unresolved after
     // the interface has settled.
     static bool reportedUnresolved = false;
+    static bool reportedMinimapArrow = false;
     static double firstSeen = 0.0;
     const double now = core::appTimeSeconds();
     if (firstSeen == 0.0) firstSeen = now;
@@ -1092,6 +1093,58 @@ void WidgetRenderer::layout(WidgetTree& tree, float screenW, float screenH) {
             // gate report naming this is pointing at the frame in kSuppressed
             // rather than at any of the tree's setters.
             tree.markLayoutDirty("suppressFrame");
+        }
+    }
+
+    // Decorations on a shared surface, hidden the same way but not gated on
+    // ownership: the surface is FrameXML's and stays, and only the one region
+    // on it goes. See frameXmlHiddenDecorationFrames and kHiddenDecorations.
+    //
+    // The minimap's player arrow is the case this exists for, and in this port
+    // it is not a widget at all: `<Minimap>` declares it as two engine models,
+    // `minimapPlayerModel` and `minimapArrowModel`, and the emitter drops both
+    // attributes, so no frame here carries any of the names. The interface's
+    // *drawn* arrow is the native minimap shader's in-shader triangle, which
+    // GameScreen::renderMinimapPlayerArrow turns off with
+    // setCenterArrowVisible(false); the client's own MinimapArrow.blp is the
+    // one marker left. The names are hidden anyway so a future emitter or an
+    // addon that does build an arrow region is covered, and the one-shot report
+    // below says which of the two cases a run is in.
+    static const std::vector<std::string> kDecorations = frameXmlHiddenDecorationFrames();
+    static std::vector<uint32_t> resolvedDecor(kDecorations.size(), 0);
+    for (size_t i = 0; i < kDecorations.size(); ++i) {
+        const std::string& name = kDecorations[i];
+        Widget* w = (resolvedDecor[i] != 0) ? tree.get(resolvedDecor[i]) : nullptr;
+        if (w && w->name != name) w = nullptr;
+        if (!w && (resolvedDecor[i] != 0 || retryMisses)) {
+            w = tree.findByName(name);
+            resolvedDecor[i] = w ? w->id : 0;
+        }
+        if (w && w->shown) {
+            w->shown = false;
+            tree.markLayoutDirty("suppressMinimapArrow");
+        }
+    }
+    // One line, once, after the interface has settled - the proof the next run
+    // is read from. A name that resolved means an arrow region exists and is
+    // hidden here; none resolving means the interface has no arrow widget to
+    // hide, which is the state this port is in and is not a fault.
+    if (!reportedMinimapArrow && (now - firstSeen) > 20.0) {
+        reportedMinimapArrow = true;
+        std::string found;
+        for (const std::string& name : kDecorations) {
+            if (tree.findByName(name)) { found = name; break; }
+        }
+        if (!found.empty()) {
+            LOG_WARNING("[WOWEE_MINIMAP] interface player arrow '", found,
+                        "' hidden; the client's own MinimapArrow.blp is the only "
+                        "marker left");
+        } else {
+            LOG_WARNING("[WOWEE_MINIMAP] no interface player arrow widget to hide "
+                        "(<Minimap>'s minimapPlayerModel/minimapArrowModel are "
+                        "engine models the emitter drops); the native in-shader "
+                        "arrow is off, so the client's own MinimapArrow.blp is the "
+                        "only marker left");
         }
     }
     // Suppression is a drawing decision and nothing more. A frame hidden here
@@ -2330,11 +2383,11 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                         drawMarkupText(dl, font, size,
                                        ImVec2(x0 + w->shadowX * s, top - w->shadowY * s),
                                        packColor(sc, w->alpha * w->shadowColor[3]),
-                                       w->alpha, m.text, wrapW, false, nullptr, true);
+                                       w->alpha, m.text, wrapW, false, w->justifyH.c_str(), true);
                     }
                     drawMarkupText(dl, font, size, ImVec2(x0, top),
                                    packColor(rgba, w->alpha), w->alpha, m.text,
-                                   wrapW, false, nullptr, false, &tree, w->id);
+                                   wrapW, false, w->justifyH.c_str(), false, &tree, w->id);
                     y -= lineH * static_cast<float>(rows);
                     ++painted;
                 }

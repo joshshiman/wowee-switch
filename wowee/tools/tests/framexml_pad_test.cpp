@@ -155,6 +155,43 @@ int main() {
     require(padInitialControl(loot,lootFrame,lootEligible)->id==loot2,"a hidden loot slot is skipped");
     std::puts("PASS loot rows are reachable and focus starts on an item");
 
+    // How the pad tells an empty loot row from a filled one. FrameXML's own
+    // fill numbers display slots 1..n on the first page, with the coin first
+    // when there is one, and hides a row it has nothing for - but
+    // LOOT_SLOT_CLEARED hides only the row it names, so after a take the item
+    // moves up onto a hidden row and the row still on screen is the empty one.
+    // The pad reads the client's loot instead, which is what the take uses.
+    require(padLootRowSlot("LootButton1")==1 && padLootRowSlot("LootButton12")==12,
+            "a loot row's name number is its display slot");
+    require(padLootRowSlot("LootCloseButton")==0 && padLootRowSlot("LootFrame")==0,
+            "a control that is not a loot row has no slot");
+    require(padLootSlotFilled(false,2,1) && padLootSlotFilled(false,2,2),
+            "both items of a two-item corpse are filled");
+    require(!padLootSlotFilled(false,2,3),"past the last item is empty");
+    require(padLootSlotFilled(true,2,1),"the coin is display slot one");
+    require(padLootSlotFilled(true,2,3) && !padLootSlotFilled(true,2,4),
+            "the coin shifts the items one display slot");
+    std::puts("PASS loot row emptiness comes from the client's loot");
+
+    // The walk itself: a row the client has nothing in is not a control, so the
+    // focus never lands on it - neither the initial pick nor a D-pad step.
+    auto lootFilled=[&](const Widget* w){
+        if(!w || !padPanelAllows(loot,*loot.get(lootFrame),*w))return false;
+        const int slot=padLootRowSlot(w->name);
+        if(slot>0 && !padLootSlotFilled(false,1,slot))return false;
+        return padControlPoint(loot,w,800,600).has_value();
+    };
+    shown(loot,loot1,true);shown(loot,loot2,true);
+    require(padInitialControl(loot,lootFrame,lootFilled)->id==loot1,
+            "one item in slot one focuses the filled row, not the empty second row");
+    // The take hid row one (LOOT_SLOT_CLEARED) and the item moved up onto it,
+    // while row two is still drawn and empty. Focus must not fall to row two.
+    shown(loot,loot1,false);
+    const auto* afterTake=padInitialControl(loot,lootFrame,lootFilled);
+    require(!afterTake || afterTake->id!=loot2,
+            "a stale empty row is never the focus after a take");
+    std::puts("PASS the loot walk never lands on an empty row");
+
     auto modal=make(g,"StaticPopup1",0,400,100);g.get(modal)->mouseEnabled=false;
     auto yes=make(g,"StaticPopup1Button1",modal,400,100);
     auto modalEligible=[&](const Widget* w){return w && padPanelAllows(g,*g.get(modal),*w) && padControlPoint(g,w,800,600).has_value();};

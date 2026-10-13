@@ -2126,6 +2126,18 @@ void Application::run() {
                     " ghTransportChildrenMs=", gameHandler ? gameHandler->ghTransportChildrenMs() : 0.0,
                     " ghTransports=", gameHandler ? gameHandler->ghTransports() : size_t{0},
                     " ghAttachedChildren=", gameHandler ? gameHandler->ghAttachedChildren() : size_t{0},
+                    // Transport render cost, split so the next run is conclusive:
+                    // ghTransportPushes is transforms actually handed to a
+                    // renderer this frame (the unchanged-matrix guard filters the
+                    // rest); ghWmoIndexRebuilds is full spatial-grid rebuilds
+                    // (should be 0 once the WMO move path refiles incrementally);
+                    // ghWmoIndexRefiles/ghWmoTransformUpdates show how many WMO
+                    // instances were re-filed/updated at all.
+                    " ghTransportPushes=", (gameHandler && gameHandler->getTransportManager())
+                        ? gameHandler->getTransportManager()->getTransportPushesThisFrame() : 0,
+                    " ghWmoIndexRebuilds=", wmo ? wmo->getLastFrameSpatialIndexRebuilds() : 0,
+                    " ghWmoIndexRefiles=", wmo ? wmo->getLastFrameSpatialIndexRefiles() : 0,
+                    " ghWmoTransformUpdates=", wmo ? wmo->getLastFrameInstanceTransformUpdates() : 0,
                     " ghMiscMs=", gameHandler ? gameHandler->ghMiscMs() : 0.0,
                     " pendingInbound=", gameHandler ? gameHandler->ghPendingInbound() : size_t{0},
                     " pendingUpdateBatches=", gameHandler ? gameHandler->ghPendingBatches() : size_t{0},

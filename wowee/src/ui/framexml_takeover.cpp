@@ -382,8 +382,40 @@ const Suppress kSuppress[] = {
         // MinimapCluster carries the ring, the zoom buttons and the zone text,
         // so hiding it hides the rest. Naming only the ring left FrameXML's
         // minimap drawn beside this client's own.
+        //
+        // Inert as it stands, and deliberately so. frameXmlSuppressedFrames()
+        // skips every element frameXmlOwns(), and the minimap is one of the five
+        // shared surfaces - this client draws the map *into* FrameXML's Minimap
+        // frame rather than beside it - so the element is owned and this row
+        // never fires. That is why the cluster is on screen in a run while the
+        // row reads as if it were hidden. Hiding it here would take the ring,
+        // the zoom buttons and the zone text with it, and would move this
+        // client's map back to the fallback corner, because the map is placed
+        // from the Minimap frame's rect. The arrow alone is what is unwanted,
+        // and it is not a frame at all - see kHiddenDecorations below.
         {UiElement::Minimap,    "MinimapCluster"},
     };
+
+/// Decorations the interface hangs on a shared surface, which this client draws
+/// into and so cannot hide with the whole element.
+///
+/// Not gated on ownership the way kSuppress is: the whole point is that the
+/// element *is* owned and the shared surface has to stay. See the header for
+/// what the minimap arrow actually is.
+const Suppress kHiddenDecorations[] = {
+    // The minimap's player arrow. In the original interface it is not a
+    // texture: `<Minimap minimapPlayerModel="Interface\Minimap\MinimapArrow.mdx"
+    // minimapArrowModel="Interface\Minimap\Rotating-MinimapArrow.mdl">`, which
+    // the real client renders natively. This port's emitter drops both
+    // attributes (emitting Minimap.xml gives `CreateFrame("Minimap", "Minimap",
+    // ...)` and no arrow region) and Minimap:SetPlayerTextureWidth/Height are
+    // no-ops, so nothing in the tree carries any of these names. The names are
+    // kept so an arrow region a future emitter or an addon builds is hidden
+    // with the rest, and so the renderer's one-shot report can say which of the
+    // two cases a run is in.
+    {UiElement::Minimap,    "MinimapArrow MiniMapArrow MinimapPlayerArrow "
+                            "MinimapArrowModel MinimapPlayerModel"},
+};
 }  // namespace
 
 /// The frame names in one suppression entry, which are held as a single
@@ -422,6 +454,16 @@ std::vector<std::string> frameXmlLazySuppressedFrames() {
         if (!s.lazy) continue;
         appendFrameNames(s.frames, out);
     }
+    return out;
+}
+
+std::vector<std::string> frameXmlHiddenDecorationFrames() {
+    // Every element, owned or not. These sit on a shared surface, so the usual
+    // "is this client drawing its own version" question does not apply: the
+    // surface is FrameXML's and this client draws into it, and only the
+    // decoration is unwanted. See kHiddenDecorations.
+    std::vector<std::string> out;
+    for (const Suppress& s : kHiddenDecorations) appendFrameNames(s.frames, out);
     return out;
 }
 
@@ -715,10 +757,11 @@ void appendFrames(const char* frames, std::vector<std::string>& out) {
 
 std::vector<std::string> frameXmlAccountedFrames() {
     std::vector<std::string> out;
-    // Both tables, and every element in them rather than only the owned ones:
+    // Every table, and every element in them rather than only the owned ones:
     // the question is whether a name has been considered at all, not whether
     // its element won.
     for (const Suppress& s : kSuppress) appendFrames(s.frames, out);
+    for (const Suppress& s : kHiddenDecorations) appendFrames(s.frames, out);
     for (const Check& c : kChecks)      appendFrames(c.frames, out);
     return out;
 }

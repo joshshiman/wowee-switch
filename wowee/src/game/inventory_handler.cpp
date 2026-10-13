@@ -508,6 +508,7 @@ void InventoryHandler::registerOpcodes(DispatchTable& table) {
                      " itemGuid=0x", itemGuid, std::dec,
                      " result=", static_cast<int>(result));
             if (result == 0) {
+                pendingSellGuids_.erase(itemGuid);
                 auto pending = pendingSellToBuyback_.find(itemGuid);
                 if (pending != pendingSellToBuyback_.end()) {
                     pendingSellToBuyback_.erase(pending);
@@ -525,6 +526,11 @@ void InventoryHandler::registerOpcodes(DispatchTable& table) {
                     owner_.addonEventCallbackRef()("PLAYER_MONEY", {});
                 }
             } else {
+                // Answer the in-flight request and remember the refusal: the
+                // item is still in the bag, and without this every later
+                // auto-sell pass asks again and plays the error again.
+                pendingSellGuids_.erase(itemGuid);
+                rejectedSellGuids_.insert(itemGuid);
                 auto it = pendingSellToBuyback_.find(itemGuid);
                 if (it != pendingSellToBuyback_.end()) {
                     pendingSellToBuyback_.erase(it);
@@ -1424,6 +1430,10 @@ void InventoryHandler::closeVendor() {
     bool wasOpen = vendorWindowOpen_;
     vendorWindowOpen_ = false;
     currentVendorItems_ = ListInventoryData{};
+    // The de-duplication memory is per vendor window: a refusal or an
+    // unanswered request from this visit must not follow the player away.
+    pendingSellGuids_.clear();
+    rejectedSellGuids_.clear();
     // Keep buybackItems_ and pendingSellToBuyback_: buyback slots live on the
     // player server-side (wire slots 74-85) and persist across vendor windows,
     // so the local mirror must too - clearing here made the buyback list
@@ -1441,6 +1451,8 @@ void InventoryHandler::clearBuybackState() {
     buybackSlotGuids_.fill(0);
     pendingBuybackSlot_ = -1;
     pendingBuybackWireSlot_ = 0;
+    pendingSellGuids_.clear();
+    rejectedSellGuids_.clear();
 }
 
 void InventoryHandler::reconcileBuybackSlots() {
@@ -1501,13 +1513,27 @@ void InventoryHandler::buyItem(uint64_t vendorGuid, uint32_t itemId, uint32_t sl
     owner_.getSocket()->send(packet);
 }
 
-void InventoryHandler::sellItem(uint64_t vendorGuid, uint64_t itemGuid, uint32_t count) {
-    if (owner_.getState() != WorldState::IN_WORLD || !owner_.getSocket()) return;
+bool InventoryHandler::sellItem(uint64_t vendorGuid, uint64_t itemGuid, uint32_t count) {
+    if (owner_.getState() != WorldState::IN_WORLD || !owner_.getSocket()) return false;
+    // One request per item, and never a second after the server has said no.
+    // The auto-sell-junk path loops the bags several times over a vendor
+    // session, and each pass used to re-send the same item; the request is
+    // dropped here so the wire carries one CMSG_SELL_ITEM per item per try.
+    if (itemGuid != 0 &&
+        (pendingSellGuids_.count(itemGuid) || rejectedSellGuids_.count(itemGuid))) {
+        LOG_WARNING("Sell request suppressed (already in flight or already refused): itemGuid=0x",
+                    std::hex, itemGuid, std::dec,
+                    " pending=", pendingSellGuids_.count(itemGuid) ? 1 : 0,
+                    " rejected=", rejectedSellGuids_.count(itemGuid) ? 1 : 0);
+        return false;
+    }
     LOG_INFO("Sell request: vendorGuid=0x", std::hex, vendorGuid,
              " itemGuid=0x", itemGuid, std::dec,
              " count=", count, " wire=0x", std::hex, wireOpcode(Opcode::CMSG_SELL_ITEM), std::dec);
     auto packet = SellItemPacket::build(vendorGuid, itemGuid, count);
+    if (itemGuid != 0) pendingSellGuids_.insert(itemGuid);
     owner_.getSocket()->send(packet);
+    return true;
 }
 
 void InventoryHandler::sellItemBySlot(int backpackIndex) {
@@ -1535,13 +1561,15 @@ void InventoryHandler::sellItemBySlot(int backpackIndex) {
               " vendorGuid=0x", std::hex, currentVendorItems_.vendorGuid, std::dec);
     if (itemGuid != 0 && currentVendorItems_.vendorGuid != 0) {
         const uint32_t count = sellCountForStack(slot.item.stackCount);
+        // Book the buyback mirror only for a request that actually went out -
+        // a suppressed one (in flight, or already refused) has nothing to show.
+        if (!sellItem(currentVendorItems_.vendorGuid, itemGuid, count)) return;
         BuybackItem sold;
         sold.itemGuid = itemGuid;
         sold.item = slot.item;
         sold.count = count;
         pendingSellToBuyback_[itemGuid] = sold;
         buybackItems_.push_back(sold);
-        sellItem(currentVendorItems_.vendorGuid, itemGuid, count);
     } else if (itemGuid == 0) {
         owner_.raiseUiError("Cannot sell: item not found in inventory.");
         LOG_WARNING("Sell failed: missing item GUID for slot ", backpackIndex);
@@ -1581,13 +1609,15 @@ void InventoryHandler::sellItemInBag(int bagIndex, int slotIndex) {
 
     if (itemGuid != 0 && currentVendorItems_.vendorGuid != 0) {
         const uint32_t count = sellCountForStack(slot.item.stackCount);
+        // Same rule as the backpack path: book the buyback mirror only when
+        // the request was not suppressed.
+        if (!sellItem(currentVendorItems_.vendorGuid, itemGuid, count)) return;
         BuybackItem sold;
         sold.itemGuid = itemGuid;
         sold.item = slot.item;
         sold.count = count;
         pendingSellToBuyback_[itemGuid] = sold;
         buybackItems_.push_back(sold);
-        sellItem(currentVendorItems_.vendorGuid, itemGuid, count);
     } else if (itemGuid == 0) {
         owner_.raiseUiError("Cannot sell: item not found.");
     } else {
@@ -2581,8 +2611,29 @@ void InventoryHandler::handleListInventory(network::Packet& packet) {
             }
         }
     }
+    // A fresh vendor window clears the sell de-duplication state: a refusal
+    // remembered from a previous visit must not block a sale now.
+    if (!vendorWindowOpen_) {
+        pendingSellGuids_.clear();
+        rejectedSellGuids_.clear();
+    }
     vendorWindowOpen_ = true;
     owner_.closeGossip();
+
+    // Prefetch every row's template before the window is told to draw.
+    //
+    // SMSG_LIST_INVENTORY carries an item id and a price per row and nothing a
+    // player can read; GetMerchantItemInfo answers "Item #<id>" until the
+    // template is cached. Asking for all of them here, before MERCHANT_SHOW,
+    // puts the requests on the wire before the first draw rather than after it,
+    // and each reply's MERCHANT_UPDATE fills its row in. queryItemInfo is
+    // idempotent, so a template already cached costs nothing.
+    if (currentVendorItems_.vendorGuid != 0) {
+        for (const auto& item : currentVendorItems_.items) {
+            owner_.queryItemInfo(item.itemId, 0);
+        }
+    }
+
     if (owner_.addonEventCallbackRef()) owner_.addonEventCallbackRef()("MERCHANT_SHOW", {});
 
     // Auto-sell grey items
@@ -2603,7 +2654,7 @@ void InventoryHandler::handleListInventory(network::Packet& packet) {
                 if (itemGuid == 0) itemGuid = owner_.resolveOnlineItemGuid(slot.item.itemId);
                 if (itemGuid != 0) {
                     const uint32_t count = sellCountForStack(slot.item.stackCount);
-                    sellItem(currentVendorItems_.vendorGuid, itemGuid, count);
+                    if (!sellItem(currentVendorItems_.vendorGuid, itemGuid, count)) continue;
                     // Per unit, so the money reported matches the money paid.
                     totalSellPrice += sellPrice * count;
                     ++itemsSold;
@@ -2632,7 +2683,7 @@ void InventoryHandler::handleListInventory(network::Packet& packet) {
                     if (itemGuid == 0) itemGuid = owner_.resolveOnlineItemGuid(slot.item.itemId);
                     if (itemGuid != 0) {
                         const uint32_t count = sellCountForStack(slot.item.stackCount);
-                        sellItem(currentVendorItems_.vendorGuid, itemGuid, count);
+                        if (!sellItem(currentVendorItems_.vendorGuid, itemGuid, count)) continue;
                         totalSellPrice += sellPrice * count;
                         ++itemsSold;
                     }
@@ -2673,10 +2724,6 @@ void InventoryHandler::handleListInventory(network::Packet& packet) {
             glm::vec3 pos(entity->getX(), entity->getY(), entity->getZ());
             owner_.npcVendorCallbackRef()(currentVendorItems_.vendorGuid, pos);
         }
-    }
-
-    for (const auto& item : currentVendorItems_.items) {
-        owner_.queryItemInfo(item.itemId, 0);
     }
 }
 
@@ -4403,8 +4450,27 @@ void InventoryHandler::handleItemQueryResponse(network::Packet& packet) {
 
     if (data.valid) {
         owner_.itemInfoCacheRef()[data.entry] = data;
-        rebuildOnlineInventory();
-        maybeDetectVisibleItemLayout();
+
+        // Rebuild the inventory only when this template is one the player
+        // actually holds. rebuildOnlineInventory() reconstructs every equip,
+        // backpack, keyring, bag and bank slot (each buildItemDef copies a
+        // name and re-reads its stats) and then fires a BAG_UPDATE for every
+        // bag - ~10-14 ms on the console. It used to run for *every* valid
+        // response, including the vendor's stock, the auction house's pages and
+        // a quest reward's items, none of which are in the player's inventory.
+        // The vendor rows are filled in by the MERCHANT_UPDATE below, so the
+        // rebuild was pure waste there - and it is what made each vendor item
+        // cost a whole packet-budget frame (see processQueuedIncomingPackets,
+        // 2 ms in-world) and left the vendor drawing "Item #id" one row at a
+        // time. Resolving an owned item still rebuilds, exactly as before.
+        bool heldByPlayer = false;
+        for (const auto& [guid, info] : owner_.onlineItemsRef()) {
+            if (info.entry == data.entry) { heldByPlayer = true; break; }
+        }
+        if (heldByPlayer) {
+            rebuildOnlineInventory();
+            maybeDetectVisibleItemLayout();
+        }
 
         // The answer to a question a tooltip asked and could not wait for.
         //

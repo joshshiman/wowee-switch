@@ -120,6 +120,7 @@ TransportManager::~TransportManager() = default;
 
 void TransportManager::update(float deltaTime) {
     elapsedTime_ += deltaTime;
+    transportPushesThisFrame_ = 0;
 
     for (auto& [guid, transport] : transports_) {
         // Once we have server clock offset, we can predict server time indefinitely
@@ -579,10 +580,12 @@ void TransportManager::pushTransform(ActiveTransport& transport) {
     if (transport.isM2) {
         if (changed && m2Renderer_) {
             m2Renderer_->setInstanceTransform(transport.wmoInstanceId, transport.transform);
+            ++transportPushesThisFrame_;
         }
     } else if (wmoRenderer_) {
         if (changed) {
             wmoRenderer_->setInstanceTransform(transport.wmoInstanceId, transport.transform);
+            ++transportPushesThisFrame_;
         }
         // Idempotent and O(1), and must survive an instance rebuild from
         // streaming, so it is set even when the transform itself is unchanged.

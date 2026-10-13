@@ -67,17 +67,20 @@ end
 
 function Events:MERCHANT_SHOW()
 	-- Automatically sell junk
+	--
+	-- One pass. This used to run the whole scan twice (for i=1, 2) because a
+	-- sell is asynchronous here: the second pass re-read the stack the server
+	-- had not answered about yet and sent the same CMSG_SELL_ITEM again, and
+	-- every later MERCHANT_SHOW did the same. The wire now de-duplicates per
+	-- item (InventoryHandler::sellItem), but there is no reason to ask twice.
 	if db('autoSellJunk') then
-		local quality
-		for i=1, 2 do
-			for bag=0, 4 do
-				for slot=1, GetContainerNumSlots(bag) do
-					link = GetContainerItemLink(bag, slot)
-					if(link) then 
-						quality = select(3, GetItemInfo(link)) 
-						if quality and quality == 0 then
-							UseContainerItem(bag, slot)
-						end
+		for bag=0, 4 do
+			for slot=1, GetContainerNumSlots(bag) do
+				local link = GetContainerItemLink(bag, slot)
+				if(link) then
+					local quality = select(3, GetItemInfo(link))
+					if quality and quality == 0 then
+						UseContainerItem(bag, slot)
 					end
 				end
 			end

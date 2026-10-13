@@ -102,6 +102,43 @@ inline int padInitialPriority(std::string_view panel, std::string_view control) 
     if (control=="QuestFrameCloseButton" || control=="GossipFrameCloseButton") return 4;
     return 3;
 }
+/// The display slot a loot row's button stands for, read from its name.
+///
+/// FrameXML names the rows LootButton1..LOOTFRAME_NUMBUTTONS and, on the first
+/// page, numbers the display slots 1..n in that same order - LootFrame_Update
+/// walks index 1..n and writes `button.slot = index`. Page two renumbers the
+/// same names under a different page offset, so the caller only trusts this
+/// while the whole loot fits one page (see padLootSlotFilled). Zero means the
+/// control is not a loot row.
+inline int padLootRowSlot(std::string_view control) {
+    constexpr std::string_view prefix = "LootButton";
+    if (!control.starts_with(prefix)) return 0;
+    int slot = 0;
+    for (char c : control.substr(prefix.size())) {
+        if (c < '0' || c > '9') return 0;
+        slot = slot * 10 + (c - '0');
+    }
+    return slot;
+}
+/// Whether the loot window's display slot `slot` holds something to take.
+///
+/// The coin is display slot one whenever there is any, with the server's items
+/// after it. That is the translation LootSlotIsItem and LootSlotIsCoin make,
+/// and the one the loot frame's own fill walks, so the pad's answer and the
+/// frame's agree.
+///
+/// The pad asks the client's loot rather than the row's shown state because the
+/// rows lag it: FrameXML's LOOT_SLOT_CLEARED handler hides only the button it
+/// is told about and never re-runs LootFrame_Update, so after a take the item
+/// that moved up sits on the row that is now hidden while the row still on
+/// screen is empty. A focus walk that trusted visibility alone landed on that
+/// empty row and A took nothing until the corpse was reopened.
+inline bool padLootSlotFilled(bool hasCoin, int itemCount, int slot) {
+    if (slot < 1) return false;
+    if (hasCoin && slot == 1) return true;
+    const int index = hasCoin ? slot - 1 : slot;
+    return index >= 1 && index <= itemCount;
+}
 template<class Eligible>
 inline const Widget* padInitialControl(const WidgetTree& tree, uint32_t rootId, Eligible eligible) {
     const auto* root=tree.get(rootId);
